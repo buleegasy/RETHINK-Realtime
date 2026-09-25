@@ -80,143 +80,24 @@ export function useVoiceSession() {
     setAudioLevel(0);
   }, [setAudioLevel]);
 
-  const recognitionRef = useRef<any>(null);
-
-  const handleUserSpeech = useCallback(
-    async (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-
-      const currentStage = useBoothStore.getState().cbtStage;
-      const history = useBoothStore.getState().dialogueHistory;
-
-      addDialogueTurn({
-        id: `turn_${Date.now()}`,
-        role: 'user',
-        content: trimmed,
-        timestamp: Date.now(),
-        stage: currentStage,
-      });
-
-      setDuplexPhase('thinking');
-
-      try {
-        const res = await apiFetch('/api/voice/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: trimmed,
-            stage: currentStage,
-            history,
-          }),
+  useEffect(() => {
+    const unsub = transcriptionRef.current.subscribe((segment) => {
+      if (segment.speaker === 'user') {
+        setActiveTranscript({
+          user: segment.text,
+          assistant: useBoothStore.getState().activeTranscript.assistant,
         });
-
-        const data = await res.json();
-        if (!data.ok) {
-          setDuplexPhase('listening');
-          return;
-        }
-
-        if (data.isCrisis) {
-          setCBTStage('Crisis_Escalation');
-          setCrisisOverlayOpen(true);
-        } else if (data.nextStage && data.nextStage !== currentStage) {
-          setCBTStage(data.nextStage);
-        }
-
-        const reply = data.reply || '';
-        if (reply) {
-          setActiveTranscript({
-            user: trimmed,
-            assistant: reply,
-          });
-
-          addDialogueTurn({
-            id: `turn_${Date.now()}`,
-            role: 'assistant',
-            content: reply,
-            timestamp: Date.now(),
-            stage: useBoothStore.getState().cbtStage,
-          });
-        }
-
-        if (data.audioBase64 && audioGraphRef.current) {
-          setDuplexPhase('speaking');
-          await audioGraphRef.current.playBase64Audio(data.audioBase64, () => {
-            if (useBoothStore.getState().hookState === 'connected') {
-              setDuplexPhase('listening');
-            }
-          });
-        } else {
-          setDuplexPhase('listening');
-        }
-      } catch {
-        setDuplexPhase('listening');
+      } else {
+        setActiveTranscript({
+          user: useBoothStore.getState().activeTranscript.user,
+          assistant: segment.text,
+        });
       }
-    },
-    [addDialogueTurn, setDuplexPhase, setCBTStage, setCrisisOverlayOpen, setActiveTranscript]
-  );
-
-  const startSpeechRecognition = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechAPI) return;
-
-    try {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
-      }
-      const rec = new SpeechAPI();
-      rec.lang = 'zh-CN';
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.maxAlternatives = 1;
-
-      rec.onresult = (event: any) => {
-        let interim = '';
-        let final = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
-        }
-        const text = final || interim;
-        if (text) {
-          setActiveTranscript({
-            user: text,
-            assistant: useBoothStore.getState().activeTranscript.assistant,
-          });
-        }
-        if (final) {
-          handleUserSpeech(final);
-        }
-      };
-
-      rec.onerror = () => {};
-      rec.onend = () => {
-        if (useBoothStore.getState().hookState === 'connected') {
-          try {
-            rec.start();
-          } catch {}
-        }
-      };
-
-      rec.start();
-      recognitionRef.current = rec;
-    } catch {}
-  }, [handleUserSpeech, setActiveTranscript]);
-
-  const stopSpeechRecognition = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      recognitionRef.current = null;
-    }
-  }, []);
+    });
+    return () => {
+      unsub();
+    };
+  }, [setActiveTranscript]);
 
   const startCall = useCallback(async () => {
     setErrorMessage(null);
@@ -271,11 +152,51 @@ export function useVoiceSession() {
           onTranscriptDelta: (transcript) => {
             transcriptionRef.current.feedDelta('user', transcript);
           },
+          onSpeechStarted: () => {
+            audioGraph.stopPlayback();
+            clientRef.current?.interrupt();
+            setDuplexPhase('listening');
+            const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
+            if (asstSeg && asstSeg.text) {
+              addDialogueTurn({
+                id: asstSeg.id,
+                role: 'assistant',
+                content: asstSeg.text,
+                timestamp: asstSeg.timestamp,
+                stage: useBoothStore.getState().cbtStage,
+              });
+            }
+          },
           onTurnStart: () => {
             setDuplexPhase('speaking');
           },
           onTurnEnd: () => {
             setDuplexPhase('listening');
+            const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
+            if (asstSeg && asstSeg.text) {
+              addDialogueTurn({
+                id: asstSeg.id,
+                role: 'assistant',
+                content: asstSeg.text,
+                timestamp: asstSeg.timestamp,
+                stage: useBoothStore.getState().cbtStage,
+              });
+            }
+            const userSeg = transcriptionRef.current.finalizeCurrentTurn('user');
+            if (userSeg && userSeg.text) {
+              addDialogueTurn({
+                id: userSeg.id,
+                role: 'user',
+                content: userSeg.text,
+                timestamp: userSeg.timestamp,
+                stage: useBoothStore.getState().cbtStage,
+              });
+            }
+          },
+          onToolCall: async (toolCall) => {
+            if (toolDispatcherRef.current) {
+              await toolDispatcherRef.current.dispatch(toolCall, clientRef.current);
+            }
           },
         },
       });
@@ -305,7 +226,6 @@ export function useVoiceSession() {
             timestamp: Date.now(),
             stage: useBoothStore.getState().cbtStage,
           });
-          startSpeechRecognition();
         }
       });
     } catch (err: any) {
@@ -327,12 +247,9 @@ export function useVoiceSession() {
     setActiveTranscript,
     startVisualizer,
     setCallDuration,
-    startSpeechRecognition,
   ]);
 
   const endCall = useCallback(async () => {
-    stopSpeechRecognition();
-
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -389,7 +306,7 @@ export function useVoiceSession() {
         console.error('[VoiceSession] 报告生成或加密异常:', err);
       }
     }
-  }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport, setReportModalOpen, stopSpeechRecognition]);
+  }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport, setReportModalOpen]);
 
   const interrupt = useCallback(() => {
     if (clientRef.current) {
@@ -411,13 +328,12 @@ export function useVoiceSession() {
 
   useEffect(() => {
     return () => {
-      stopSpeechRecognition();
       if (timerRef.current) clearInterval(timerRef.current);
       stopVisualizer();
       if (audioGraphRef.current) audioGraphRef.current.cleanup();
       if (clientRef.current) clientRef.current.disconnect();
     };
-  }, [stopVisualizer, stopSpeechRecognition]);
+  }, [stopVisualizer]);
 
   return {
     startCall,

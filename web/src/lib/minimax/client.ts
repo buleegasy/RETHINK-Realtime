@@ -208,7 +208,11 @@ export class MiniMaxRealtimeClient {
         }
       }
 
-      if (type === 'response.created' || type === 'input_audio_buffer.speech_started') {
+      if (type === 'input_audio_buffer.speech_started') {
+        this.callbacks.onSpeechStarted?.();
+      }
+
+      if (type === 'response.created') {
         this.callbacks.onTurnStart?.();
       }
 

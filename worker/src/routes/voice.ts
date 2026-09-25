@@ -32,9 +32,81 @@ voiceRouter.get('/ws', async (c) => {
     return c.text('Expected Upgrade: websocket', 426);
   }
 
+  const env = c.env || {};
+  const apiyiKey = env.APIYI_API_KEY || env.OPENAI_API_KEY;
+
   const pair = new WebSocketPair();
   const [clientWs, serverWs] = Object.values(pair);
   serverWs.accept();
+
+  if (apiyiKey) {
+    try {
+      const upstreamRes = await fetch('https://api.apiyi.com/v1/realtime?model=qwen3.5-omni-plus-realtime', {
+        headers: {
+          Upgrade: 'websocket',
+          Authorization: `Bearer ${apiyiKey}`,
+        },
+      });
+
+      const upstreamWs = upstreamRes.webSocket;
+      if (upstreamWs) {
+        upstreamWs.accept();
+
+        serverWs.addEventListener('message', (event) => {
+          try {
+            if (upstreamWs.readyState === WebSocket.OPEN) {
+              const raw = typeof event.data === 'string' ? event.data : event.data.toString();
+              let payload: any = null;
+              try {
+                payload = JSON.parse(raw);
+              } catch {}
+
+              if (payload && payload.type === 'session.update' && payload.session) {
+                payload.session.modalities = ['text', 'audio'];
+                payload.session.voice = 'Tina';
+                payload.session.input_audio_format = 'pcm';
+                payload.session.output_audio_format = 'pcm';
+                payload.session.input_audio_transcription = { model: 'qwen3-asr-flash-realtime' };
+                payload.session.turn_detection = { type: 'semantic_vad' };
+                upstreamWs.send(JSON.stringify(payload));
+              } else {
+                upstreamWs.send(event.data);
+              }
+            }
+          } catch {}
+        });
+
+        upstreamWs.addEventListener('message', (event) => {
+          try {
+            if (serverWs.readyState === WebSocket.OPEN) {
+              serverWs.send(event.data);
+            }
+          } catch {}
+        });
+
+        serverWs.addEventListener('close', (event) => {
+          safeCloseWebSocket(upstreamWs, event.code, event.reason);
+        });
+
+        upstreamWs.addEventListener('close', (event) => {
+          safeCloseWebSocket(serverWs, event.code, event.reason);
+        });
+
+        serverWs.addEventListener('error', () => {
+          safeCloseWebSocket(upstreamWs, 1011, 'Client error');
+        });
+
+        upstreamWs.addEventListener('error', () => {
+          safeCloseWebSocket(serverWs, 1011, 'Upstream error');
+        });
+
+        return new Response(null, {
+          status: 101,
+          webSocket: clientWs,
+        });
+      }
+    } catch {}
+  }
 
   try {
     serverWs.send(
@@ -44,9 +116,9 @@ voiceRouter.get('/ws', async (c) => {
         session: {
           id: `sess_${Date.now()}`,
           object: 'realtime.session',
-          model: 'minimax-realtime',
+          model: 'qwen3.5-omni-plus-realtime',
           modalities: ['text', 'audio'],
-          voice: 'nova',
+          voice: 'Tina',
         },
       })
     );
@@ -86,9 +158,7 @@ voiceRouter.get('/ws', async (c) => {
             })
           );
         }
-      } catch {
-
-      }
+      } catch {}
     });
 
     serverWs.addEventListener('error', () => {
@@ -214,59 +284,7 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
     } catch {}
   }
 
-  if (!audioBase64 && apiyiKey) {
-    try {
-      const ttsRes = await fetch('https://api.apiyi.com/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiyiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'tts-1',
-          input: replyText,
-          voice: 'nova',
-        }),
-      });
-      if (ttsRes.ok) {
-        const arrayBuf = await ttsRes.arrayBuffer();
-        audioBase64 = Buffer.from(arrayBuf).toString('base64');
-      }
-    } catch {}
-  }
 
-  if (!audioBase64 && apiKey) {
-    try {
-      const t2aRes = await fetch('https://api.minimaxi.chat/v1/t2a_v2', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'speech-01-hd',
-          text: replyText,
-          stream: false,
-          voice_setting: {
-            voice_id: 'female-yujie',
-            speed: 0.95,
-            vol: 1.0,
-            pitch: 0,
-          },
-          audio_setting: {
-            sample_rate: 24000,
-            format: 'mp3',
-            channel: 1,
-          },
-        }),
-      });
-      const t2aData: any = await t2aRes.json();
-      if (t2aData.data?.audio) {
-        const rawBuf = Buffer.from(t2aData.data.audio, 'hex');
-        audioBase64 = rawBuf.toString('base64');
-      }
-    } catch {}
-  }
 
   let nextStage = currentStage;
   if (currentStage === 'Active_Listening' && history.length >= 2) {

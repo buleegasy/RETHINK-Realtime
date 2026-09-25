@@ -55,5 +55,6 @@ export interface MiniMaxClientCallbacks {
   onTranscriptDelta?: (transcript: string) => void;
   onTurnStart?: () => void;
   onTurnEnd?: () => void;
+  onSpeechStarted?: () => void;
   onToolCall?: (toolCall: { name: string; callId: string; args: Record<string, unknown> }) => void;
 }
