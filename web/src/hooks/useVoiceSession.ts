@@ -109,7 +109,7 @@ export function useVoiceSession() {
     transcriptionRef.current.reset();
 
     const greetingText =
-      '你好呀，欢迎来到 RETHINK。这里是完全属于你的私密安全树洞，我们的通话全程强加密保护，你可以放心卸下所有防备、跟我倾诉任何事。如果不介意的话，我该怎么称呼你呢？或者告诉我一个你喜欢的昵称也可以。';
+      '嗨，我是 RETHINK。别担心，咱们的通话全程端到端加密，特别安全。我该怎么称呼你呢？名字或者喜欢的昵称都行。';
 
     setActiveTranscript({
       user: '',
@@ -216,7 +216,7 @@ export function useVoiceSession() {
         setCallDuration((prev) => prev + 1);
       }, 1000);
 
-      await audioGraph.playAudioUrl('/audio/greeting.mp3', () => {
+      await audioGraph.playAudioUrl('/audio/greeting_v2.mp3?v=20260925_qwen_v2', () => {
         if (useBoothStore.getState().hookState === 'connected') {
           setDuplexPhase('listening');
           addDialogueTurn({
