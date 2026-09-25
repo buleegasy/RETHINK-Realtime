@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --bg-color: #ffffff;
+  --fg-color: #111111;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-color);
+  color: var(--fg-color);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+
+@media (prefers-contrast: more) {
+  body {
+    --fg-color: #000000;
+  }
+}
+
+
+.btn-tactile {
+  transition: transform 0.05s ease, background-color 0.15s ease;
+}
+.btn-tactile:active {
+  transform: scale(0.96);
+}
+
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 2px;
+}

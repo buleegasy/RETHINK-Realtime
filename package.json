@@ -1,0 +1,17 @@
+{
+  "name": "rethink-realtime",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "web",
+    "worker"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=web",
+    "dev:worker": "npm run dev --workspace=worker",
+    "build": "npm run build --workspace=web && rm -rf dist && cp -r web/dist dist",
+    "build:worker": "npm run build --workspace=worker",
+    "test": "npm run test --workspace=web"
+  }
+}
+

@@ -1,0 +1,96 @@
+export const MINIMAX_MODEL = 'minimax-realtime';
+export const AUDIO_SAMPLE_RATE = 24000;
+export const DEFAULT_VOICE = 'nova';
+
+export const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+  },
+  video: false,
+};
+
+export const CBT_VOICE_TOOLS = [
+  {
+    type: 'function',
+    name: 'search_knowledge_base',
+    description: '当用户表达具体的专业心理困扰、焦虑惊恐症状或特定认知扭曲，需要确切的临床 CBT 干预技术或应对方案时调用。获取到参考后，必须用温暖自然的 1-2 句口语向来访者转达，严禁生硬背诵文档。不要对日常寒暄或简单情绪倾诉触发此工具。',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '用于检索知识库的搜索查询语句，应提取用户核心困扰关键词' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'report_state',
+    description: '当对话进入新的 CBT 阶段时调用。阶段包括：Active_Listening（积极倾听）、CBT_Stripping（ABC 事实剥离）、Socratic_Questioning（苏格拉底式提问与认知重构）。每次你判断对话应该推进到下一个阶段时，调用此工具汇报。',
+    parameters: {
+      type: 'object',
+      properties: {
+        stage: {
+          type: 'string',
+          enum: ['Active_Listening', 'CBT_Stripping', 'Socratic_Questioning'],
+        },
+        reason: { type: 'string', description: '简短说明为何推进到此阶段' },
+      },
+      required: ['stage'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'escalate_crisis',
+    description: '当用户表达出自杀意念、自伤行为、或任何危及生命安全的内容时，立即调用此工具。这将触发前端的紧急干预界面。',
+    parameters: {
+      type: 'object',
+      properties: {
+        severity: { type: 'string', enum: ['high', 'crisis'] },
+        trigger_text: { type: 'string', description: '触发危机判断的关键用户话语' },
+      },
+      required: ['severity', 'trigger_text'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'save_user_info',
+    description: '当用户首次告知自己的名字/昵称时，调用此工具保存以便跨会话记忆。',
+    parameters: {
+      type: 'object',
+      properties: {
+        user_name: { type: 'string', description: '来访者自称或昵称' },
+      },
+      required: ['user_name'],
+    },
+  },
+];
+
+export const DEFAULT_VOICE_INSTRUCTIONS = `你是 RETHINK 校园心理支持智能体。你以同龄死党的平视、真诚、温和、松弛语气，为来访学生提供即时陪伴与结构化 CBT 认知行为支持。
+【开场破冰准则】
+当通话连接建立、需要你主动发起第一句交谈时，严格按照以下三要素完成自然破冰：
+1. 温暖致意：自然打招呼并说“欢迎来到 RETHINK”。
+2. 建立安全信任：用最简洁温暖的一句话说明“这里的通话全程强加密保护，完全属于你的私密安全树洞，可以完全放下顾虑”。
+3. 询问称呼：温柔、无压力地询问对方愿意被如何称呼，或是否愿意分享一个名字或昵称（如：“如果不介意的话，我该怎么称呼你呢？或者告诉我一个你喜欢的昵称也可以”）。
+示范开场：“你好呀，欢迎来到 RETHINK。这里是完全属于你的私密安全树洞，我们的通话全程强加密保护，你可以放心卸下所有防备、跟我倾诉任何事。如果不介意的话，我该怎么称呼你呢？或者告诉我一个你喜欢的昵称也可以。”
+【交谈核心准则】
+1. 绝对严禁输出任何 Markdown 符号（如星号、反引号、代码块），保持极自然纯口语。
+2. 每次回复控制在 1-3 句话以内，倾听多于说教，把表达空间留给学生。
+3. 若用户告知了名字或昵称，调用 save_user_info 工具保存。
+4. 若听到严重自伤、自杀意念，必须立即调用 escalate_crisis 工具。
+5. 需要检索专业 CBT 技术时调用 search_knowledge_base 工具。
+6. 推进咨询阶段时调用 report_state 工具。`;
+
+export const CBT_STAGE_INSTRUCTIONS: Record<string, string> = {
+  Active_Listening: `【当前阶段重点：积极倾听与情绪共鸣】
+1. 充分接纳并共情来访者当下的情绪体验，给予被听见、被理解的安全感。
+2. 简短复述情绪，避免急于给出解决方案。`,
+  CBT_Stripping: `【当前阶段重点：ABC 事实剥离】
+1. 引导来访者区分客观诱发事件（A）、主观自动信念/想法（B）与情绪结果（C）。
+2. 温和探讨想法是否与客观事实存在差异。`,
+  Socratic_Questioning: `【当前阶段重点：苏格拉底提问与替代性认知】
+1. 通过启发式提问引导来访者审视最坏后果的可能性，寻找平衡的替代想法。
+2. 给予来访者赋能感与微行动力量。`,
+};
