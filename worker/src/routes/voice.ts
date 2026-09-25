@@ -5,6 +5,7 @@ import { encryptAesGcm } from '../lib/crypto-helper';
 import { addSessionRecordToStore } from './admin';
 import { sendCrisisWebhook } from '../lib/webhook-sender';
 import { BgeRetriever } from '../lib/rag';
+import { generateQwenChatReply, synthesizeQwenRealtimeAudio } from '../lib/qwen-realtime';
 
 export const voiceRouter = new Hono<{ Bindings: Env }>();
 
@@ -164,7 +165,22 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
   ];
 
   let replyText = '我一直在这里听你说，别着急，慢慢告诉我发生什么了。';
-  if (apiKey) {
+  const apiyiKey = env.APIYI_API_KEY || env.OPENAI_API_KEY;
+
+  if (apiyiKey) {
+    try {
+      const qwenReply = await generateQwenChatReply({
+        messages,
+        apiKey: apiyiKey,
+        model: 'qwen3.5-omni-flash',
+      });
+      if (qwenReply) {
+        replyText = qwenReply;
+      }
+    } catch {}
+  }
+
+  if (replyText === '我一直在这里听你说，别着急，慢慢告诉我发生什么了。' && apiKey) {
     try {
       const chatRes = await fetch('https://api.minimaxi.chat/v1/text/chatcompletion_v2', {
         method: 'POST',
@@ -186,13 +202,24 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
   }
 
   let audioBase64 = '';
-  const openaiKey = env.APIYI_API_KEY || env.OPENAI_API_KEY;
-  if (openaiKey) {
+  if (apiyiKey) {
+    try {
+      audioBase64 = await synthesizeQwenRealtimeAudio({
+        text: replyText,
+        apiKey: apiyiKey,
+        voice: 'Tina',
+        model: 'qwen3.5-omni-flash-realtime',
+        timeoutMs: 12000,
+      });
+    } catch {}
+  }
+
+  if (!audioBase64 && apiyiKey) {
     try {
       const ttsRes = await fetch('https://api.apiyi.com/v1/audio/speech', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${openaiKey}`,
+          Authorization: `Bearer ${apiyiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
