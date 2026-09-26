@@ -109,7 +109,7 @@ export function useVoiceSession() {
     transcriptionRef.current.reset();
 
     const greetingText =
-      '嗨，我是 RETHINK。别担心，咱们的通话全程端到端加密，特别安全。我该怎么称呼你呢？名字或者喜欢的昵称都行。';
+      'Hi同学，欢迎来到 RETHINK。我们的通话记录将被加密保存。我该怎么称呼你呢？名字或者喜欢的昵称都行。';
 
     setActiveTranscript({
       user: '',
@@ -138,6 +138,7 @@ export function useVoiceSession() {
           onOpen: () => {
             setSessionStatus('connected');
             setHookState('connected');
+            clientRef.current?.triggerInitialGreeting(greetingText);
           },
           onClose: () => {},
           onError: (err: any) => {
@@ -216,17 +217,12 @@ export function useVoiceSession() {
         setCallDuration((prev) => prev + 1);
       }, 1000);
 
-      await audioGraph.playAudioUrl('/audio/greeting_v2.mp3?v=20260925_qwen_v2', () => {
-        if (useBoothStore.getState().hookState === 'connected') {
-          setDuplexPhase('listening');
-          addDialogueTurn({
-            id: `turn_${Date.now()}`,
-            role: 'assistant',
-            content: greetingText,
-            timestamp: Date.now(),
-            stage: useBoothStore.getState().cbtStage,
-          });
-        }
+      addDialogueTurn({
+        id: `turn_${Date.now()}`,
+        role: 'assistant',
+        content: greetingText,
+        timestamp: Date.now(),
+        stage: useBoothStore.getState().cbtStage,
       });
     } catch (err: any) {
       console.error('[VoiceSession] 启动失败:', err);

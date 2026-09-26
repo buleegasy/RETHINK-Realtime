@@ -40,7 +40,7 @@ export class AudioGraphService {
       out.fill(0);
       if (this.isMuted) return;
       const inputBuffer = e.inputBuffer.getChannelData(0);
-      const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 16000);
+      const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
       if (base64) {
         onAudioChunk(base64);
       }

@@ -5,10 +5,9 @@ import { encryptAesGcm } from '../lib/crypto-helper';
 import { addSessionRecordToStore } from './admin';
 import { sendCrisisWebhook } from '../lib/webhook-sender';
 import { BgeRetriever } from '../lib/rag';
-import { generateQwenChatReply, synthesizeQwenRealtimeAudio } from '../lib/qwen-realtime';
+import { generateOpenAIChatReply, synthesizeRealtimeAudio } from '../lib/openai-realtime';
 
 export const voiceRouter = new Hono<{ Bindings: Env }>();
-
 
 function safeCloseWebSocket(ws: WebSocket, code?: number, reason?: string): void {
   try {
@@ -20,9 +19,7 @@ function safeCloseWebSocket(ws: WebSocket, code?: number, reason?: string): void
   } catch {
     try {
       ws.close();
-    } catch {
-
-    }
+    } catch {}
   }
 }
 
@@ -41,7 +38,7 @@ voiceRouter.get('/ws', async (c) => {
 
   if (apiyiKey) {
     try {
-      const upstreamRes = await fetch('https://api.apiyi.com/v1/realtime?model=qwen3.5-omni-plus-realtime', {
+      const upstreamRes = await fetch('https://api.apiyi.com/v1/realtime?model=gpt-realtime-2.1-mini', {
         headers: {
           Upgrade: 'websocket',
           Authorization: `Bearer ${apiyiKey}`,
@@ -62,12 +59,26 @@ voiceRouter.get('/ws', async (c) => {
               } catch {}
 
               if (payload && payload.type === 'session.update' && payload.session) {
-                payload.session.modalities = ['text', 'audio'];
-                payload.session.voice = 'Tina';
-                payload.session.input_audio_format = 'pcm';
-                payload.session.output_audio_format = 'pcm';
-                payload.session.input_audio_transcription = { model: 'qwen3-asr-flash-realtime' };
-                payload.session.turn_detection = { type: 'semantic_vad' };
+                payload.session.type = 'realtime';
+                payload.session.output_modalities = ['audio'];
+                payload.session.voice = 'marin';
+                delete payload.session.modalities;
+                payload.session.audio = {
+                  input: {
+                    format: { type: 'audio/pcm', rate: 24000 },
+                    transcription: { model: 'whisper-1' },
+                    turn_detection: payload.session.turn_detection || { type: 'server_vad' },
+                  },
+                  output: {
+                    format: { type: 'audio/pcm', rate: 24000 },
+                    voice: 'marin',
+                  },
+                };
+                upstreamWs.send(JSON.stringify(payload));
+              } else if (payload && payload.type === 'response.create' && payload.response) {
+                if (payload.response.modalities) {
+                  delete payload.response.modalities;
+                }
                 upstreamWs.send(JSON.stringify(payload));
               } else {
                 upstreamWs.send(event.data);
@@ -116,9 +127,8 @@ voiceRouter.get('/ws', async (c) => {
         session: {
           id: `sess_${Date.now()}`,
           object: 'realtime.session',
-          model: 'qwen3.5-omni-plus-realtime',
-          modalities: ['text', 'audio'],
-          voice: 'Tina',
+          model: 'gpt-realtime-2.1-mini',
+          voice: 'marin',
         },
       })
     );
@@ -214,7 +224,8 @@ voiceRouter.post('/chat', async (c) => {
       rerankApiKey: (env as any).RERANK_API_KEY,
       rerankApiUrl: (env as any).RERANK_API_URL,
     });
-    knowledgeHint = await retriever.getStrategyHint(userText, { topK: 1 });
+    const hintObj = await retriever.getStrategyHint(userText, { topK: 1 });
+    knowledgeHint = hintObj?.conciseDirective || '';
   } catch {}
 
   const systemPrompt = `你是 RETHINK 校园心理支持智能体。当前处于【${currentStage}】阶段。
@@ -239,13 +250,13 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
 
   if (apiyiKey) {
     try {
-      const qwenReply = await generateQwenChatReply({
+      const openAiReply = await generateOpenAIChatReply({
         messages,
         apiKey: apiyiKey,
-        model: 'qwen3.5-omni-flash',
+        model: 'gpt-4o-mini',
       });
-      if (qwenReply) {
-        replyText = qwenReply;
+      if (openAiReply) {
+        replyText = openAiReply;
       }
     } catch {}
   }
@@ -274,17 +285,15 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
   let audioBase64 = '';
   if (apiyiKey) {
     try {
-      audioBase64 = await synthesizeQwenRealtimeAudio({
+      audioBase64 = await synthesizeRealtimeAudio({
         text: replyText,
         apiKey: apiyiKey,
-        voice: 'Tina',
-        model: 'qwen3.5-omni-flash-realtime',
+        voice: 'marin',
+        model: 'gpt-realtime-2.1-mini',
         timeoutMs: 12000,
       });
     } catch {}
   }
-
-
 
   let nextStage = currentStage;
   if (currentStage === 'Active_Listening' && history.length >= 2) {
@@ -321,7 +330,6 @@ voiceRouter.post('/session/persist', async (c) => {
   const evalResult = await evaluateTranscriptWithMiniMax(transcript_text || '', env.MINIMAX_API_KEY);
   const isCrisisFlag = (payload.is_crisis || evalResult.isCrisis || evalResult.crisisLevel >= 3 || effectiveStage === 'Crisis_Escalation') ? 1 : 0;
   const crisisLevel = isCrisisFlag ? Math.max(3, evalResult.crisisLevel) : evalResult.crisisLevel;
-
 
   let encryptedIdentity = '';
   if (isCrisisFlag && username) {
@@ -420,7 +428,6 @@ voiceRouter.post('/session/persist', async (c) => {
     crisis_level: crisisLevel,
   });
 });
-
 
 voiceRouter.post('/knowledge', async (c) => {
   let body: Partial<KnowledgeQueryPayload> = {};

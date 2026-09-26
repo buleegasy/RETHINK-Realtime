@@ -1,37 +1,116 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import SiriOrb from './siri-orb';
+import type { AIState } from './siri-orb/ai-core';
 
 export interface VoiceOrbProps {
+  status?: 'idle' | 'connecting' | 'connected' | 'error';
   duplexPhase?: 'idle' | 'listening' | 'thinking' | 'speaking';
   audioLevel?: number;
+  fsmState?: string;
   onClick?: () => void;
   className?: string;
 }
 
 export const VoiceOrb: React.FC<VoiceOrbProps> = ({
+  status = 'idle',
   duplexPhase = 'idle',
   audioLevel = 0,
+  fsmState = 'Active_Listening',
   onClick,
   className = '',
 }) => {
-  const isIdle = duplexPhase === 'idle';
-  const isListening = duplexPhase === 'listening';
-  const isThinking = duplexPhase === 'thinking';
-  const isSpeaking = duplexPhase === 'speaking';
+  const colorMap = useMemo(() => {
+    switch (fsmState) {
+      case 'Onboarding':
+        return { primary: '#e0e7ff', secondary: '#818cf8', rgb: '129, 140, 248' };
+      case 'Active_Listening':
+        return { primary: '#d1fae5', secondary: '#34d399', rgb: '52, 211, 153' };
+      case 'CBT_Stripping':
+        return { primary: '#dbeafe', secondary: '#60a5fa', rgb: '96, 165, 250' };
+      case 'Socratic_Questioning':
+        return { primary: '#ede9fe', secondary: '#a78bfa', rgb: '167, 139, 250' };
+      case 'Crisis_Escalation':
+        return { primary: '#fee2e2', secondary: '#f87171', rgb: '248, 113, 113' };
+      default:
+        return { primary: '#fef3c7', secondary: '#f59e0b', rgb: '245, 158, 11' };
+    }
+  }, [fsmState]);
 
-  const baseScale = isIdle
-    ? 1
+  const orbColors = useMemo(() => {
+    switch (fsmState) {
+      case 'Active_Listening':
+        return {
+          bg: 'oklch(94% 0.03 160)',
+          c1: 'oklch(75% 0.18 160)',
+          c2: 'oklch(78% 0.15 190)',
+          c3: 'oklch(70% 0.17 145)',
+          c4: 'oklch(80% 0.16 175)',
+        };
+      case 'CBT_Stripping':
+        return {
+          bg: 'oklch(93% 0.03 240)',
+          c1: 'oklch(70% 0.19 230)',
+          c2: 'oklch(74% 0.17 210)',
+          c3: 'oklch(68% 0.18 260)',
+          c4: 'oklch(76% 0.16 220)',
+        };
+      case 'Socratic_Questioning':
+        return {
+          bg: 'oklch(93% 0.03 290)',
+          c1: 'oklch(72% 0.19 280)',
+          c2: 'oklch(68% 0.18 310)',
+          c3: 'oklch(70% 0.20 270)',
+          c4: 'oklch(75% 0.17 295)',
+        };
+      case 'Crisis_Escalation':
+        return {
+          bg: 'oklch(92% 0.04 25)',
+          c1: 'oklch(68% 0.22 25)',
+          c2: 'oklch(72% 0.20 40)',
+          c3: 'oklch(64% 0.23 15)',
+          c4: 'oklch(74% 0.19 30)',
+        };
+      default:
+        return {
+          bg: 'oklch(93% 0.03 300)',
+          c1: 'oklch(68% 0.21 350)',
+          c2: 'oklch(70% 0.18 210)',
+          c3: 'oklch(66% 0.2 285)',
+          c4: 'oklch(72% 0.19 325)',
+        };
+    }
+  }, [fsmState]);
+
+  const isError = status === 'error';
+  const isListening = !isError && status === 'connected' && duplexPhase === 'listening';
+  const isThinking = !isError && (status === 'connecting' || (status === 'connected' && duplexPhase === 'thinking'));
+  const isSpeaking = !isError && status === 'connected' && duplexPhase === 'speaking';
+
+  const aiState: AIState = isError
+    ? 'error'
     : isListening
-    ? 1 + Math.min(audioLevel * 1.8, 0.6)
+    ? 'listening'
+    : isThinking
+    ? 'thinking'
     : isSpeaking
-    ? 1 + Math.min(audioLevel * 2.2, 0.75)
-    : 1.05;
+    ? 'streaming'
+    : 'idle';
 
   return (
     <div
       onClick={onClick}
-      className={`relative w-72 h-72 flex items-center justify-center select-none ${
-        onClick ? 'cursor-pointer' : ''
+      onKeyDown={(e) => {
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label="Voice Orb"
+      className={`relative w-72 h-72 flex items-center justify-center overflow-visible select-none transition-transform ${
+        onClick ? 'cursor-pointer hover:scale-[1.03] active:scale-[0.98]' : ''
       } ${className}`}
     >
       <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
@@ -53,20 +132,20 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
         {isListening && (
           <>
             <motion.div
-              key="listen-wave-1"
-              className="absolute w-44 h-44 rounded-full border border-black/20 pointer-events-none"
-              initial={{ scale: 0.9, opacity: 0.6 }}
-              animate={{ scale: [0.9, 2.2], opacity: [0.6, 0] }}
+              key="halo-1"
+              className="absolute w-48 h-48 rounded-full border border-secondary/50 pointer-events-none"
+              initial={{ scale: 0.85, opacity: 0.8 }}
+              animate={{ scale: [0.85, 2.3], opacity: [0.8, 0] }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
             />
             <motion.div
-              key="listen-wave-2"
-              className="absolute w-44 h-44 rounded-full border border-black/15 pointer-events-none"
-              initial={{ scale: 0.9, opacity: 0.5 }}
-              animate={{ scale: [0.9, 2.7], opacity: [0.5, 0] }}
+              key="halo-2"
+              className="absolute w-48 h-48 rounded-full border border-secondary/40 pointer-events-none"
+              initial={{ scale: 0.85, opacity: 0.6 }}
+              animate={{ scale: [0.85, 2.8], opacity: [0.6, 0] }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 1.6, repeat: Infinity, delay: 0.5, ease: 'easeOut' }}
+              transition={{ duration: 1.8, repeat: Infinity, delay: 0.6, ease: 'easeOut' }}
             />
           </>
         )}
@@ -76,101 +155,52 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
         {isSpeaking && (
           <motion.div
             key="speaking-wave"
-            className="absolute w-48 h-48 rounded-full border border-black/25 pointer-events-none"
+            className="absolute w-52 h-52 rounded-full border border-primary/30 pointer-events-none"
             animate={{
-              scale: [1, 1.25 + Math.min(audioLevel * 1.5, 0.5), 1],
-              opacity: [0.3, 0.7, 0.3],
+              scale: [1, 1.25 + Math.min(audioLevel * 1.5, 0.6), 1],
+              opacity: [0.4, 0.8, 0.4],
             }}
-            transition={{ duration: 0.6, repeat: Infinity, ease: 'easeInOut' }}
+            transition={{ duration: 0.5, repeat: Infinity, ease: 'easeInOut' }}
+            style={{
+              boxShadow: `0 0 35px rgba(${colorMap.rgb}, 0.35)`,
+            }}
           />
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {isThinking && (
+        {isThinking && !isError && (
           <motion.div
-            key="thinking-spin"
-            className="absolute w-48 h-48 rounded-full border border-dashed border-black/30 pointer-events-none"
+            key="gemini-shimmer"
+            className="absolute w-48 h-48 rounded-full pointer-events-none mix-blend-screen opacity-70"
             animate={{
-              rotate: 360,
-              scale: [1, 1.08, 1],
+              rotate: [0, 360],
+              scale: [0.95, 1.15, 0.95],
             }}
             transition={{
-              rotate: { duration: 6, repeat: Infinity, ease: 'linear' },
+              rotate: { duration: 4.5, repeat: Infinity, ease: 'linear' },
               scale: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+            }}
+            style={{
+              background:
+                'conic-gradient(from 0deg, #818cf8, #38bdf8, #c084fc, #f472b6, #818cf8)',
+              filter: 'blur(20px)',
             }}
           />
         )}
       </AnimatePresence>
 
-      <motion.div
-        className="absolute w-44 h-44 rounded-full pointer-events-none bg-black/[0.04]"
-        animate={{
-          scale: isThinking
-            ? [1, 1.2, 1]
-            : isListening
-            ? [1.05, 1.35, 1.05]
-            : isSpeaking
-            ? [1.1, 1.45, 1.1]
-            : [1, 1.06, 1],
-        }}
-        transition={{
-          duration: isIdle ? 3.6 : isThinking ? 2 : isListening ? 1.4 : 0.7,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-
-      <motion.div
-        className="relative w-36 h-36 flex items-center justify-center pointer-events-none"
-        style={{ filter: 'url(#voice-goo)' }}
-        animate={{ scale: baseScale }}
-        transition={{ type: 'spring', damping: 20, stiffness: 220 }}
-      >
-        <motion.div
-          className="absolute w-24 h-24 rounded-full bg-neutral-900"
-          animate={{
-            rotate: 360,
-            scale: isThinking
-              ? [1, 0.92, 1]
-              : isIdle
-              ? [1, 1.04, 1]
-              : 1,
-          }}
-          transition={{
-            rotate: { duration: isThinking ? 4 : 16, repeat: Infinity, ease: 'linear' },
-            scale: { duration: isIdle ? 3.2 : 0.8, repeat: Infinity, ease: 'easeInOut' },
-          }}
+      <div className="relative z-10 flex items-center justify-center pointer-events-none">
+        <SiriOrb
+          size="192px"
+          state={aiState}
+          amplitude={audioLevel}
+          colors={orbColors}
+          animationDuration={18}
         />
-
-        <motion.div
-          className="absolute w-14 h-14 rounded-full bg-neutral-700"
-          animate={{
-            rotate: -360,
-            x: [16, -16, 16],
-            y: [-16, 16, -16],
-          }}
-          transition={{
-            rotate: { duration: 9, repeat: Infinity, ease: 'linear' },
-            x: { duration: 3.5, repeat: Infinity, ease: 'easeInOut' },
-            y: { duration: 4.2, repeat: Infinity, ease: 'easeInOut' },
-          }}
-        />
-
-        <motion.div
-          className="absolute w-16 h-16 rounded-full bg-neutral-800"
-          animate={{
-            rotate: 360,
-            x: [-20, 20, -20],
-            y: [12, -20, 12],
-          }}
-          transition={{
-            rotate: { duration: 11, repeat: Infinity, ease: 'linear' },
-            x: { duration: 4.5, repeat: Infinity, ease: 'easeInOut' },
-            y: { duration: 3.8, repeat: Infinity, ease: 'easeInOut' },
-          }}
-        />
-      </motion.div>
+      </div>
     </div>
   );
 };
+
+export default VoiceOrb;

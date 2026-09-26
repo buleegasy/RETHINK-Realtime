@@ -88,13 +88,21 @@ export class MiniMaxRealtimeClient {
     const config = { ...this.options.sessionConfig, ...customConfig };
 
     const sessionPayload: Record<string, unknown> = {
-      modalities: config.modalities || ['text', 'audio'],
+      type: 'realtime',
+      output_modalities: ['audio'],
       instructions: config.instructions || DEFAULT_VOICE_INSTRUCTIONS,
       voice: config.voice || DEFAULT_VOICE,
-      input_audio_format: 'pcm16',
-      output_audio_format: 'pcm16',
-      input_audio_transcription: { model: 'asr-01' },
-      turn_detection: config.turnDetection ?? { type: 'server_vad' },
+      audio: {
+        input: {
+          format: { type: 'audio/pcm', rate: AUDIO_SAMPLE_RATE },
+          transcription: { model: 'whisper-1' },
+          turn_detection: config.turnDetection ?? { type: 'server_vad' },
+        },
+        output: {
+          format: { type: 'audio/pcm', rate: AUDIO_SAMPLE_RATE },
+          voice: config.voice || DEFAULT_VOICE,
+        },
+      },
       tools: config.tools || CBT_VOICE_TOOLS,
     };
 
@@ -142,12 +150,11 @@ export class MiniMaxRealtimeClient {
   public triggerInitialGreeting(customDirective?: string): void {
     const directive =
       customDirective ||
-      '请立即主动说出你的第一句开场破冰语：热情温和地致以“欢迎来到 RETHINK”，用一句话简明告知通话全程强加密保护以建立安全信任，并温柔询问对方是否愿意告诉我该如何称呼他或分享一个喜欢的昵称。不要生硬，控制在2到3句自然纯口语内。';
+      '请立即主动说出你的第一句开场问候：“Hi同学，欢迎来到 RETHINK。我们的通话记录将被加密保存。我该怎么称呼你呢？名字或者喜欢的昵称都行。”请以温暖自然的语气原样口语化说出。';
 
     this.send({
       type: 'response.create',
       response: {
-        modalities: ['text', 'audio'],
         instructions: directive,
       },
     });

@@ -53,9 +53,12 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
 
     const firstMsg = JSON.parse(ws.sentMessages[0]);
     expect(firstMsg.type).toBe('session.update');
-    expect(firstMsg.session.input_audio_format).toBe('pcm16');
-    expect(firstMsg.session.output_audio_format).toBe('pcm16');
-    expect(firstMsg.session.input_audio_transcription.model).toBe('asr-01');
+    expect(firstMsg.session.type).toBe('realtime');
+    expect(firstMsg.session.audio.input.format.type).toBe('audio/pcm');
+    expect(firstMsg.session.audio.input.format.rate).toBe(24000);
+    expect(firstMsg.session.audio.output.format.type).toBe('audio/pcm');
+    expect(firstMsg.session.audio.output.format.rate).toBe(24000);
+    expect(firstMsg.session.audio.input.transcription.model).toBe('whisper-1');
 
     client.disconnect();
   });
@@ -144,9 +147,9 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     const lastMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
 
     expect(lastMsg.type).toBe('response.create');
-    expect(lastMsg.response.modalities).toEqual(['text', 'audio']);
     expect(lastMsg.response.instructions).toContain('欢迎来到 RETHINK');
-    expect(lastMsg.response.instructions).toContain('强加密');
+    expect(lastMsg.response.instructions).toContain('加密保存');
+    expect(lastMsg.response.instructions).toContain('我该怎么称呼你呢');
 
     client.disconnect();
   });

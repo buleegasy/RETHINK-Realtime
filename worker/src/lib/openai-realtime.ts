@@ -1,3 +1,20 @@
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+export function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export function createWavHeader(dataLen: number, sampleRate = 24000, channels = 1, bitsPerSample = 16): Uint8Array {
   const buffer = new ArrayBuffer(44);
   const view = new DataView(buffer);
@@ -41,12 +58,12 @@ export function createWavHeader(dataLen: number, sampleRate = 24000, channels = 
   return new Uint8Array(buffer);
 }
 
-export async function generateQwenChatReply(options: {
+export async function generateOpenAIChatReply(options: {
   messages: Array<{ role: string; content: string }>;
   apiKey: string;
   model?: string;
 }): Promise<string> {
-  const { messages, apiKey, model = 'qwen3.5-omni-flash' } = options;
+  const { messages, apiKey, model = 'gpt-4o-mini' } = options;
   if (!apiKey) return '';
 
   const res = await fetch('https://api.apiyi.com/v1/chat/completions', {
@@ -70,7 +87,7 @@ export async function generateQwenChatReply(options: {
   return rawText.replace(/[*#`_~]/g, '').trim();
 }
 
-export async function synthesizeQwenRealtimeAudio(options: {
+export async function synthesizeRealtimeAudio(options: {
   text: string;
   apiKey: string;
   voice?: string;
@@ -80,8 +97,8 @@ export async function synthesizeQwenRealtimeAudio(options: {
   const {
     text,
     apiKey,
-    voice = 'Tina',
-    model = 'qwen3.5-omni-flash-realtime',
+    voice = 'marin',
+    model = 'gpt-realtime-2.1-mini',
     timeoutMs = 15000,
   } = options;
 
@@ -133,7 +150,7 @@ export async function synthesizeQwenRealtimeAudio(options: {
       fullWav.set(wavHeader, 0);
       fullWav.set(merged, wavHeader.length);
 
-      const base64 = Buffer.from(fullWav).toString('base64');
+      const base64 = uint8ArrayToBase64(fullWav);
       resolve(base64);
     };
 
@@ -152,9 +169,14 @@ export async function synthesizeQwenRealtimeAudio(options: {
           JSON.stringify({
             type: 'session.update',
             session: {
-              modalities: ['text', 'audio'],
-              voice,
-              turn_detection: null,
+              type: 'realtime',
+              output_modalities: ['audio'],
+              audio: {
+                output: {
+                  format: { type: 'audio/pcm', rate: 24000 },
+                  voice,
+                },
+              },
             },
           })
         );
@@ -179,9 +201,9 @@ export async function synthesizeQwenRealtimeAudio(options: {
           const parsed = JSON.parse(raw);
           const { type } = parsed;
 
-          if (type === 'response.audio.delta' && parsed.delta) {
-            const buf = Buffer.from(parsed.delta, 'base64');
-            pcmChunks.push(new Uint8Array(buf));
+          if ((type === 'response.output_audio.delta' || type === 'response.audio.delta') && parsed.delta) {
+            const buf = base64ToUint8Array(parsed.delta);
+            pcmChunks.push(buf);
           } else if (type === 'response.output_item.done' || type === 'response.done') {
             finalize();
           } else if (type === 'error') {
