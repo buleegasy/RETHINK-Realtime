@@ -6,7 +6,7 @@ import {
   type Transition,
   useReducedMotion,
   useTransform,
-} from "motion/react";
+} from "framer-motion";
 import {
   type AIAmplitude,
   type AIState,

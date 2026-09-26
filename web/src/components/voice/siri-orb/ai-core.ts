@@ -2,7 +2,7 @@ import {
   type MotionValue,
   useAnimationFrame,
   useMotionValue,
-} from "motion/react";
+} from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type AIState =
