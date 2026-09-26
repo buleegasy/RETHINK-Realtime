@@ -8,37 +8,11 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
   private readonly emailRegex = /([a-zA-Z0-9_.+-])[a-zA-Z0-9_.+-]*@([a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/g;
   private readonly idCardRegex = /(\d{6})\d{8}(\w{4})/g;
 
-  private readonly distortionPatterns: Array<{ name: string; keywords: string[] }> = [
-    {
-      name: '非黑即白 (All-or-Nothing)',
-      keywords: ['全完了', '必须', '总是', '从没', '绝对', '要么要么', '毫无价值'],
-    },
-    {
-      name: '灾难化思维 (Catastrophizing)',
-      keywords: ['天塌了', '万劫不复', '彻底没救了', '受不了了', '完蛋了', '最坏的'],
-    },
-    {
-      name: '以偏概全 (Overgeneralization)',
-      keywords: ['每次都这样', '大家都是', '所有人都', '永远做不好'],
-    },
-    {
-      name: '读心术与负面猜测 (Mind Reading)',
-      keywords: ['他们肯定讨厌我', '他心里觉得我', '别人都看不起我', '领导一定在想'],
-    },
-    {
-      name: '应该与必须化 (Should Statements)',
-      keywords: ['我本应该', '我必须做到', '绝对不能犯错', '他们必须'],
-    },
-  ];
-
   public deidentifyText(text: string): string {
     if (!text) return '';
     return text
-
       .replace(this.phoneRegex, '$1****$2')
-
       .replace(this.emailRegex, '$1***@$2')
-
       .replace(this.idCardRegex, '$1********$2');
   }
 
@@ -54,47 +28,46 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
 
   public async generate(input: ReportGenerationInput): Promise<SanitizedCbtReport> {
     const { sessionId, durationSeconds, stageReached, rawUserName, turns } = input;
-
     const userDisplayName = this.deidentifyName(rawUserName);
 
-    const userSpeech = turns
-      .filter((t) => t.role === 'user')
+    const userTurns = turns.filter((t) => t.role === 'user');
+    const userSpeech = userTurns
       .map((t) => this.deidentifyText(t.content))
-      .join(' ');
-
-    const detectedDistortions: string[] = [];
-    for (const pattern of this.distortionPatterns) {
-      for (const kw of pattern.keywords) {
-        if (userSpeech.includes(kw)) {
-          detectedDistortions.push(pattern.name);
-          break;
-        }
-      }
-    }
-    if (detectedDistortions.length === 0) {
-      detectedDistortions.push('尚未发现典型偏执型认知歪曲（情绪主要受阶段性现实压力引发）');
-    }
+      .join(' ')
+      .trim();
 
     const coreConcerns: string[] = [];
-    if (/学业|考试|论文|成绩|毕业/.test(userSpeech)) coreConcerns.push('学业考核与未来去向压力');
-    if (/工作|领导|同事|升职|考核|加班/.test(userSpeech)) coreConcerns.push('职场人际与职业发展倦怠');
-    if (/失眠|睡不着|胸闷|心慌|喘不上气/.test(userSpeech)) coreConcerns.push('躯体化焦虑与植物神经紧张');
-    if (/朋友|恋爱|分手|父母|家里|争吵/.test(userSpeech)) coreConcerns.push('亲密关系与家庭互动冲突');
-    if (coreConcerns.length === 0) {
-      coreConcerns.push('日常偶发性负性情绪倾诉与压力释放');
+    if (/学业|考试|论文|成绩|排名|毕业|考研|高考/.test(userSpeech)) {
+      coreConcerns.push('学业成绩与考核压力');
+    }
+    if (/宿舍|室友|同学|朋友|人际|孤立|排挤/.test(userSpeech)) {
+      coreConcerns.push('同伴相处与人际交往困惑');
+    }
+    if (/父母|爸妈|家里|父亲|母亲|争吵|沟通/.test(userSpeech)) {
+      coreConcerns.push('家庭沟通与亲子关系冲突');
+    }
+    if (/失眠|睡不着|心慌|头疼|胸闷|不想吃/.test(userSpeech)) {
+      coreConcerns.push('压力引发的身体躯体化反应');
+    }
+    if (coreConcerns.length === 0 && userSpeech) {
+      const summaryExcerpt = userSpeech.slice(0, 18);
+      coreConcerns.push(`“${summaryExcerpt}...”现实压力倾诉`);
+    }
+
+    const cognitiveDistortions: string[] = [];
+    if (/全完了|绝对|必须|总是|从没|毫无价值/.test(userSpeech)) {
+      cognitiveDistortions.push('绝对化与非黑即白倾向');
+    }
+    if (/天塌了|完蛋了|彻底没救了|万劫不复/.test(userSpeech)) {
+      cognitiveDistortions.push('灾难化灾难预期');
+    }
+    if (/他们肯定讨厌我|都看不起我|心里肯定觉得我/.test(userSpeech)) {
+      cognitiveDistortions.push('负向读心术倾向');
     }
 
     const initialEmotion = this.inferInitialEmotion(userSpeech);
     const finalEmotion = this.inferFinalEmotion(stageReached, durationSeconds);
-
-    const keyTakeaways = [
-      '接纳情绪本身并无对错，允许自己处于不完美的状态。',
-      '情绪往往源自对事件的主观信念评价（B），而非事件本身（A）。',
-      '当最坏的灾难化念头出现时，尝试问自己“最现实的结果会是什么”。',
-    ];
-
-    const primaryConcern = coreConcerns[0] || '日常压力梳理';
-    const homeworkAction = `【微行动练习】针对本次探讨的“${primaryConcern}”，挑选一个当下最容易实现的小步骤去尝试，并记录完成后的真实感受。`;
+    const mainTopic = coreConcerns[0] || '本次探讨的具体困扰';
 
     return {
       sessionId,
@@ -102,36 +75,38 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
       durationSeconds,
       userDisplayName,
       cbtStageReached: stageReached,
-      coreConcerns,
-      cognitiveDistortions: detectedDistortions,
+      coreConcerns: coreConcerns.length > 0 ? coreConcerns : ['当前阶段性现实压力探讨'],
+      cognitiveDistortions: cognitiveDistortions.length > 0 ? cognitiveDistortions : ['未见明显偏执型认知歪曲'],
       emotionalTrajectory: {
         initial: initialEmotion,
         final: finalEmotion,
-        deltaNotes: `从进线时的“${initialEmotion}”逐步过渡至“${finalEmotion}”，完成对核心困扰的理性梳理。`,
+        deltaNotes: `围绕${mainTopic}展开梳理，由进线时的“${initialEmotion}”逐步转向挂机时的“${finalEmotion}”。`,
       },
-      keyTakeaways,
-      homeworkAction,
+      keyTakeaways: [
+        `理清客观发生的事实与主观评价之间的边界，避免将单一现实挫折推导为全面否定。`,
+      ],
+      homeworkAction: `针对本次探讨的“${mainTopic}”，记录下一次发生类似情绪触发点时的客观事实与当下第一反应，并在纸上写下一种替代性的温和看法。`,
       isDeidentified: true,
     };
   }
 
   private inferInitialEmotion(text: string): string {
-    if (/崩溃|受不了|难受|哭|想死/.test(text)) return '高度痛苦与情绪宣泄';
-    if (/慌|焦虑|害怕|担心|紧张/.test(text)) return '焦虑紧张与对未知的不确定感';
-    if (/累|没意思|提不起劲|无聊/.test(text)) return '疲惫抑郁与精力耗竭';
-    return '中度紧绷与倾诉渴望';
+    if (/崩溃|受不了|难受|哭|绝望/.test(text)) return '高度压力与强烈情绪宣泄';
+    if (/慌|焦虑|害怕|担心|紧张/.test(text)) return '焦虑不安与不确定感';
+    if (/累|没意思|提不起劲|无聊/.test(text)) return '身心疲惫与精力损耗';
+    return '情绪承压与倾诉渴望';
   }
 
   private inferFinalEmotion(stage: CBTStage, durationSeconds: number): string {
     if (stage === 'Crisis_Escalation') {
-      return '危机熔断干预态（建议寻求专业人工心理急救通道）';
+      return '触发危机升级转介通道';
     }
     if (stage === 'Socratic_Questioning' || durationSeconds > 180) {
-      return '认知重塑，重拾掌控感与微小平静';
+      return '事实逐步厘清，恢复理性掌控感';
     }
     if (stage === 'CBT_Stripping') {
-      return '事实与情绪逐步分离，思路逐渐清晰';
+      return '情绪获得承接，开始剥离主观认知';
     }
-    return '情绪获得倾听与接纳，紧绷感初步缓解';
+    return '初步倾诉释放，紧绷状态有所松弛';
   }
 }

@@ -101,7 +101,7 @@ export class DefaultRagProvider implements IRagProvider {
 
   public formatContext(chunks: RagChunk[]): string {
     if (!chunks || chunks.length === 0) {
-      return '未匹配到特定干预方案。请保持同龄好友平视视角，以积极倾听和情绪共鸣为主，避免讲大道理或随意评价。';
+      return '未匹配到特定干预方案。请保持同龄好友平视视角，以积极倾听和情绪共鸣为主，避免讲大道理或随意评价。每次回复必须在1-2句话以内。';
     }
     const primary = chunks[0];
     const parts: string[] = [`[CBT微干预引导: ${primary.title}]`];
@@ -112,7 +112,7 @@ export class DefaultRagProvider implements IRagProvider {
       parts.push(`2. 启发提问: ${primary.socraticPivot}`);
     }
     if (primary.tabooPhrases && primary.tabooPhrases.length > 0) {
-      parts.push(`3. 禁忌雷区: 严禁说“${primary.tabooPhrases.slice(0, 3).join('、')}”。请用同龄好友口吻在1-2句口语内温和回应。`);
+      parts.push(`3. 禁忌雷区: 严禁说“${primary.tabooPhrases.slice(0, 3).join('、')}”。请用同龄好友口吻在1-2句话内温和回应，严禁超过两句话。`);
     }
     return parts.join('\n');
   }

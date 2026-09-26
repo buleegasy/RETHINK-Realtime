@@ -148,11 +148,40 @@ export const useAdminStore = create<AdminState>((set, get) => {
         const incDel = includeDeleted ?? get().showArchived;
         const res = await apiFetch(`/api/admin/sessions?crisisOnly=${crisisOnly ? 'true' : 'false'}&includeDeleted=${incDel ? 'true' : 'false'}`);
         const data = await res.json();
-        if (data.success && Array.isArray(data.sessions)) {
-          set({ sessions: data.sessions, isLoading: false });
-        } else {
-          set({ isLoading: false });
+        const backendSessions: AdminSessionItem[] = (data.success && Array.isArray(data.sessions)) ? data.sessions : [];
+
+        let localSessions: AdminSessionItem[] = [];
+        try {
+          const raw = localStorage.getItem('rethink_real_sessions');
+          if (raw) {
+            localSessions = JSON.parse(raw);
+          }
+        } catch {}
+
+        const sessionMap = new Map<string, AdminSessionItem>();
+        for (const s of backendSessions) {
+          if (!s.sessionId?.startsWith('sess_sample_') && !s.sessionId?.startsWith('mock_')) {
+            sessionMap.set(s.sessionId, s);
+          }
         }
+        for (const s of localSessions) {
+          if (!s.sessionId?.startsWith('sess_sample_') && !s.sessionId?.startsWith('mock_')) {
+            if (!sessionMap.has(s.sessionId)) {
+              sessionMap.set(s.sessionId, s);
+            }
+          }
+        }
+
+        let combined = Array.from(sessionMap.values());
+        if (!incDel) {
+          combined = combined.filter((s) => !s.isDeleted);
+        }
+        if (crisisOnly) {
+          combined = combined.filter((s) => s.isCrisis || (s.crisisLevel >= 3));
+        }
+        combined.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        set({ sessions: combined, isLoading: false });
       } catch {
         set({ isLoading: false });
       }
@@ -253,6 +282,14 @@ export const useAdminStore = create<AdminState>((set, get) => {
         });
         const data = await res.json();
         if (data.success) {
+          try {
+            const raw = localStorage.getItem('rethink_real_sessions');
+            if (raw) {
+              const list: AdminSessionItem[] = JSON.parse(raw);
+              const updated = list.map((s) => s.sessionId === sessionId ? { ...s, isDeleted: true, deleteReason: reason, deletedBy: op, deletedAt: Math.floor(Date.now() / 1000) } : s);
+              localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
+            }
+          } catch {}
           await get().refreshAdminData();
           return { success: true };
         }
@@ -276,6 +313,14 @@ export const useAdminStore = create<AdminState>((set, get) => {
         });
         const data = await res.json();
         if (data.success) {
+          try {
+            const raw = localStorage.getItem('rethink_real_sessions');
+            if (raw) {
+              const list: AdminSessionItem[] = JSON.parse(raw);
+              const updated = list.map((s) => s.sessionId === sessionId ? { ...s, isDeleted: false, deleteReason: null, deletedBy: null, deletedAt: null } : s);
+              localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
+            }
+          } catch {}
           await get().refreshAdminData();
           return { success: true };
         }

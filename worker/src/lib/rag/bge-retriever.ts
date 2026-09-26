@@ -143,7 +143,7 @@ export class BgeRetriever {
     if (!results || results.length === 0) {
       return {
         status: 'no_relevant_context',
-        conciseDirective: '未检索到特定CBT微干预胶囊。请保持同龄好友视角，以积极倾听和情绪共鸣为主，避免讲大道理或随意评价。',
+        conciseDirective: '未检索到特定CBT微干预胶囊。请保持同龄好友视角，以积极倾听和情绪共鸣为主，避免讲大道理或随意评价。每次回复必须在1-2句话以内。',
       };
     }
 
@@ -155,7 +155,7 @@ export class BgeRetriever {
       empathyGuideline: top.empathyLead,
       socraticPivot: top.socraticPivot,
       tabooReminder: `严禁踩雷有毒安慰：${top.tabooPhrases.join('、')}`,
-      conciseDirective: `[CBT微干预引导: ${top.title}]\n1. 共情切入: ${top.empathyLead}\n2. 启发提问: ${top.socraticPivot}\n3. 禁语雷区: 严禁说“${top.tabooPhrases.slice(0, 3).join('、')}”。请用同龄好友口吻在1-2句内温和回应。`,
+      conciseDirective: `[CBT微干预引导: ${top.title}]\n1. 共情切入: ${top.empathyLead}\n2. 启发提问: ${top.socraticPivot}\n3. 禁语雷区: 严禁说“${top.tabooPhrases.slice(0, 3).join('、')}”。请用同龄好友口吻严格在1-2句话内温和回应，严禁超过两句话。`,
     };
   }
 }

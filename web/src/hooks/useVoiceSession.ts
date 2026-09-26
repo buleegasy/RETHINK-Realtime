@@ -10,7 +10,7 @@ import { WebCryptoAesGcm } from '../lib/pipelines/security/webCryptoAesGcm';
 import { BufferedTranscriptionPipeline } from '../lib/pipelines/transcription/bufferedTranscription';
 import { DeidentifiedCbtReportGenerator } from '../lib/pipelines/reporting/deidentifiedReportGenerator';
 import { apiFetch } from '../lib/api';
-import type { CBTStage, DialogueTurn } from '../types';
+import type { CBTStage, DialogueTurn, AdminSessionItem } from '../types';
 
 export function useVoiceSession() {
   const {
@@ -320,7 +320,6 @@ export function useVoiceSession() {
         });
 
         setLatestReport(report);
-        setReportModalOpen(true);
 
         const plainJson = JSON.stringify({ turns, report });
         const encryptedBundle = await cryptoRef.current.encrypt(plainJson);
@@ -345,14 +344,43 @@ export function useVoiceSession() {
           return null;
         });
 
+        let finalReport = report;
         if (res && res.ok) {
           try {
             const data: any = await res.json();
             if (data?.report) {
+              finalReport = data.report;
               setLatestReport(data.report);
             }
           } catch {}
         }
+
+        try {
+          const sessionItem: AdminSessionItem = {
+            id: sessionIdRef.current,
+            sessionId: sessionIdRef.current,
+            duration,
+            stage: stageReached,
+            isCrisis: Boolean(finalReport?.cbtStageReached === 'Crisis_Escalation'),
+            crisisLevel: finalReport?.cbtStageReached === 'Crisis_Escalation' ? 3 : 0,
+            crisisSummary: finalReport?.emotionalTrajectory?.deltaNotes || '已完成实时倾诉与认知梳理。',
+            coreConcerns: finalReport?.coreConcerns || [],
+            emotionalValence: 0.1,
+            deidentifiedReport: finalReport,
+            dispositionStatus: 'pending_contact',
+            dispositionNote: '',
+            isDeleted: false,
+            deletedAt: null,
+            deleteReason: null,
+            deletedBy: null,
+            createdAt: Math.floor(Date.now() / 1000),
+            hasEncryptedIdentity: Boolean(encryptedBundle),
+          };
+          const rawExisting = localStorage.getItem('rethink_real_sessions');
+          const existingList: AdminSessionItem[] = rawExisting ? JSON.parse(rawExisting) : [];
+          const updated = [sessionItem, ...existingList.filter((s) => s.sessionId !== sessionItem.sessionId && !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_'))];
+          localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
+        } catch {}
       } catch (err) {
         console.error('[VoiceSession] 报告生成或加密异常:', err);
       }

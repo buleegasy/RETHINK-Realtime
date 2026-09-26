@@ -55,6 +55,9 @@ async function ensureDbTables(db: D1Database): Promise<void> {
       await db.prepare('ALTER TABLE school_sessions ADD COLUMN deleted_by TEXT DEFAULT NULL').run();
     } catch {}
     try {
+      await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_school_sessions_session_id ON school_sessions(session_id)').run();
+    } catch {}
+    try {
       await db.prepare(`
         DELETE FROM school_sessions 
         WHERE session_id LIKE 'sess_sample_%' 
@@ -119,24 +122,12 @@ export async function addSessionRecordToStore(env: Env, record: SessionRecord): 
     try {
       await ensureDbTables(env.DB);
       await env.DB.prepare(`
-        INSERT INTO school_sessions (
+        INSERT OR REPLACE INTO school_sessions (
           id, session_id, duration, stage, is_crisis, crisis_level,
           crisis_summary, core_concerns, emotional_valence,
           encrypted_real_identity, deidentified_report, disposition_status, disposition_note,
           is_deleted, deleted_at, delete_reason, deleted_by, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(session_id) DO UPDATE SET
-          duration = excluded.duration,
-          stage = excluded.stage,
-          is_crisis = excluded.is_crisis,
-          crisis_level = excluded.crisis_level,
-          crisis_summary = excluded.crisis_summary,
-          core_concerns = excluded.core_concerns,
-          emotional_valence = excluded.emotional_valence,
-          encrypted_real_identity = excluded.encrypted_real_identity,
-          deidentified_report = excluded.deidentified_report,
-          disposition_status = excluded.disposition_status,
-          disposition_note = excluded.disposition_note
       `).bind(
         record.id,
         record.session_id,
