@@ -1,12 +1,25 @@
 export async function onRequest(context) {
+  if (context.request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+      },
+    });
+  }
+
   const url = new URL(context.request.url);
   const targetUrl = new URL(url.pathname + url.search, 'https://rethink-realtime-worker.buleegasy-6c8.workers.dev');
-  
+
   const reqHeaders = new Headers(context.request.headers);
   reqHeaders.delete('host');
 
+  const isWs = reqHeaders.get('upgrade')?.toLowerCase() === 'websocket';
+
   let body = undefined;
-  if (context.request.method !== 'GET' && context.request.method !== 'HEAD') {
+  if (!isWs && context.request.method !== 'GET' && context.request.method !== 'HEAD') {
     try {
       body = await context.request.arrayBuffer();
     } catch {}
@@ -19,6 +32,10 @@ export async function onRequest(context) {
       body,
       redirect: 'follow',
     });
+
+    if (response.status === 101 || isWs || response.webSocket) {
+      return response;
+    }
 
     const respHeaders = new Headers(response.headers);
     respHeaders.set('Access-Control-Allow-Origin', '*');

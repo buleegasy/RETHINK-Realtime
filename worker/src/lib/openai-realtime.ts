@@ -62,11 +62,13 @@ export async function generateOpenAIChatReply(options: {
   messages: Array<{ role: string; content: string }>;
   apiKey: string;
   model?: string;
+  baseUrl?: string;
 }): Promise<string> {
-  const { messages, apiKey, model = 'gpt-4o-mini' } = options;
+  const { messages, apiKey, model = 'gpt-4o-mini', baseUrl = 'https://api.apiyi.com/v1' } = options;
   if (!apiKey) return '';
 
-  const res = await fetch('https://api.apiyi.com/v1/chat/completions', {
+  const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -93,6 +95,7 @@ export async function synthesizeRealtimeAudio(options: {
   voice?: string;
   model?: string;
   timeoutMs?: number;
+  baseUrl?: string;
 }): Promise<string> {
   const {
     text,
@@ -100,6 +103,7 @@ export async function synthesizeRealtimeAudio(options: {
     voice = 'maple',
     model = 'gpt-realtime-2.1-mini',
     timeoutMs = 15000,
+    baseUrl = 'https://api.apiyi.com/v1',
   } = options;
 
   if (!text || !apiKey) return '';
@@ -159,7 +163,8 @@ export async function synthesizeRealtimeAudio(options: {
     }, timeoutMs);
 
     try {
-      const url = `wss://api.apiyi.com/v1/realtime?model=${encodeURIComponent(model)}`;
+      const cleanBase = baseUrl.replace(/^http/, 'ws').replace(/\/+$/, '');
+      const url = cleanBase.endsWith('/realtime') ? `${cleanBase}?model=${encodeURIComponent(model)}` : `${cleanBase}/realtime?model=${encodeURIComponent(model)}`;
       const subprotocols = ['realtime', `openai-insecure-api-key.${apiKey}`];
 
       ws = new WebSocket(url, subprotocols);

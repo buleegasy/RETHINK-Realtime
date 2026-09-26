@@ -40,7 +40,10 @@ voiceRouter.get('/ws', async (c) => {
     try {
       const rawModel = c.req.query('model');
       const requestedModel = (!rawModel || rawModel === 'minimax-realtime') ? 'gpt-realtime-2.1-mini' : rawModel;
-      const upstreamRes = await fetch(`https://api.apiyi.com/v1/realtime?model=${encodeURIComponent(requestedModel)}`, {
+      const apiyiBase = env.APIYI_BASE_URL || env.OPENAI_BASE_URL || 'https://api.apiyi.com/v1';
+      const cleanBase = apiyiBase.replace(/\/+$/, '');
+      const wsEndpoint = cleanBase.endsWith('/realtime') ? `${cleanBase}?model=${encodeURIComponent(requestedModel)}` : `${cleanBase}/realtime?model=${encodeURIComponent(requestedModel)}`;
+      const upstreamRes = await fetch(wsEndpoint, {
         headers: {
           Upgrade: 'websocket',
           Authorization: `Bearer ${apiyiKey}`,
@@ -265,6 +268,7 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
         messages,
         apiKey: apiyiKey,
         model: 'gpt-4o-mini',
+        baseUrl: env.APIYI_BASE_URL || env.OPENAI_BASE_URL || 'https://api.apiyi.com/v1',
       });
       if (openAiReply) {
         replyText = openAiReply;
@@ -274,7 +278,9 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
 
   if (replyText === '我一直在这里听你说，别着急，慢慢告诉我发生什么了。' && apiKey) {
     try {
-      const chatRes = await fetch('https://api.minimaxi.chat/v1/text/chatcompletion_v2', {
+      const minimaxBase = env.MINIMAX_BASE_URL || 'https://api.minimaxi.chat/v1';
+      const chatEndpoint = minimaxBase.endsWith('/text/chatcompletion_v2') ? minimaxBase : `${minimaxBase.replace(/\/+$/, '')}/text/chatcompletion_v2`;
+      const chatRes = await fetch(chatEndpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -302,6 +308,7 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
         voice: 'maple',
         model: 'gpt-realtime-2.1-mini',
         timeoutMs: 12000,
+        baseUrl: env.APIYI_BASE_URL || env.OPENAI_BASE_URL || 'https://api.apiyi.com/v1',
       });
     } catch {}
   }
@@ -339,7 +346,12 @@ voiceRouter.post('/session/persist', async (c) => {
   const effectiveStage = stage || 'Active_Listening';
 
   const evalApiKey = env.APIYI_API_KEY || env.OPENAI_API_KEY || env.MINIMAX_API_KEY;
-  const evalResult = await evaluateTranscriptWithMiniMax(transcript_text || '', evalApiKey);
+  const evalResult = await evaluateTranscriptWithMiniMax(
+    transcript_text || '',
+    evalApiKey,
+    env.MINIMAX_BASE_URL,
+    env.APIYI_BASE_URL || env.OPENAI_BASE_URL
+  );
   const isCrisisFlag = (payload.is_crisis || evalResult.isCrisis || evalResult.crisisLevel >= 3 || effectiveStage === 'Crisis_Escalation') ? 1 : 0;
   const crisisLevel = isCrisisFlag ? Math.max(3, evalResult.crisisLevel) : evalResult.crisisLevel;
 

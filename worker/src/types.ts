@@ -1,7 +1,14 @@
 export interface Env {
   MINIMAX_API_KEY?: string;
+  MINIMAX_BASE_URL?: string;
   APIYI_API_KEY?: string;
+  APIYI_BASE_URL?: string;
   OPENAI_API_KEY?: string;
+  OPENAI_BASE_URL?: string;
+  EMBEDDING_API_KEY?: string;
+  EMBEDDING_API_URL?: string;
+  RERANK_API_KEY?: string;
+  RERANK_API_URL?: string;
   DB?: D1Database;
   ENVIRONMENT?: string;
   TEACHER_SECONDARY_PASSCODE?: string;

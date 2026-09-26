@@ -23,7 +23,9 @@ const MODERATE_STRESS_PATTERNS = [
 
 export async function evaluateTranscriptWithMiniMax(
   transcript: string,
-  apiKey?: string
+  apiKey?: string,
+  minimaxBaseUrl?: string,
+  apiyiBaseUrl?: string
 ): Promise<EvaluationResult> {
   const fallback = evaluateTranscriptRuleBased(transcript);
 
@@ -49,9 +51,11 @@ export async function evaluateTranscriptWithMiniMax(
 """${transcript.slice(0, 1500)}"""`;
 
     const isMiniMax = apiKey.startsWith('ey') || apiKey.length > 100;
+    const defaultMiniMaxUrl = 'https://api.minimaxi.chat/v1/text/chatcompletion_v2';
+    const defaultApiyiUrl = 'https://api.apiyi.com/v1/chat/completions';
     const url = isMiniMax
-      ? 'https://api.minimaxi.chat/v1/text/chatcompletion_v2'
-      : 'https://api.apiyi.com/v1/chat/completions';
+      ? (minimaxBaseUrl ? `${minimaxBaseUrl.replace(/\/+$/, '')}/text/chatcompletion_v2` : defaultMiniMaxUrl)
+      : (apiyiBaseUrl ? `${apiyiBaseUrl.replace(/\/+$/, '')}/chat/completions` : defaultApiyiUrl);
 
     const payload = isMiniMax
       ? {

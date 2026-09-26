@@ -7,6 +7,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
+import { apiFetch } from '../../lib/api';
 
 interface AdminSettingsModalProps {
   onClose: () => void;
@@ -31,7 +32,7 @@ export const AdminSettingsModal: React.FC<AdminSettingsModalProps> = ({ onClose 
     setIsTestingWebhook(true);
     setWebhookStatus(null);
     try {
-      const res = await fetch('/api/admin/webhook/test', {
+      const res = await apiFetch('/api/admin/webhook/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ webhook_url: webhookUrl.trim() }),
