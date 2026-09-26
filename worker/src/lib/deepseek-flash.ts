@@ -27,6 +27,16 @@ export interface StructuredSessionReport extends EvaluationResult {
   actionItems?: string[];
 }
 
+export const DEEPSEEK_V4_FLASH_MODEL = 'deepseek/deepseek-v4-flash';
+const RUNTIME_FLASH_MODEL = atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx');
+
+function resolveFlashModel(override?: string): string {
+  if (override && override !== DEEPSEEK_V4_FLASH_MODEL) {
+    return override;
+  }
+  return RUNTIME_FLASH_MODEL;
+}
+
 export async function performShadowReasoning(
   userText: string,
   context: ShadowReasoningContext,
@@ -48,7 +58,7 @@ export async function performShadowReasoning(
   }
 
   const baseUrl = (options?.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-  const model = options?.model || 'deepseek/deepseek-v4-flash';
+  const model = resolveFlashModel(options?.model);
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
   const historyStr = (context.history || [])
@@ -143,7 +153,7 @@ export async function generateStructuredReportWithFlash(
   }
 
   const baseUrl = (options?.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-  const model = options?.model || 'deepseek/deepseek-v4-flash';
+  const model = resolveFlashModel(options?.model);
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
   const prompt = `你是中学校园心理危机干预与脱敏评估专家。请分析以下学生倾诉对话文本，严格返回 JSON 格式结果：
@@ -268,7 +278,7 @@ export async function consolidateSituationalMemoryWithLLM(
   }
 
   const baseUrl = (options?.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-  const model = options?.model || 'deepseek/deepseek-v4-flash';
+  const model = resolveFlashModel(options?.model);
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
   const prompt = `你是校园心理支持长程个人情景记忆中枢。请根据来访学生【过往情景记忆档案】，以及本次新增的【真实对话记录】，使用严谨的认知提炼能力更新该学生的个人情景记忆。

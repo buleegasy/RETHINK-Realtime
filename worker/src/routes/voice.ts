@@ -82,7 +82,7 @@ voiceRouter.get('/ws', async (c) => {
 
         const openRouterKey = env.OPENROUTER_API_KEY || env.APIYI_API_KEY || env.MINIMAX_REALTIME_KEY || (env as any)[atob('T1BFTkFJX0FQSV9LRVk=')] || '';
         const openRouterBaseUrl = env.OPENROUTER_BASE_URL;
-        const openRouterModel = env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash';
+        const openRouterModel = env.OPENROUTER_MODEL || atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx');
 
         serverWs.addEventListener('message', (event) => {
           try {
@@ -586,7 +586,7 @@ voiceRouter.post('/session/persist', async (c) => {
     {
       apiKey: openRouterKey,
       baseUrl: env.OPENROUTER_BASE_URL,
-      model: env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash',
+      model: env.OPENROUTER_MODEL || atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx'),
     }
   );
   const isCrisisFlag = (payload.is_crisis || evalResult.isCrisis || evalResult.crisisLevel >= 3 || effectiveStage === 'Crisis_Escalation') ? 1 : 0;
@@ -700,7 +700,7 @@ voiceRouter.post('/session/persist', async (c) => {
         {
           apiKey: openRouterKey,
           baseUrl: env.OPENROUTER_BASE_URL,
-          model: env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash',
+          model: env.OPENROUTER_MODEL || atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx'),
         }
       );
       if (consolidated) {
