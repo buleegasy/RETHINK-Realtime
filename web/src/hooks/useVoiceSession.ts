@@ -123,6 +123,8 @@ export function useVoiceSession() {
       });
 
       clientRef.current = new MiniMaxRealtimeClient({
+        userId: user?.uid || user?.userName,
+        username: user?.displayName || user?.userName,
         callbacks: {
           onOpen: () => {
             setSessionStatus('connected');

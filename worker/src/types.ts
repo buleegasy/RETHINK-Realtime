@@ -20,6 +20,18 @@ export interface Env {
 
 export type CrisisLevel = 0 | 1 | 2 | 3;
 
+export interface SituationalMemory {
+  userId: string;
+  userName?: string;
+  identityContext?: string;
+  coreConcerns: string[];
+  significantOthers?: string[];
+  recentSituations?: string[];
+  effectiveStrategies?: string[];
+  summaryParagraph: string;
+  lastUpdated: number;
+}
+
 export type DispositionStatus = 'pending_contact' | 'intervened' | 'closed';
 
 export interface SessionRecord {

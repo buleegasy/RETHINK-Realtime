@@ -7,7 +7,13 @@ import { sendCrisisWebhook } from '../lib/webhook-sender';
 import { BgeRetriever } from '../lib/rag';
 import { generateOpenAIChatReply, synthesizeRealtimeAudio } from '../lib/openai-realtime';
 import { isL1Crisis, checkL2FlashSafety } from '../lib/safety-filter';
-import { performShadowReasoning, generateStructuredReportWithFlash } from '../lib/deepseek-flash';
+import {
+  performShadowReasoning,
+  generateStructuredReportWithFlash,
+  consolidateSituationalMemoryWithLLM,
+  formatSituationalMemoryPrompt,
+} from '../lib/deepseek-flash';
+import { getSituationalMemory, saveSituationalMemory } from '../lib/memory-store';
 
 export const voiceRouter = new Hono<{ Bindings: Env }>();
 
@@ -57,10 +63,13 @@ voiceRouter.get('/ws', async (c) => {
         upstreamWs.accept();
 
         const sessionId = `sess_${Date.now()}`;
+        const requestedUserId = c.req.query('userId') || c.req.query('username') || '';
+        let currentMemory = await getSituationalMemory(env, requestedUserId);
+
         let sequenceId = 0;
         let thinkingController: AbortController | null = null;
         let isCrisisTriggered = false;
-        let studentName = '';
+        let studentName = currentMemory?.userName || '';
         const dialogueHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
         const openRouterKey = env.OPENROUTER_API_KEY || env.APIYI_API_KEY || env.OPENAI_API_KEY || '';
@@ -93,7 +102,16 @@ voiceRouter.get('/ws', async (c) => {
                 } : undefined);
                 const cleanSession: Record<string, unknown> = {};
                 if (incoming.modalities) cleanSession.modalities = incoming.modalities;
-                if (incoming.instructions !== undefined) cleanSession.instructions = incoming.instructions;
+                if (incoming.instructions !== undefined) {
+                  let baseInstructions = incoming.instructions;
+                  if (currentMemory) {
+                    const memoryPrompt = formatSituationalMemoryPrompt(currentMemory);
+                    if (memoryPrompt && !baseInstructions.includes('【来访学生历史个人情景记忆档案】')) {
+                      baseInstructions = `${baseInstructions}\n\n${memoryPrompt}`;
+                    }
+                  }
+                  cleanSession.instructions = baseInstructions;
+                }
                 if (incoming.voice) cleanSession.voice = incoming.voice;
                 if (incoming.input_audio_format) cleanSession.input_audio_format = incoming.input_audio_format;
                 if (incoming.output_audio_format) cleanSession.output_audio_format = incoming.output_audio_format;
@@ -222,6 +240,7 @@ voiceRouter.get('/ws', async (c) => {
                       history: dialogueHistory.slice(-4),
                       cbtHints,
                       userName: studentName,
+                      situationalMemory: currentMemory,
                     },
                     {
                       apiKey: openRouterKey,
@@ -272,6 +291,22 @@ voiceRouter.get('/ws', async (c) => {
 
           if (dialogueHistory.length >= 2) {
             try {
+              const effectiveUserId = requestedUserId || studentName || sessionId;
+              const updatedMemory = await consolidateSituationalMemoryWithLLM(
+                effectiveUserId,
+                currentMemory,
+                dialogueHistory,
+                {
+                  apiKey: openRouterKey,
+                  baseUrl: openRouterBaseUrl,
+                  model: openRouterModel,
+                }
+              );
+              if (updatedMemory) {
+                currentMemory = updatedMemory;
+                await saveSituationalMemory(env, updatedMemory);
+              }
+
               const fullTranscript = dialogueHistory
                 .map((d) => `${d.role === 'user' ? (studentName || '学生') : '智能体'}: ${d.content}`)
                 .join('\n');
@@ -654,12 +689,50 @@ voiceRouter.post('/session/persist', async (c) => {
     }
   }
 
+  const effectiveUserId = username || session_id || `user_${Date.now()}`;
+  let existingMemory = await getSituationalMemory(env, effectiveUserId);
+  const turns = transcript_text
+    ? transcript_text.split('\n').filter(Boolean).map((line) => ({
+        role: line.startsWith('学生') || line.startsWith('来访者') ? 'user' : 'assistant',
+        content: line.replace(/^(学生|智能体|来访者|助手)[:：]\s*/, ''),
+      }))
+    : [];
+
+  if (turns.length > 0) {
+    try {
+      const consolidated = await consolidateSituationalMemoryWithLLM(
+        effectiveUserId,
+        existingMemory,
+        turns,
+        {
+          apiKey: openRouterKey,
+          baseUrl: env.OPENROUTER_BASE_URL,
+          model: env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash',
+        }
+      );
+      if (consolidated) {
+        await saveSituationalMemory(env, consolidated);
+      }
+    } catch {}
+  }
+
   return c.json({
     ok: true,
     session_id: effectiveSessionId,
     is_crisis: Boolean(isCrisisFlag),
     crisis_level: crisisLevel,
     report: deidentifiedReportObj,
+  });
+});
+
+voiceRouter.get('/memory/:userId', async (c) => {
+  const userId = c.req.param('userId');
+  const env = c.env || {};
+  const memory = await getSituationalMemory(env, userId);
+  return c.json({
+    ok: true,
+    userId,
+    memory: memory || null,
   });
 });
 

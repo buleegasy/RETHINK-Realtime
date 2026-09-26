@@ -1,12 +1,17 @@
 const WORKER_ORIGIN = 'https://rethink-realtime-worker.buleegasy-6c8.workers.dev';
 
-export function getWsUrl(): string {
+export function getWsUrl(options?: { userId?: string; username?: string }): string {
+  const params = new URLSearchParams();
+  params.set('model', 'gpt-realtime-2.1-mini');
+  if (options?.userId) params.set('userId', options.userId);
+  if (options?.username) params.set('username', options.username);
+
   if (typeof window !== 'undefined') {
     const loc = window.location;
     const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${loc.host}/api/voice/ws?model=gpt-realtime-2.1-mini`;
+    return `${protocol}//${loc.host}/api/voice/ws?${params.toString()}`;
   }
-  return 'wss://rethink-realtime-worker.buleegasy-6c8.workers.dev/api/voice/ws?model=gpt-realtime-2.1-mini';
+  return `wss://rethink-realtime-worker.buleegasy-6c8.workers.dev/api/voice/ws?${params.toString()}`;
 }
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {

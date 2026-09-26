@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { isL1Crisis, checkL2FlashSafety, checkDoubleSpeedSafety } from '../src/lib/safety-filter';
-import { performShadowReasoning, generateStructuredReportWithFlash } from '../src/lib/deepseek-flash';
+import {
+  performShadowReasoning,
+  generateStructuredReportWithFlash,
+  consolidateSituationalMemoryWithLLM,
+  formatSituationalMemoryPrompt,
+} from '../src/lib/deepseek-flash';
+import { getSituationalMemory, saveSituationalMemory, clearMemoryCache } from '../src/lib/memory-store';
 import app from '../src/index';
 
 describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知旁路管线)', () => {
@@ -16,6 +22,10 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
       expect(isL1Crisis('我觉得生活没有希望，想跳楼自杀')).toBe(true);
       expect(isL1Crisis('我已经买了大量安眠药准备吞药结束生命')).toBe(true);
       expect(isL1Crisis('真的不想在这个世界上活下去了，准备彻底解脱')).toBe(true);
+      expect(isL1Crisis('我现在一个人站在天台窗台上')).toBe(true);
+      expect(isL1Crisis('我拿小刀划手放血，割大动脉')).toBe(true);
+      expect(isL1Crisis('房间门窗已封死，准备烧炭自杀')).toBe(true);
+      expect(isL1Crisis('谁也别救我，这是我的绝笔遗书')).toBe(true);
       expect(isL1Crisis('今天数学考试好难，心情有点烦躁')).toBe(false);
       expect(isL1Crisis('')).toBe(false);
     });
@@ -189,6 +199,97 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
       expect(data.ok).toBe(true);
       expect(data.report).toBeDefined();
       expect(data.report.sessionId).toBe('sess_test_decoupled_001');
+    });
+  });
+
+  describe('模块四：LLM 驱动的长程个人情景记忆链路', () => {
+    beforeEach(() => {
+      clearMemoryCache();
+    });
+
+    it('consolidateSituationalMemoryWithLLM 应准确提炼学生个人情境与生活记忆档案', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  userName: '小华',
+                  identityContext: '高三住校理科生，备战高考冲刺',
+                  coreConcerns: ['近期数学模考断崖式下滑', '母亲期望过高引发亲子激烈争吵', '入睡困难'],
+                  significantOthers: ['严格的母亲', '经常交流的班主任张老师'],
+                  recentSituations: ['上周模拟考数学只有85分被妈妈斥责', '在宿舍整夜辗转反侧'],
+                  effectiveStrategies: ['认可其刻苦努力', '避免直接催促成绩', '运用去灾难化引导'],
+                  summaryParagraph: '小华是高三住校生，近期因数学模考失利与母亲爆发冲突，存在较大焦虑与失眠，需要温和同龄陪伴。',
+                }),
+              },
+            },
+          ],
+        }),
+      } as any);
+
+      const memory = await consolidateSituationalMemoryWithLLM(
+        'student_xiaohua_001',
+        null,
+        [
+          { role: 'user', content: '我叫小华，高三住校。上周数学模考只有85分，我妈把我狠狠骂了一顿，我现在晚上根本睡不着。' },
+          { role: 'assistant', content: '小华，模考受挫还要面对妈妈的指责，换作谁都会喘不过气来。我在这儿听你说。' },
+        ],
+        {
+          apiKey: 'test-key',
+          model: 'deepseek/deepseek-v4-flash',
+        }
+      );
+
+      expect(memory).not.toBeNull();
+      expect(memory?.userId).toBe('student_xiaohua_001');
+      expect(memory?.userName).toBe('小华');
+      expect(memory?.identityContext).toContain('高三住校理科生');
+      expect(memory?.coreConcerns).toContain('近期数学模考断崖式下滑');
+      expect(memory?.significantOthers).toContain('严格的母亲');
+      expect(memory?.summaryParagraph).toContain('小华是高三住校生');
+    });
+
+    it('formatSituationalMemoryPrompt 能够精准格式化提示词以供智能体唤醒记忆', () => {
+      const prompt = formatSituationalMemoryPrompt({
+        userId: 'u123',
+        userName: '小李',
+        identityContext: '大四应届生',
+        coreConcerns: ['秋招多次被拒', '与室友作息不合'],
+        significantOthers: ['合租室友'],
+        recentSituations: ['昨天面试被淘汰'],
+        effectiveStrategies: ['共情求职焦虑'],
+        summaryParagraph: '小李处于毕业求职压力期，近期面试受挫，需要理解与赋能。',
+        lastUpdated: Date.now(),
+      });
+
+      expect(prompt).toContain('【来访学生历史个人情景记忆档案】');
+      expect(prompt).toContain('小李');
+      expect(prompt).toContain('秋招多次被拒');
+      expect(prompt).toContain('记忆交互指导');
+    });
+
+    it('GET /api/voice/memory/:userId 端点支持随时查询与复用学生情景记忆', async () => {
+      await saveSituationalMemory({} as any, {
+        userId: 'student_stored_999',
+        userName: '阿杰',
+        identityContext: '高二美术生',
+        coreConcerns: ['专业集训集训压力大'],
+        significantOthers: ['画室专业老师'],
+        recentSituations: ['色彩画作业被批评'],
+        effectiveStrategies: ['多倾听情绪'],
+        summaryParagraph: '阿杰是高二美术生，近期画室集训压力大，需要心理赋能。',
+        lastUpdated: Date.now(),
+      });
+
+      const res = await app.request('/api/voice/memory/student_stored_999');
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.ok).toBe(true);
+      expect(body.memory).toBeDefined();
+      expect(body.memory.userName).toBe('阿杰');
+      expect(body.memory.identityContext).toBe('高二美术生');
     });
   });
 });

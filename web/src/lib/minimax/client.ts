@@ -15,6 +15,8 @@ export interface MiniMaxClientOptions {
   callbacks?: MiniMaxClientCallbacks;
   maxReconnectAttempts?: number;
   sendGreetingOnConnect?: boolean;
+  userId?: string;
+  username?: string;
 }
 
 export class MiniMaxRealtimeClient {
@@ -47,7 +49,10 @@ export class MiniMaxRealtimeClient {
     this.isExplicitlyClosed = false;
     this.cleanupSocket();
 
-    const wsUrl = this.options.relayUrl || getWsUrl();
+    const wsUrl = this.options.relayUrl || getWsUrl({
+      userId: this.options.userId,
+      username: this.options.username,
+    });
 
     try {
       const ws = new WebSocket(wsUrl);
