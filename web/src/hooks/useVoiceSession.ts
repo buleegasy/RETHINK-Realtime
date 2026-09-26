@@ -29,7 +29,6 @@ export function useVoiceSession() {
     setActiveTranscript,
     addDialogueTurn,
     setLatestReport,
-    setReportModalOpen,
     setCrisisOverlayOpen,
     setErrorMessage,
     setCallDuration,
@@ -280,7 +279,6 @@ export function useVoiceSession() {
         });
 
         setLatestReport(report);
-        setReportModalOpen(true);
 
         const plainJson = JSON.stringify({ turns, report });
         const encryptedBundle = await cryptoRef.current.encrypt(plainJson);
@@ -302,7 +300,7 @@ export function useVoiceSession() {
         console.error('[VoiceSession] 报告生成或加密异常:', err);
       }
     }
-  }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport, setReportModalOpen]);
+  }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport]);
 
   const interrupt = useCallback(() => {
     if (clientRef.current) {
