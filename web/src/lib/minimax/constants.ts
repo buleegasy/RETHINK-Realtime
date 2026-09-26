@@ -8,7 +8,6 @@ export const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
     noiseSuppression: true,
     autoGainControl: true,
     channelCount: 1,
-    sampleRate: 24000,
   },
   video: false,
 };

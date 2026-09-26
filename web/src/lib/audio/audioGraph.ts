@@ -11,8 +11,6 @@ export class AudioGraphService {
   private outputGainNode: GainNode | null = null;
   private inputGainNode: GainNode | null = null;
   private highpassFilterNode: BiquadFilterNode | null = null;
-  private streamDestination: MediaStreamAudioDestinationNode | null = null;
-  private audioElement: HTMLAudioElement | null = null;
 
   private nextPlayTime: number = 0;
   private scheduledSources: AudioBufferSourceNode[] = [];
@@ -43,33 +41,7 @@ export class AudioGraphService {
     if (this.audioCtx.state === 'suspended') {
       await this.audioCtx.resume();
     }
-    if (!this.streamDestination && this.audioCtx && typeof this.audioCtx.createMediaStreamDestination === 'function') {
-      this.streamDestination = this.audioCtx.createMediaStreamDestination();
-      if (typeof document !== 'undefined') {
-        this.audioElement = document.createElement('audio');
-        this.audioElement.autoplay = true;
-        try {
-          this.audioElement.srcObject = this.streamDestination.stream;
-        } catch {}
-        this.audioElement.volume = 1.0;
-      }
-    }
-    if (!this.outputGainNode && this.audioCtx) {
-      this.outputGainNode = this.audioCtx.createGain();
-      this.outputGainNode.gain.setValueAtTime(0.85, this.audioCtx.currentTime);
-
-      this.speakerAnalyserNode = this.audioCtx.createAnalyser();
-      this.speakerAnalyserNode.fftSize = 256;
-      this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
-
-      this.outputGainNode.connect(this.speakerAnalyserNode);
-      this.speakerAnalyserNode.connect(this.audioCtx.destination);
-      if (this.streamDestination) {
-        try {
-          this.speakerAnalyserNode.connect(this.streamDestination);
-        } catch {}
-      }
-    }
+    this.ensureOutputGraph(this.audioCtx);
     return this.audioCtx;
   }
 
@@ -257,12 +229,6 @@ export class AudioGraphService {
 
       this.outputGainNode.connect(this.speakerAnalyserNode);
       this.speakerAnalyserNode.connect(ctx.destination);
-
-      if (this.streamDestination) {
-        try {
-          this.speakerAnalyserNode.connect(this.streamDestination);
-        } catch {}
-      }
     }
     return this.outputGainNode;
   }
@@ -544,19 +510,6 @@ export class AudioGraphService {
         this.outputGainNode.disconnect();
       } catch {}
       this.outputGainNode = null;
-    }
-    if (this.audioElement) {
-      try {
-        this.audioElement.pause();
-        this.audioElement.srcObject = null;
-      } catch {}
-      this.audioElement = null;
-    }
-    if (this.streamDestination) {
-      try {
-        this.streamDestination.disconnect();
-      } catch {}
-      this.streamDestination = null;
     }
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((t) => t.stop());
