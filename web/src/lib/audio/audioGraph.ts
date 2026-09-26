@@ -151,8 +151,6 @@ export class AudioGraphService {
     const now = ctx.currentTime;
     if (this.nextPlayTime < now) {
       this.nextPlayTime = now + 0.005;
-    } else if (this.nextPlayTime > now + 0.35) {
-      this.nextPlayTime = now + 0.05;
     }
 
     source.start(this.nextPlayTime);

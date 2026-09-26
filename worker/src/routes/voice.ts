@@ -38,7 +38,8 @@ voiceRouter.get('/ws', async (c) => {
 
   if (apiyiKey) {
     try {
-      const requestedModel = c.req.query('model') || 'gpt-realtime-2.1-mini';
+      const rawModel = c.req.query('model');
+      const requestedModel = (!rawModel || rawModel === 'minimax-realtime') ? 'gpt-realtime-2.1-mini' : rawModel;
       const upstreamRes = await fetch(`https://api.apiyi.com/v1/realtime?model=${encodeURIComponent(requestedModel)}`, {
         headers: {
           Upgrade: 'websocket',

@@ -4,10 +4,10 @@ export function getWsUrl(): string {
   if (typeof window !== 'undefined') {
     const loc = window.location;
     if (loc.hostname === 'localhost' || loc.hostname === '127.0.0.1') {
-      return `ws://${loc.host}/api/voice/ws?model=minimax-realtime`;
+      return `ws://${loc.host}/api/voice/ws?model=gpt-realtime-2.1-mini`;
     }
   }
-  return 'wss://rethink-realtime-worker.buleegasy-6c8.workers.dev/api/voice/ws?model=minimax-realtime';
+  return 'wss://rethink-realtime-worker.buleegasy-6c8.workers.dev/api/voice/ws?model=gpt-realtime-2.1-mini';
 }
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
