@@ -54,6 +54,15 @@ async function ensureDbTables(db: D1Database): Promise<void> {
     try {
       await db.prepare('ALTER TABLE school_sessions ADD COLUMN deleted_by TEXT DEFAULT NULL').run();
     } catch {}
+    try {
+      await db.prepare(`
+        DELETE FROM school_sessions 
+        WHERE session_id LIKE 'sess_sample_%' 
+           OR session_id LIKE 'mock_%' 
+           OR id LIKE 'sess_sample_%' 
+           OR id LIKE 'mock_%'
+      `).run();
+    } catch {}
   } catch {}
 }
 
@@ -191,18 +200,22 @@ adminRouter.post('/login', async (c) => {
 
 adminRouter.get('/stats', async (c) => {
   const env = c.env || {};
-  let allSessions = memorySessions.filter((s) => !s.is_deleted);
+  let allSessions = memorySessions.filter(
+    (s) => !s.is_deleted && !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
+  );
   if (env.DB) {
     try {
       await ensureDbTables(env.DB);
       const { results } = await env.DB.prepare(
-        'SELECT * FROM school_sessions WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT 500'
+        "SELECT * FROM school_sessions WHERE is_deleted = 0 AND session_id NOT LIKE 'sess_sample_%' AND session_id NOT LIKE 'mock_%' ORDER BY created_at DESC LIMIT 500"
       ).all<SessionRecord>();
       if (results) {
         allSessions = results;
       }
     } catch {
-      allSessions = memorySessions.filter((s) => !s.is_deleted);
+      allSessions = memorySessions.filter(
+        (s) => !s.is_deleted && !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
+      );
     }
   }
 
@@ -291,19 +304,23 @@ adminRouter.get('/sessions', async (c) => {
   const includeDeleted = c.req.query('includeDeleted') === 'true';
   const queryCrisis = c.req.query('crisisOnly');
 
-  let sessions = memorySessions;
+  let sessions = memorySessions.filter(
+    (s) => !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
+  );
   if (env.DB) {
     try {
       await ensureDbTables(env.DB);
       const sql = includeDeleted
-        ? 'SELECT * FROM school_sessions ORDER BY created_at DESC LIMIT 200'
-        : 'SELECT * FROM school_sessions WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT 200';
+        ? "SELECT * FROM school_sessions WHERE session_id NOT LIKE 'sess_sample_%' AND session_id NOT LIKE 'mock_%' ORDER BY created_at DESC LIMIT 200"
+        : "SELECT * FROM school_sessions WHERE is_deleted = 0 AND session_id NOT LIKE 'sess_sample_%' AND session_id NOT LIKE 'mock_%' ORDER BY created_at DESC LIMIT 200";
       const { results } = await env.DB.prepare(sql).all<SessionRecord>();
       if (results) {
         sessions = results;
       }
     } catch {
-      sessions = memorySessions;
+      sessions = memorySessions.filter(
+        (s) => !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
+      );
     }
   }
 
@@ -357,18 +374,22 @@ adminRouter.get('/sessions', async (c) => {
 
 adminRouter.get('/crises', async (c) => {
   const env = c.env || {};
-  let sessions = memorySessions.filter((s) => !s.is_deleted && (s.is_crisis === 1 || s.crisis_level >= 3));
+  let sessions = memorySessions.filter(
+    (s) => !s.is_deleted && (s.is_crisis === 1 || s.crisis_level >= 3) && !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
+  );
   if (env.DB) {
     try {
       await ensureDbTables(env.DB);
       const { results } = await env.DB.prepare(
-        'SELECT * FROM school_sessions WHERE is_deleted = 0 AND (is_crisis = 1 OR crisis_level >= 3) ORDER BY created_at DESC LIMIT 100'
+        "SELECT * FROM school_sessions WHERE is_deleted = 0 AND (is_crisis = 1 OR crisis_level >= 3) AND session_id NOT LIKE 'sess_sample_%' AND session_id NOT LIKE 'mock_%' ORDER BY created_at DESC LIMIT 100"
       ).all<SessionRecord>();
       if (results) {
         sessions = results;
       }
     } catch {
-      sessions = memorySessions.filter((s) => !s.is_deleted && (s.is_crisis === 1 || s.crisis_level >= 3));
+      sessions = memorySessions.filter(
+        (s) => !s.is_deleted && (s.is_crisis === 1 || s.crisis_level >= 3) && !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
+      );
     }
   }
 
@@ -667,3 +688,33 @@ adminRouter.post('/webhook/test', async (c) => {
     error: result.error,
   });
 });
+
+adminRouter.post('/clean-mock-data', async (c) => {
+  const env = c.env || {};
+  let deletedCount = 0;
+  for (let i = memorySessions.length - 1; i >= 0; i--) {
+    if (memorySessions[i].session_id.startsWith('sess_sample_') || memorySessions[i].session_id.startsWith('mock_')) {
+      memorySessions.splice(i, 1);
+      deletedCount++;
+    }
+  }
+
+  if (env.DB) {
+    try {
+      await ensureDbTables(env.DB);
+      const res = await env.DB.prepare(
+        "DELETE FROM school_sessions WHERE session_id LIKE 'sess_sample_%' OR session_id LIKE 'mock_%' OR id LIKE 'sess_sample_%' OR id LIKE 'mock_%'"
+      ).run();
+      deletedCount += (res.meta?.changes || 0);
+    } catch (e: any) {
+      console.warn('[D1 Clean Mock Error]:', e);
+    }
+  }
+
+  return c.json({
+    success: true,
+    message: '已彻底清除所有模拟样本数据，当前仅保留真实学生倾诉记录',
+    deletedCount,
+  });
+});
+

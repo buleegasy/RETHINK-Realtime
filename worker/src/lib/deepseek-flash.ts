@@ -25,6 +25,11 @@ export interface ShadowReasoningResult {
 
 export interface StructuredSessionReport extends EvaluationResult {
   actionItems?: string[];
+  initialEmotion?: string;
+  finalEmotion?: string;
+  deltaNotes?: string;
+  homeworkAction?: string;
+  keyTakeaways?: string[];
 }
 
 export const DEEPSEEK_V4_FLASH_MODEL = 'deepseek/deepseek-v4-flash';
@@ -153,21 +158,26 @@ export async function generateStructuredReportWithFlash(
   }
 
   const baseUrl = (options?.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-  const model = resolveFlashModel(options?.model);
+  const model = options?.model || DEEPSEEK_V4_FLASH_MODEL;
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
-  const prompt = `你是中学校园心理危机干预与脱敏评估专家。请分析以下学生倾诉对话文本，严格返回 JSON 格式结果：
+  const prompt = `你是中学校园心理危机干预与脱敏评估专家。请针对以下学生的实际倾诉对话文本进行严谨的心理学评估与个案建档，所有字段必须严格结合对话具体内容真实提取，严禁生成任何脱离对话的假数据或泛化套话。严格返回 JSON 格式结果：
 {
-  "crisisLevel": 0到3的整数(0正常，1轻度，2中度压力，3自杀自残极高危),
+  "crisisLevel": 0到3的整数(0正常稳定，1轻度人际学业压力，2中度焦虑抑郁崩溃，3自杀自残极高危),
   "isCrisis": 布尔值(crisisLevel>=3为true),
-  "crisisSummary": "一句话风险判定说明",
-  "coreConcerns": ["核心困扰议题，如学业焦虑、人际矛盾、亲子冲突等"],
+  "crisisSummary": "紧密结合学生真实话语的一句话危机与议题判定说明",
+  "coreConcerns": ["从实际对话中真实识别出的2-3个核心议题，如数学考试失利、宿舍关系紧张等，严禁空洞词汇"],
   "emotionalValence": -1.0到1.0的浮点数(-1极其消极，0中立，1积极),
-  "cognitiveDistortions": ["识别出的认知歪曲，如灾难化思维、非黑即白等"],
-  "deidentifiedTranscript": "对原对话彻底脱敏后的文本(屏蔽姓名、班级、电话、住址等)",
+  "cognitiveDistortions": ["从学生话语中真实识别出的认知歪曲，如非黑即白、灾难化、读心术等；若未发现则填具体的现实挫折描述"],
+  "initialEmotion": "进线时学生的初始情绪状态（根据对话前半段真实表现提取）",
+  "finalEmotion": "挂机时学生的情绪状态变化（根据对话结尾真实表现提取）",
+  "deltaNotes": "情绪轨迹与认知重塑轨迹简述（结合学生在对话中的具体转化事实）",
+  "homeworkAction": "根据学生在此次对话中提到的具体问题，量身定制的1项切实可行的CBT微行动练习（切忌套用深呼吸等泛化套话）",
+  "keyTakeaways": ["根据本次对话核心议题沉淀的1-2条关键认知启发"],
+  "deidentifiedTranscript": "对原对话彻底脱敏后的文本(自动隐去学生姓名、班级、电话等隐私)",
   "actionItems": ["后续跟进事项清单1", "后续跟进事项清单2"]
 }
-待评估文本:
+待评估真实对话文本:
 """${cleanTranscript.slice(0, 4000)}"""`;
 
   try {
@@ -205,10 +215,15 @@ export async function generateStructuredReportWithFlash(
     return {
       crisisLevel: (crisisLevelNum >= 0 && crisisLevelNum <= 3 ? crisisLevelNum : 0) as any,
       isCrisis,
-      crisisSummary: typeof parsed.crisisSummary === 'string' ? parsed.crisisSummary : fallback.crisisSummary,
-      coreConcerns: Array.isArray(parsed.coreConcerns) ? parsed.coreConcerns : fallback.coreConcerns,
+      crisisSummary: typeof parsed.crisisSummary === 'string' && parsed.crisisSummary ? parsed.crisisSummary : fallback.crisisSummary,
+      coreConcerns: Array.isArray(parsed.coreConcerns) && parsed.coreConcerns.length > 0 ? parsed.coreConcerns : fallback.coreConcerns,
       emotionalValence: typeof parsed.emotionalValence === 'number' ? parsed.emotionalValence : fallback.emotionalValence,
-      cognitiveDistortions: Array.isArray(parsed.cognitiveDistortions) ? parsed.cognitiveDistortions : fallback.cognitiveDistortions,
+      cognitiveDistortions: Array.isArray(parsed.cognitiveDistortions) && parsed.cognitiveDistortions.length > 0 ? parsed.cognitiveDistortions : fallback.cognitiveDistortions,
+      initialEmotion: typeof parsed.initialEmotion === 'string' ? parsed.initialEmotion : undefined,
+      finalEmotion: typeof parsed.finalEmotion === 'string' ? parsed.finalEmotion : undefined,
+      deltaNotes: typeof parsed.deltaNotes === 'string' ? parsed.deltaNotes : undefined,
+      homeworkAction: typeof parsed.homeworkAction === 'string' ? parsed.homeworkAction : undefined,
+      keyTakeaways: Array.isArray(parsed.keyTakeaways) ? parsed.keyTakeaways : undefined,
       deidentifiedTranscript: typeof parsed.deidentifiedTranscript === 'string' ? parsed.deidentifiedTranscript : fallback.deidentifiedTranscript,
       actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems : ['安排班级心育委员日常关怀', '必要时预约心理中心面询'],
     };

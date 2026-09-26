@@ -17,6 +17,7 @@ export interface MiniMaxClientOptions {
   sendGreetingOnConnect?: boolean;
   userId?: string;
   username?: string;
+  sessionId?: string;
 }
 
 export class MiniMaxRealtimeClient {
@@ -52,6 +53,7 @@ export class MiniMaxRealtimeClient {
     const wsUrl = this.options.relayUrl || getWsUrl({
       userId: this.options.userId,
       username: this.options.username,
+      sessionId: this.options.sessionId,
     });
 
     try {

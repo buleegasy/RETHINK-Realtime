@@ -12,6 +12,7 @@ import {
   generateStructuredReportWithFlash,
   consolidateSituationalMemoryWithLLM,
   formatSituationalMemoryPrompt,
+  DEEPSEEK_V4_FLASH_MODEL,
 } from '../lib/deepseek-flash';
 import { getSituationalMemory, saveSituationalMemory } from '../lib/memory-store';
 
@@ -70,7 +71,7 @@ voiceRouter.get('/ws', async (c) => {
       if (upstreamWs) {
         upstreamWs.accept();
 
-        const sessionId = `sess_${Date.now()}`;
+        const sessionId = c.req.query('sessionId') || `sess_${Date.now()}`;
         const requestedUserId = c.req.query('userId') || c.req.query('username') || '';
         let currentMemory = await getSituationalMemory(env, requestedUserId);
 
@@ -306,7 +307,7 @@ voiceRouter.get('/ws', async (c) => {
               const report = await generateStructuredReportWithFlash(fullTranscript, {
                 apiKey: openRouterKey,
                 baseUrl: openRouterBaseUrl,
-                model: openRouterModel,
+                model: env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash',
               });
 
               const secret = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
@@ -325,6 +326,28 @@ voiceRouter.get('/ws', async (c) => {
                 } catch {}
               }
 
+              const deidentifiedReportObj = {
+                sessionId,
+                generatedAt: Date.now(),
+                durationSeconds: 0,
+                userDisplayName: studentName ? `${studentName[0]}*同学` : '来访者',
+                cbtStageReached: report.isCrisis ? 'Crisis_Escalation' : 'Socratic_Questioning',
+                coreConcerns: report.coreConcerns,
+                cognitiveDistortions: report.cognitiveDistortions,
+                emotionalTrajectory: {
+                  initial: report.initialEmotion || (report.crisisLevel >= 2 ? '高度负性情绪倾诉' : '情绪低落'),
+                  final: report.finalEmotion || (report.isCrisis ? '危机紧急触发，转入线下保护' : '情绪平复与认知聚焦'),
+                  deltaNotes: report.deltaNotes || report.crisisSummary,
+                },
+                keyTakeaways: report.keyTakeaways && report.keyTakeaways.length > 0
+                  ? report.keyTakeaways
+                  : ['关注当下可控的事实，逐步重塑积极认知。'],
+                homeworkAction: report.homeworkAction || '尝试用客观视角记录一件今天发生的小事。',
+                actionItems: report.actionItems,
+                deidentifiedTranscript: report.deidentifiedTranscript,
+                isDeidentified: true,
+              };
+
               const record: SessionRecord = {
                 id: `rec_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
                 session_id: sessionId,
@@ -336,9 +359,9 @@ voiceRouter.get('/ws', async (c) => {
                 core_concerns: JSON.stringify(report.coreConcerns),
                 emotional_valence: report.emotionalValence,
                 encrypted_real_identity: encryptedIdentity,
-                deidentified_report: report.deidentifiedTranscript,
+                deidentified_report: JSON.stringify(deidentifiedReportObj),
                 disposition_status: report.isCrisis ? 'pending_contact' : 'closed',
-                created_at: Date.now(),
+                created_at: Math.floor(Date.now() / 1000),
               };
 
               await addSessionRecordToStore(env, record);
@@ -586,7 +609,7 @@ voiceRouter.post('/session/persist', async (c) => {
     {
       apiKey: openRouterKey,
       baseUrl: env.OPENROUTER_BASE_URL,
-      model: env.OPENROUTER_MODEL || atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx'),
+      model: env.OPENROUTER_MODEL || DEEPSEEK_V4_FLASH_MODEL,
     }
   );
   const isCrisisFlag = (payload.is_crisis || evalResult.isCrisis || evalResult.crisisLevel >= 3 || effectiveStage === 'Crisis_Escalation') ? 1 : 0;
@@ -618,12 +641,16 @@ voiceRouter.post('/session/persist', async (c) => {
     coreConcerns: evalResult.coreConcerns,
     cognitiveDistortions: evalResult.cognitiveDistortions,
     emotionalTrajectory: {
-      initial: evalResult.crisisLevel >= 2 ? '高度压力与负性情绪反刍' : '中度情绪倾诉',
-      final: effectiveStage === 'Crisis_Escalation' ? '危机紧急触发，已转专业干预' : '事实与情绪逐步分离',
-      deltaNotes: evalResult.crisisSummary,
+      initial: evalResult.initialEmotion || (evalResult.crisisLevel >= 2 ? '高度负性情绪倾诉' : '情绪低落'),
+      final: evalResult.finalEmotion || (effectiveStage === 'Crisis_Escalation' ? '危机紧急触发，已转专业干预' : '事实与情绪逐步分离，趋向平稳'),
+      deltaNotes: evalResult.deltaNotes || evalResult.crisisSummary,
     },
-    keyTakeaways: ['生命安全高于一切，困境终有解法。'],
-    homeworkAction: '保持深呼吸，寻求老师或信任伙伴的支持。',
+    keyTakeaways: (evalResult.keyTakeaways && evalResult.keyTakeaways.length > 0)
+      ? evalResult.keyTakeaways
+      : ['梳理事实与情绪边界，逐步重建掌控感。'],
+    homeworkAction: evalResult.homeworkAction || '尝试结合今天探讨的问题，记录一件具体生活小事的客观事实与个人看法。',
+    actionItems: evalResult.actionItems,
+    deidentifiedTranscript: evalResult.deidentifiedTranscript,
     isDeidentified: true,
   };
 

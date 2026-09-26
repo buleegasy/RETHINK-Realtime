@@ -28,6 +28,7 @@ export function useVoiceSession() {
     setAudioLevel,
     addDialogueTurn,
     setLatestReport,
+    setReportModalOpen,
     setCrisisOverlayOpen,
     setErrorMessage,
     setCallDuration,
@@ -133,6 +134,7 @@ export function useVoiceSession() {
       });
 
       clientRef.current = new MiniMaxRealtimeClient({
+        sessionId: sessionIdRef.current,
         userId: user?.uid || user?.userName,
         username: user?.displayName || user?.userName,
         callbacks: {
@@ -282,11 +284,32 @@ export function useVoiceSession() {
     setSessionStatus('idle');
     setDuplexPhase('idle');
 
+    const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
+    if (asstSeg?.text) {
+      addDialogueTurn({
+        id: asstSeg.id,
+        role: 'assistant',
+        content: asstSeg.text,
+        timestamp: asstSeg.timestamp,
+        stage: useBoothStore.getState().cbtStage,
+      });
+    }
+    const userSeg = transcriptionRef.current.finalizeCurrentTurn('user');
+    if (userSeg?.text) {
+      addDialogueTurn({
+        id: userSeg.id,
+        role: 'user',
+        content: userSeg.text,
+        timestamp: userSeg.timestamp,
+        stage: useBoothStore.getState().cbtStage,
+      });
+    }
+
     const turns = useBoothStore.getState().dialogueHistory;
     const duration = useBoothStore.getState().callDuration;
     const stageReached = useBoothStore.getState().cbtStage;
 
-    if (turns.length > 0 || duration > 5) {
+    if (turns.length > 0 || duration > 3) {
       try {
         const report = await reportGeneratorRef.current.generate({
           sessionId: sessionIdRef.current,
@@ -297,12 +320,16 @@ export function useVoiceSession() {
         });
 
         setLatestReport(report);
+        setReportModalOpen(true);
 
         const plainJson = JSON.stringify({ turns, report });
         const encryptedBundle = await cryptoRef.current.encrypt(plainJson);
 
-        const transcriptText = turns.map((t) => `${t.role}: ${t.content}`).join('\n');
-        await apiFetch('/api/voice/session/persist', {
+        const transcriptText = turns
+          .map((t) => `${t.role === 'user' ? (user?.displayName || user?.userName || '学生') : '智能体'}: ${t.content}`)
+          .join('\n');
+
+        const res = await apiFetch('/api/voice/session/persist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -313,12 +340,24 @@ export function useVoiceSession() {
             username: user?.userName || user?.displayName || 'student_user',
             transcript_text: transcriptText,
           }),
-        }).catch((e) => console.warn('[VoiceSession] 后台持久化静默跳过:', e));
+        }).catch((e) => {
+          console.warn('[VoiceSession] 后台持久化静默跳过:', e);
+          return null;
+        });
+
+        if (res && res.ok) {
+          try {
+            const data: any = await res.json();
+            if (data?.report) {
+              setLatestReport(data.report);
+            }
+          } catch {}
+        }
       } catch (err) {
         console.error('[VoiceSession] 报告生成或加密异常:', err);
       }
     }
-  }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport]);
+  }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport, setReportModalOpen, addDialogueTurn]);
 
   const interrupt = useCallback(() => {
     const playedMs = audioGraphRef.current ? audioGraphRef.current.getPlaybackDurationMs() : 0;

@@ -272,14 +272,15 @@ export const SessionArchiveDrawer: React.FC = () => {
                   认知特点
                 </span>
                 <div className="bg-[#f8f9fa] border border-[#e1e3e1] rounded-2xl p-3.5 space-y-1.5">
-                  {(activeSession.deidentifiedReport?.cognitiveDistortions || ['偶发性情绪反刍']).map(
-                    (d: string, i: number) => (
-                      <div key={i} className="flex items-center gap-2 text-[#444746]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#004a77]" />
-                        <span>{d}</span>
-                      </div>
-                    )
-                  )}
+                  {(activeSession.deidentifiedReport?.cognitiveDistortions && activeSession.deidentifiedReport.cognitiveDistortions.length > 0
+                    ? activeSession.deidentifiedReport.cognitiveDistortions
+                    : ['未检测到显著偏执型认知歪曲，属于阶段性现实困扰']
+                  ).map((d: string, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-[#444746]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#004a77]" />
+                      <span>{d}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -292,19 +293,19 @@ export const SessionArchiveDrawer: React.FC = () => {
                     <div>
                       <span className="text-[#166534] block font-medium">进线</span>
                       <span className="font-bold text-[#1f1f1f]">
-                        {activeSession.deidentifiedReport?.emotionalTrajectory?.initial || '倾诉渴望'}
+                        {activeSession.deidentifiedReport?.emotionalTrajectory?.initial || '情绪倾诉'}
                       </span>
                     </div>
                     <ArrowRight className="w-4 h-4 text-[#166534]" />
                     <div>
                       <span className="text-[#166534] block font-medium">挂机</span>
                       <span className="font-bold text-[#1f1f1f]">
-                        {activeSession.deidentifiedReport?.emotionalTrajectory?.final || '情绪平复'}
+                        {activeSession.deidentifiedReport?.emotionalTrajectory?.final || (activeSession.isCrisis ? '危机干预' : '完成梳理')}
                       </span>
                     </div>
                   </div>
                   <p className="text-[#444746] pt-2 border-t border-[#bbf7d0] leading-relaxed">
-                    {activeSession.deidentifiedReport?.emotionalTrajectory?.deltaNotes || activeSession.crisisSummary}
+                    {activeSession.deidentifiedReport?.emotionalTrajectory?.deltaNotes || activeSession.crisisSummary || '已梳理事实与情绪边界。'}
                   </p>
                 </div>
               </div>
@@ -314,7 +315,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                   微行动练习
                 </span>
                 <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-2xl p-3.5 text-[#92400e] leading-relaxed">
-                  {activeSession.deidentifiedReport?.homeworkAction || '尝试进行 4-7-8 腹式深呼吸 3 次。'}
+                  {activeSession.deidentifiedReport?.homeworkAction || '结合本次倾诉议题，建议保持规律作息并记录一件积极的生活小事。'}
                 </div>
               </div>
             </div>

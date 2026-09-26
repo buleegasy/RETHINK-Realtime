@@ -2,6 +2,7 @@ import React from 'react';
 import { LogOut } from 'lucide-react';
 import { VoiceOrb } from './VoiceOrb';
 import { CrisisOverlay } from '../common/CrisisOverlay';
+import { CallReportModal } from '../report/CallReportModal';
 import { useAuthStore } from '../../store/authStore';
 import { useBoothStore } from '../../store/boothStore';
 
@@ -91,6 +92,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       </footer>
 
       <CrisisOverlay />
+      <CallReportModal />
     </div>
   );
 };

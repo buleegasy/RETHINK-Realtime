@@ -93,8 +93,8 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
       '当最坏的灾难化念头出现时，尝试问自己“最现实的结果会是什么”。',
     ];
 
-    const homeworkAction =
-      '【5分钟呼吸与微行动】今晚若再次陷入类似负面反刍，先进行 4-7-8 腹式深呼吸 3 次，然后写下一条与该想法相反的客观证据。';
+    const primaryConcern = coreConcerns[0] || '日常压力梳理';
+    const homeworkAction = `【微行动练习】针对本次探讨的“${primaryConcern}”，挑选一个当下最容易实现的小步骤去尝试，并记录完成后的真实感受。`;
 
     return {
       sessionId,
@@ -107,7 +107,7 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
       emotionalTrajectory: {
         initial: initialEmotion,
         final: finalEmotion,
-        deltaNotes: '在倾听共鸣与理性梳理下，情绪由紧绷向平静释然迁移。',
+        deltaNotes: `从进线时的“${initialEmotion}”逐步过渡至“${finalEmotion}”，完成对核心困扰的理性梳理。`,
       },
       keyTakeaways,
       homeworkAction,
