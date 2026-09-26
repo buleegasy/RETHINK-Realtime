@@ -57,8 +57,8 @@ function buildFaithfulFallback(transcript, stage) {
 }
 
 async function requestDeepSeekV4FlashEvaluation(transcript) {
-  const prompt = `你是基于 DeepSeek V4 Flash 驱动的校园心理咨询评估专家。请针对以下学生真实倾诉对话文本进行严谨的心理学评估与个案建档。
-所有字段必须100%严格根据本次真实对话中的事实提取，绝对严禁生成脱离对话的泛化套话（严禁套用深呼吸、日常情绪反刍等泛化模板）：
+  const prompt = `你是基于 DeepSeek V4 Flash 驱动的高中校园心理咨询评估专家。请针对以下高中学生真实倾诉对话文本进行严谨的心理学评估与个案建档。
+服务对象为纯高中在读学生（严禁出现工作、上班、同事等成年人职场概念）。所有字段必须100%严格根据本次真实对话中的事实提取，绝对严禁生成脱离对话的泛化套话（严禁套用深呼吸、日常情绪反刍等泛化模板）：
 请严格输出合法的 JSON 对象，不要包含任何 markdown 代码块或反引号包裹：
 {
   "crisisLevel": 0,
