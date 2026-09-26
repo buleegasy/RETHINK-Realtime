@@ -24,25 +24,36 @@ function deidentifyText(text) {
     .replace(/(\d{6})\d{8}(\w{4})/g, '$1********$2');
 }
 
-function extractCoreConcernsFromText(text) {
-  const concerns = [];
-  if (/学业|考试|论文|成绩|排名|毕业|考研|高考/.test(text)) concerns.push('学业成绩与考核压力');
-  if (/宿舍|室友|同学|朋友|人际|孤立|排挤/.test(text)) concerns.push('同伴相处与人际交往困惑');
-  if (/父母|爸妈|家里|父亲|母亲|争吵|沟通/.test(text)) concerns.push('家庭沟通与亲子关系冲突');
-  if (/失眠|睡不着|心慌|头疼|胸闷|不想吃/.test(text)) concerns.push('压力引发的身体躯体化反应');
-  if (concerns.length === 0 && text) {
-    const cleanExcerpt = text.slice(0, 16);
-    concerns.push(`“${cleanExcerpt}...”现实压力探讨`);
-  }
-  return concerns.length > 0 ? concerns : ['现实情境压力探讨'];
-}
+function buildFaithfulFallback(transcript, stage) {
+  const clean = deidentifyText(transcript || '').trim();
+  const userLines = clean
+    .split('\n')
+    .filter((l) => l.startsWith('学生') || l.startsWith('来访者'))
+    .map((l) => l.replace(/^(学生|来访者)[:：]\s*/, '').trim())
+    .filter(Boolean);
 
-function extractCognitiveDistortionsFromText(text) {
-  const distortions = [];
-  if (/全完了|绝对|必须|总是|从没|毫无价值/.test(text)) distortions.push('绝对化与非黑即白倾向');
-  if (/天塌了|完蛋了|彻底没救了|万劫不复/.test(text)) distortions.push('灾难化灾难预期');
-  if (/他们肯定讨厌我|都看不起我|心里肯定觉得我/.test(text)) distortions.push('负向读心术倾向');
-  return distortions.length > 0 ? distortions : ['未见显著偏执型认知歪曲'];
+  const mainSnippet = userLines[0] || clean.slice(0, 30);
+  const coreConcerns = mainSnippet
+    ? [`围绕“${mainSnippet.slice(0, 20)}...”的现实议题探讨`]
+    : ['来访者进行了短时间陈述，尚未展开核心议题'];
+
+  const isEscalated = stage === 'Crisis_Escalation';
+  const initialEmotion = '情绪表达与倾诉';
+  const finalEmotion = isEscalated ? '触发危机转介通道' : '完成初步交流';
+
+  return {
+    crisisLevel: isEscalated ? 3 : 0,
+    isCrisis: isEscalated,
+    crisisSummary: mainSnippet ? `围绕“${mainSnippet.slice(0, 25)}”进行了倾诉与初步梳理。` : '来访者进行了短时间陈述，尚未展开核心议题。',
+    coreConcerns,
+    emotionalValence: isEscalated ? -0.8 : -0.1,
+    cognitiveDistortions: ['待通过 DeepSeek V4 Flash 进一步解析'],
+    initialEmotion,
+    finalEmotion,
+    deltaNotes: '记录了来访者本次实际发言片段，建议通过 DeepSeek V4 Flash 进行深度认知提炼。',
+    keyTakeaways: ['建议在管理后台点击“重新提炼”触发 DeepSeek V4 Flash 深度挖掘。'],
+    homeworkAction: mainSnippet ? `针对本次交流中提及的“${mainSnippet.slice(0, 18)}”，记录发生类似困扰时的第一念头。` : '结合本次交流的事实，记录生活中的积极变化。',
+  };
 }
 
 async function requestDeepSeekV4FlashEvaluation(transcript) {
@@ -81,46 +92,6 @@ async function requestDeepSeekV4FlashEvaluation(transcript) {
     }
   } catch {}
   return null;
-}
-
-function buildFaithfulFallback(transcript, stage) {
-  const clean = deidentifyText(transcript || '');
-  const concerns = extractCoreConcernsFromText(clean);
-  const distortions = extractCognitiveDistortionsFromText(clean);
-  const mainTopic = concerns[0] || '本次倾诉议题';
-
-  let crisisLevel = 0;
-  let isCrisis = false;
-  let crisisSummary = '情绪状态相对稳定，未触发危机预警';
-
-  if (/想死|自杀|自残|割腕|跳楼|不想活/.test(clean)) {
-    crisisLevel = 3;
-    isCrisis = true;
-    crisisSummary = '检测到强烈轻生与极高危意向，需心理老师即刻介入';
-  } else if (/撑不下去了|快崩溃了|受不了了|天天哭/.test(clean)) {
-    crisisLevel = 2;
-    crisisSummary = '检测到中度情绪崩溃与高度心理重负，建议重点关注';
-  } else if (clean.length > 10) {
-    crisisLevel = 1;
-    crisisSummary = `存在围绕“${mainTopic}”的现实困扰，已完成初步情绪承接`;
-  }
-
-  const initialEmotion = crisisLevel >= 2 ? '高度压力与强烈情绪宣泄' : '情绪承压与倾诉渴望';
-  const finalEmotion = stage === 'Crisis_Escalation' ? '触发危机升级保护' : '事实逐步理清，紧绷有所松弛';
-
-  return {
-    crisisLevel,
-    isCrisis,
-    crisisSummary,
-    coreConcerns: concerns,
-    emotionalValence: crisisLevel === 3 ? -0.9 : crisisLevel === 2 ? -0.5 : -0.1,
-    cognitiveDistortions: distortions,
-    initialEmotion,
-    finalEmotion,
-    deltaNotes: `围绕${mainTopic}展开理性探讨，进线时呈现“${initialEmotion}”，挂机时转为“${finalEmotion}”。`,
-    keyTakeaways: [`理清客观事实与主观认知评价的边界，避免单一挫折泛化。`],
-    homeworkAction: `针对本次探讨的“${mainTopic}”，记录下一次发生类似困扰时的具体事实，并尝试写下一种更客观的看待角度。`,
-  };
 }
 
 export async function onRequest(context) {
@@ -456,7 +427,54 @@ export async function onRequest(context) {
     return jsonResponse({ success: true });
   }
 
-  // 7. 其余请求默认转发上游 Worker
+  // 7. 教师后台一键使用 DeepSeek V4 Flash 重新提炼真实简报
+  if (url.pathname === '/api/admin/sessions/re-evaluate' && context.request.method === 'POST') {
+    const payload = bodyJson || {};
+    const { session_id } = payload;
+    let target = edgeSessions.find((s) => s.sessionId === session_id);
+    let transcript = target?.deidentifiedReport?.deidentifiedTranscript || target?.transcript_text || target?.crisisSummary || '';
+
+    if (!transcript) {
+      try {
+        const upstream = await fetch(`${WORKER_ORIGIN}/api/admin/sessions?includeDeleted=true`, { headers: reqHeaders });
+        if (upstream.ok) {
+          const udata = await upstream.json();
+          const found = (udata.sessions || []).find((s) => (s.sessionId || s.id) === session_id);
+          if (found) {
+            transcript = found.deidentifiedReport?.deidentifiedTranscript || found.crisisSummary || '';
+            if (!target) target = found;
+          }
+        }
+      } catch {}
+    }
+
+    const freshEval = await requestDeepSeekV4FlashEvaluation(transcript);
+    if (freshEval && target) {
+      target.isCrisis = Boolean(freshEval.isCrisis || freshEval.crisisLevel >= 3);
+      target.crisisLevel = freshEval.crisisLevel || 0;
+      target.crisisSummary = freshEval.crisisSummary || target.crisisSummary;
+      target.coreConcerns = freshEval.coreConcerns || target.coreConcerns;
+      target.emotionalValence = freshEval.emotionalValence ?? target.emotionalValence;
+      target.deidentifiedReport = {
+        ...target.deidentifiedReport,
+        coreConcerns: freshEval.coreConcerns || target.deidentifiedReport?.coreConcerns,
+        cognitiveDistortions: freshEval.cognitiveDistortions || target.deidentifiedReport?.cognitiveDistortions,
+        emotionalTrajectory: {
+          initial: freshEval.initialEmotion || target.deidentifiedReport?.emotionalTrajectory?.initial,
+          final: freshEval.finalEmotion || target.deidentifiedReport?.emotionalTrajectory?.final,
+          deltaNotes: freshEval.deltaNotes || freshEval.crisisSummary || target.deidentifiedReport?.emotionalTrajectory?.deltaNotes,
+        },
+        keyTakeaways: freshEval.keyTakeaways || target.deidentifiedReport?.keyTakeaways,
+        homeworkAction: freshEval.homeworkAction || target.deidentifiedReport?.homeworkAction,
+        evaluatedBy: 'DeepSeek V4 Flash',
+      };
+      return jsonResponse({ success: true, report: target.deidentifiedReport, session: target });
+    }
+
+    return jsonResponse({ success: Boolean(target), report: target?.deidentifiedReport });
+  }
+
+  // 8. 其余请求默认转发上游 Worker
   try {
     const targetUrl = new URL(url.pathname + url.search, WORKER_ORIGIN);
     const response = await fetch(targetUrl.toString(), {

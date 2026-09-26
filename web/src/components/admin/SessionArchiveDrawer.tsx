@@ -12,6 +12,7 @@ import {
   Trash2,
   RotateCcw,
   ShieldAlert,
+  RefreshCw,
 } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
 import type { AdminSessionItem } from '../../types';
@@ -47,6 +48,7 @@ export const SessionArchiveDrawer: React.FC = () => {
     isLoading,
     showArchived,
     setShowArchived,
+    reEvaluateSession,
   } = useAdminStore();
 
   const [filterCrisisOnly, setFilterCrisisOnly] = useState(false);
@@ -54,6 +56,28 @@ export const SessionArchiveDrawer: React.FC = () => {
   const [activeSession, setActiveSession] = useState<AdminSessionItem | null>(null);
   const [deletingSession, setDeletingSession] = useState<AdminSessionItem | null>(null);
   const [restoringSession, setRestoringSession] = useState<AdminSessionItem | null>(null);
+  const [isReEvaluating, setIsReEvaluating] = useState(false);
+
+  const handleReEvaluate = async () => {
+    if (!activeSession || isReEvaluating) return;
+    setIsReEvaluating(true);
+    try {
+      const res = await reEvaluateSession(activeSession.sessionId);
+      if (res && res.success && res.report) {
+        setActiveSession((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            deidentifiedReport: res.report,
+            coreConcerns: res.report.coreConcerns || prev.coreConcerns,
+            crisisSummary: res.report.crisisSummary || prev.crisisSummary,
+          };
+        });
+      }
+    } finally {
+      setIsReEvaluating(false);
+    }
+  };
 
   useEffect(() => {
     fetchSessions(filterCrisisOnly, showArchived);
@@ -236,15 +260,18 @@ export const SessionArchiveDrawer: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-[#ffffff] w-full max-w-xl max-h-[90vh] rounded-3xl border border-[#c4c7c5] shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="bg-[#f0f4f9] px-6 py-4 border-b border-[#e1e3e1] flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <Sparkles className="w-4 h-4 text-[#004a77]" />
                 <h3 className="text-sm font-bold text-[#1f1f1f]">
                   CBT 简报 · {activeSession.sessionId}
                 </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e8f0fe] text-[#004a77] border border-[#d2e3fc]">
+                  DeepSeek V4 Flash 智能建档
+                </span>
               </div>
               <button
                 onClick={() => setActiveSession(null)}
-                className="p-1.5 rounded-full hover:bg-[#e1e3e1] text-[#747775] transition-colors"
+                className="p-1.5 rounded-full hover:bg-[#e1e3e1] text-[#747775] transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -321,7 +348,7 @@ export const SessionArchiveDrawer: React.FC = () => {
             </div>
 
             <div className="bg-[#f8f9fa] px-6 py-3 border-t border-[#e1e3e1] flex items-center justify-between">
-              <div>
+              <div className="flex items-center gap-2">
                 {!activeSession.isDeleted ? (
                   <button
                     onClick={() => {
@@ -347,6 +374,16 @@ export const SessionArchiveDrawer: React.FC = () => {
                     <span>恢复此档案</span>
                   </button>
                 )}
+
+                <button
+                  onClick={handleReEvaluate}
+                  disabled={isReEvaluating}
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-[#004a77] bg-[#ffffff] border border-[#c4c7c5] hover:bg-[#f0f4f9] transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="调用 DeepSeek V4 Flash 重新提炼本次会话的 CBT 简报"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
+                  <span>{isReEvaluating ? '提炼中...' : '重新提炼简报'}</span>
+                </button>
               </div>
 
               <button

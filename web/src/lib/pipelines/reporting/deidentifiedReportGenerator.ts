@@ -31,43 +31,23 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
     const userDisplayName = this.deidentifyName(rawUserName);
 
     const userTurns = turns.filter((t) => t.role === 'user');
-    const userSpeech = userTurns
-      .map((t) => this.deidentifyText(t.content))
-      .join(' ')
-      .trim();
+    const userSpeechList = userTurns
+      .map((t) => this.deidentifyText(t.content).trim())
+      .filter(Boolean);
 
-    const coreConcerns: string[] = [];
-    if (/学业|考试|论文|成绩|排名|毕业|考研|高考/.test(userSpeech)) {
-      coreConcerns.push('学业成绩与考核压力');
-    }
-    if (/宿舍|室友|同学|朋友|人际|孤立|排挤/.test(userSpeech)) {
-      coreConcerns.push('同伴相处与人际交往困惑');
-    }
-    if (/父母|爸妈|家里|父亲|母亲|争吵|沟通/.test(userSpeech)) {
-      coreConcerns.push('家庭沟通与亲子关系冲突');
-    }
-    if (/失眠|睡不着|心慌|头疼|胸闷|不想吃/.test(userSpeech)) {
-      coreConcerns.push('压力引发的身体躯体化反应');
-    }
-    if (coreConcerns.length === 0 && userSpeech) {
-      const summaryExcerpt = userSpeech.slice(0, 18);
-      coreConcerns.push(`“${summaryExcerpt}...”现实压力倾诉`);
-    }
+    const primaryUtterance = userSpeechList[0] || '';
+    const mainTopic = primaryUtterance
+      ? `“${primaryUtterance.slice(0, 24)}...”`
+      : '本次会话陈述';
 
-    const cognitiveDistortions: string[] = [];
-    if (/全完了|绝对|必须|总是|从没|毫无价值/.test(userSpeech)) {
-      cognitiveDistortions.push('绝对化与非黑即白倾向');
-    }
-    if (/天塌了|完蛋了|彻底没救了|万劫不复/.test(userSpeech)) {
-      cognitiveDistortions.push('灾难化灾难预期');
-    }
-    if (/他们肯定讨厌我|都看不起我|心里肯定觉得我/.test(userSpeech)) {
-      cognitiveDistortions.push('负向读心术倾向');
-    }
+    const coreConcerns: string[] = primaryUtterance
+      ? [`围绕${mainTopic}展开的真实倾诉`]
+      : ['来访者进行了短时间陈述，尚未展开核心议题'];
 
-    const initialEmotion = this.inferInitialEmotion(userSpeech);
-    const finalEmotion = this.inferFinalEmotion(stageReached, durationSeconds);
-    const mainTopic = coreConcerns[0] || '本次探讨的具体困扰';
+    const initialEmotion = '情绪承压与倾诉表达';
+    const finalEmotion = stageReached === 'Crisis_Escalation'
+      ? '转入专业安全转介通道'
+      : (durationSeconds > 180 ? '事实逐步理清，紧绷状态缓解' : '完成初步表达');
 
     return {
       sessionId,
@@ -75,38 +55,18 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
       durationSeconds,
       userDisplayName,
       cbtStageReached: stageReached,
-      coreConcerns: coreConcerns.length > 0 ? coreConcerns : ['当前阶段性现实压力探讨'],
-      cognitiveDistortions: cognitiveDistortions.length > 0 ? cognitiveDistortions : ['未见明显偏执型认知歪曲'],
+      coreConcerns,
+      cognitiveDistortions: ['待通过 DeepSeek V4 Flash 深度提取'],
       emotionalTrajectory: {
         initial: initialEmotion,
         final: finalEmotion,
-        deltaNotes: `围绕${mainTopic}展开梳理，由进线时的“${initialEmotion}”逐步转向挂机时的“${finalEmotion}”。`,
+        deltaNotes: `通话中学生重点表达了${mainTopic}，进线时呈现“${initialEmotion}”，挂机时转为“${finalEmotion}”。`,
       },
       keyTakeaways: [
-        `理清客观发生的事实与主观评价之间的边界，避免将单一现实挫折推导为全面否定。`,
+        `理清客观发生的事实与主观评价之间的边界，避免单一挫折泛化。`,
       ],
-      homeworkAction: `针对本次探讨的“${mainTopic}”，记录下一次发生类似情绪触发点时的客观事实与当下第一反应，并在纸上写下一种替代性的温和看法。`,
+      homeworkAction: `针对本次探讨的${mainTopic}，记录下一次发生类似情绪触发点时的客观事实，尝试写下一种更客观的看待角度。`,
       isDeidentified: true,
     };
-  }
-
-  private inferInitialEmotion(text: string): string {
-    if (/崩溃|受不了|难受|哭|绝望/.test(text)) return '高度压力与强烈情绪宣泄';
-    if (/慌|焦虑|害怕|担心|紧张/.test(text)) return '焦虑不安与不确定感';
-    if (/累|没意思|提不起劲|无聊/.test(text)) return '身心疲惫与精力损耗';
-    return '情绪承压与倾诉渴望';
-  }
-
-  private inferFinalEmotion(stage: CBTStage, durationSeconds: number): string {
-    if (stage === 'Crisis_Escalation') {
-      return '触发危机升级转介通道';
-    }
-    if (stage === 'Socratic_Questioning' || durationSeconds > 180) {
-      return '事实逐步厘清，恢复理性掌控感';
-    }
-    if (stage === 'CBT_Stripping') {
-      return '情绪获得承接，开始剥离主观认知';
-    }
-    return '初步倾诉释放，紧绷状态有所松弛';
   }
 }

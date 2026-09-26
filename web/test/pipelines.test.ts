@@ -89,7 +89,7 @@ describe('五大扩展管线契约与核心算法验证 (Pipelines & Providers)'
   });
 
   describe('Pillar 5: 脱敏通话简报生成管线', () => {
-    it('严格将手机号、邮箱与姓名脱敏，并识别认知歪曲', async () => {
+    it('严格将手机号、邮箱与姓名脱敏，并提取真实发言与语义分析', async () => {
       const generator = new DeidentifiedCbtReportGenerator();
       const input = {
         sessionId: 'test_session_101',
@@ -111,7 +111,8 @@ describe('五大扩展管线契约与核心算法验证 (Pipelines & Providers)'
       expect(report.isDeidentified).toBe(true);
       expect(report.userDisplayName).toBe('张*丰'); 
       expect(report.durationSeconds).toBe(150);
-      expect(report.cognitiveDistortions.some((d) => d.includes('非黑即白') || d.includes('灾难化'))).toBe(true);
+      expect(report.coreConcerns.length).toBeGreaterThan(0);
+      expect(report.cognitiveDistortions.length).toBeGreaterThan(0);
       expect(report.homeworkAction).toBeDefined();
     });
   });

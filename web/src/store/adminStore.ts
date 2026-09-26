@@ -36,6 +36,7 @@ interface AdminState {
   updateDisposition: (sessionId: string, status: DispositionStatus, note?: string) => Promise<boolean>;
   deleteSession: (sessionId: string, passcode: string, reason: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
   restoreSession: (sessionId: string, passcode: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
+  reEvaluateSession: (sessionId: string) => Promise<{ success: boolean; report?: any; error?: string }>;
   setShowArchived: (show: boolean) => void;
   setBuzzerEnabled: (enabled: boolean) => void;
   playBuzzer: () => void;
@@ -325,6 +326,56 @@ export const useAdminStore = create<AdminState>((set, get) => {
           return { success: true };
         }
         return { success: false, error: data.error || '恢复操作失败' };
+      } catch (err: any) {
+        return { success: false, error: err?.message || '网络异常' };
+      }
+    },
+
+    reEvaluateSession: async (sessionId: string) => {
+      try {
+        const res = await apiFetch('/api/admin/sessions/re-evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId }),
+        });
+        const data = await res.json();
+        if (data.success && data.report) {
+          set((state) => ({
+            sessions: state.sessions.map((s) =>
+              s.sessionId === sessionId
+                ? {
+                    ...s,
+                    deidentifiedReport: data.report,
+                    crisisLevel: data.session?.crisisLevel ?? s.crisisLevel,
+                    crisisSummary: data.session?.crisisSummary ?? s.crisisSummary,
+                    coreConcerns: data.session?.coreConcerns ?? s.coreConcerns,
+                    emotionalValence: data.session?.emotionalValence ?? s.emotionalValence,
+                  }
+                : s
+            ),
+          }));
+          try {
+            const raw = localStorage.getItem('rethink_real_sessions');
+            if (raw) {
+              const list: AdminSessionItem[] = JSON.parse(raw);
+              const updated = list.map((s) =>
+                s.sessionId === sessionId
+                  ? {
+                      ...s,
+                      deidentifiedReport: data.report,
+                      crisisLevel: data.session?.crisisLevel ?? s.crisisLevel,
+                      crisisSummary: data.session?.crisisSummary ?? s.crisisSummary,
+                      coreConcerns: data.session?.coreConcerns ?? s.coreConcerns,
+                      emotionalValence: data.session?.emotionalValence ?? s.emotionalValence,
+                    }
+                  : s
+              );
+              localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
+            }
+          } catch {}
+          return { success: true, report: data.report };
+        }
+        return { success: false, error: data.error || '重新解析失败' };
       } catch (err: any) {
         return { success: false, error: err?.message || '网络异常' };
       }
