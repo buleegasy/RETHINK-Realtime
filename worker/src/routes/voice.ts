@@ -68,9 +68,9 @@ voiceRouter.get('/ws', async (c) => {
                 const incomingVad = payload.session.turn_detection || payload.session.audio?.input?.turn_detection;
                 const turnDetection = {
                   type: 'server_vad',
-                  threshold: Math.max(0.75, incomingVad?.threshold ?? 0.75),
+                  threshold: Math.max(0.95, incomingVad?.threshold ?? 0.95),
                   prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 300,
-                  silence_duration_ms: Math.max(800, incomingVad?.silence_duration_ms ?? 800),
+                  silence_duration_ms: Math.max(1000, incomingVad?.silence_duration_ms ?? 1000),
                   create_response: true,
                 };
                 payload.session.turn_detection = turnDetection;
