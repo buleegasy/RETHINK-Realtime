@@ -6,6 +6,8 @@ import { addSessionRecordToStore } from './admin';
 import { sendCrisisWebhook } from '../lib/webhook-sender';
 import { BgeRetriever } from '../lib/rag';
 import { generateOpenAIChatReply, synthesizeRealtimeAudio } from '../lib/openai-realtime';
+import { isL1Crisis, checkL2FlashSafety } from '../lib/safety-filter';
+import { performShadowReasoning, generateStructuredReportWithFlash } from '../lib/deepseek-flash';
 
 export const voiceRouter = new Hono<{ Bindings: Env }>();
 
@@ -54,6 +56,17 @@ voiceRouter.get('/ws', async (c) => {
       if (upstreamWs) {
         upstreamWs.accept();
 
+        const sessionId = `sess_${Date.now()}`;
+        let sequenceId = 0;
+        let thinkingController: AbortController | null = null;
+        let isCrisisTriggered = false;
+        let studentName = '';
+        const dialogueHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+        const openRouterKey = env.OPENROUTER_API_KEY || env.APIYI_API_KEY || env.OPENAI_API_KEY || '';
+        const openRouterBaseUrl = env.OPENROUTER_BASE_URL;
+        const openRouterModel = env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash';
+
         serverWs.addEventListener('message', (event) => {
           try {
             if (upstreamWs.readyState === WebSocket.OPEN) {
@@ -62,6 +75,11 @@ voiceRouter.get('/ws', async (c) => {
               try {
                 payload = JSON.parse(raw);
               } catch {}
+
+              if (payload && payload.type === 'response.cancel') {
+                sequenceId++;
+                thinkingController?.abort();
+              }
 
               if (payload && payload.type === 'session.update' && payload.session) {
                 const incoming = payload.session;
@@ -99,16 +117,206 @@ voiceRouter.get('/ws', async (c) => {
           } catch {}
         });
 
-        upstreamWs.addEventListener('message', (event) => {
+        upstreamWs.addEventListener('message', async (event) => {
           try {
             if (serverWs.readyState === WebSocket.OPEN) {
               serverWs.send(event.data);
             }
+
+            const raw = typeof event.data === 'string' ? event.data : event.data.toString();
+            let payload: any = null;
+            try {
+              payload = JSON.parse(raw);
+            } catch {}
+
+            if (!payload || typeof payload.type !== 'string') return;
+
+            if (payload.type === 'input_audio_buffer.speech_started') {
+              sequenceId++;
+              thinkingController?.abort();
+              return;
+            }
+
+            if (
+              payload.type === 'conversation.item.input_audio_transcription.completed' &&
+              payload.transcript
+            ) {
+              const userText = (payload.transcript as string).trim();
+              if (!userText) return;
+
+              dialogueHistory.push({ role: 'user', content: userText });
+              const currentSeq = ++sequenceId;
+              thinkingController?.abort();
+              thinkingController = new AbortController();
+
+              if (isL1Crisis(userText)) {
+                isCrisisTriggered = true;
+                if (upstreamWs.readyState === WebSocket.OPEN) {
+                  upstreamWs.send(JSON.stringify({ type: 'response.cancel' }));
+                }
+                if (serverWs.readyState === WebSocket.OPEN) {
+                  serverWs.send(
+                    JSON.stringify({
+                      type: 'rethink.crisis_intercepted',
+                      tier: 'L1',
+                      message: '我听到了你现在非常痛苦，请记住生命永远是最宝贵的。我现在立即为你接通紧急守护支持。',
+                    })
+                  );
+                }
+                sendCrisisWebhook(env.CRISIS_WEBHOOK_URL, {
+                  sessionId,
+                  crisisLevel: 3,
+                  crisisSummary: 'L1本地即时硬过滤命中危机敏感词',
+                  occurredAt: new Date().toISOString(),
+                  boothLocation: '校园心理驿站#01',
+                  coreConcerns: ['自伤自杀危机', '紧急干预'],
+                });
+                return;
+              }
+
+              checkL2FlashSafety(userText, {
+                apiKey: openRouterKey,
+                baseUrl: openRouterBaseUrl,
+                model: openRouterModel,
+                signal: thinkingController.signal,
+              }).then((isCrisis) => {
+                if (isCrisis && currentSeq === sequenceId && !isCrisisTriggered) {
+                  isCrisisTriggered = true;
+                  if (upstreamWs.readyState === WebSocket.OPEN) {
+                    upstreamWs.send(JSON.stringify({ type: 'response.cancel' }));
+                  }
+                  if (serverWs.readyState === WebSocket.OPEN) {
+                    serverWs.send(
+                      JSON.stringify({
+                        type: 'rethink.crisis_intercepted',
+                        tier: 'L2',
+                        message: '我听到了你现在非常痛苦，请记住生命永远是最宝贵的。我现在立即为你接通紧急守护支持。',
+                      })
+                    );
+                  }
+                  sendCrisisWebhook(env.CRISIS_WEBHOOK_URL, {
+                    sessionId,
+                    crisisLevel: 3,
+                    crisisSummary: 'L2 OpenRouter DeepSeek V4 Flash语义熔断命中危机',
+                    occurredAt: new Date().toISOString(),
+                    boothLocation: '校园心理驿站#01',
+                    coreConcerns: ['自伤自杀危机', '语义旁路熔断'],
+                  });
+                }
+              }).catch(() => {});
+
+              (async () => {
+                try {
+                  const retriever = new BgeRetriever({
+                    embeddingApiKey: env.EMBEDDING_API_KEY || env.APIYI_API_KEY,
+                    embeddingApiUrl: env.EMBEDDING_API_URL,
+                    rerankApiKey: env.RERANK_API_KEY,
+                    rerankApiUrl: env.RERANK_API_URL,
+                  });
+                  const hintObj = await retriever.getStrategyHint(userText, { topK: 1 });
+                  const cbtHints = hintObj?.conciseDirective ? [hintObj.conciseDirective] : [];
+
+                  const reasoning = await performShadowReasoning(
+                    userText,
+                    {
+                      history: dialogueHistory.slice(-4),
+                      cbtHints,
+                      userName: studentName,
+                    },
+                    {
+                      apiKey: openRouterKey,
+                      baseUrl: openRouterBaseUrl,
+                      model: openRouterModel,
+                      signal: thinkingController?.signal,
+                    }
+                  );
+
+                  if (currentSeq !== sequenceId || !reasoning) {
+                    return;
+                  }
+
+                  if (reasoning.extractedName && !studentName) {
+                    studentName = reasoning.extractedName;
+                  }
+
+                  if (reasoning.cognitiveHint && upstreamWs.readyState === WebSocket.OPEN) {
+                    upstreamWs.send(
+                      JSON.stringify({
+                        type: 'conversation.item.create',
+                        item: {
+                          type: 'message',
+                          role: 'system',
+                          content: [
+                            {
+                              type: 'input_text',
+                              text: `【后台影子认知推导与CBT策略指导】：${reasoning.cognitiveHint}`,
+                            },
+                          ],
+                        },
+                      })
+                    );
+                  }
+                } catch {}
+              })();
+            }
+
+            if (payload.type === 'response.audio_transcript.done' && payload.transcript) {
+              dialogueHistory.push({ role: 'assistant', content: payload.transcript });
+            }
           } catch {}
         });
 
-        serverWs.addEventListener('close', (event) => {
+        serverWs.addEventListener('close', async (event) => {
+          thinkingController?.abort();
           safeCloseWebSocket(upstreamWs, event.code, event.reason);
+
+          if (dialogueHistory.length >= 2) {
+            try {
+              const fullTranscript = dialogueHistory
+                .map((d) => `${d.role === 'user' ? (studentName || '学生') : '智能体'}: ${d.content}`)
+                .join('\n');
+
+              const report = await generateStructuredReportWithFlash(fullTranscript, {
+                apiKey: openRouterKey,
+                baseUrl: openRouterBaseUrl,
+                model: openRouterModel,
+              });
+
+              const secret = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
+              let encryptedIdentity = '';
+              if (report.isCrisis && studentName) {
+                try {
+                  const realIdentityPayload = JSON.stringify({
+                    username: studentName,
+                    realName: studentName,
+                    gradeClass: '学生来访者',
+                    emergencyContact: '校园学生工作处 / 班主任',
+                    boothLocation: '校园心理驿站#01',
+                    crisisNote: report.crisisSummary,
+                  });
+                  encryptedIdentity = await encryptAesGcm(realIdentityPayload, secret);
+                } catch {}
+              }
+
+              const record: SessionRecord = {
+                id: `rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                session_id: sessionId,
+                duration: 0,
+                stage: report.isCrisis ? 'Crisis_Escalation' : 'Socratic_Questioning',
+                is_crisis: report.isCrisis ? 1 : 0,
+                crisis_level: report.crisisLevel,
+                crisis_summary: report.crisisSummary,
+                core_concerns: JSON.stringify(report.coreConcerns),
+                emotional_valence: report.emotionalValence,
+                encrypted_real_identity: encryptedIdentity,
+                deidentified_report: report.deidentifiedTranscript,
+                disposition_status: report.isCrisis ? 'pending_contact' : 'closed',
+                created_at: Date.now(),
+              };
+
+              await addSessionRecordToStore(env, record);
+            } catch {}
+          }
         });
 
         upstreamWs.addEventListener('close', (event) => {
@@ -344,12 +552,14 @@ voiceRouter.post('/session/persist', async (c) => {
   const effectiveDuration = duration || 0;
   const effectiveStage = stage || 'Active_Listening';
 
-  const evalApiKey = env.APIYI_API_KEY || env.OPENAI_API_KEY || env.MINIMAX_API_KEY;
-  const evalResult = await evaluateTranscriptWithMiniMax(
+  const openRouterKey = env.OPENROUTER_API_KEY || env.APIYI_API_KEY || env.OPENAI_API_KEY || env.MINIMAX_API_KEY;
+  const evalResult = await generateStructuredReportWithFlash(
     transcript_text || '',
-    evalApiKey,
-    env.MINIMAX_BASE_URL,
-    env.APIYI_BASE_URL || env.OPENAI_BASE_URL
+    {
+      apiKey: openRouterKey,
+      baseUrl: env.OPENROUTER_BASE_URL,
+      model: env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash',
+    }
   );
   const isCrisisFlag = (payload.is_crisis || evalResult.isCrisis || evalResult.crisisLevel >= 3 || effectiveStage === 'Crisis_Escalation') ? 1 : 0;
   const crisisLevel = isCrisisFlag ? Math.max(3, evalResult.crisisLevel) : evalResult.crisisLevel;
@@ -449,6 +659,7 @@ voiceRouter.post('/session/persist', async (c) => {
     session_id: effectiveSessionId,
     is_crisis: Boolean(isCrisisFlag),
     crisis_level: crisisLevel,
+    report: deidentifiedReportObj,
   });
 });
 

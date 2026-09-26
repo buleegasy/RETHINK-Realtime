@@ -13,6 +13,9 @@ export interface Env {
   ENVIRONMENT?: string;
   TEACHER_SECONDARY_PASSCODE?: string;
   CRISIS_WEBHOOK_URL?: string;
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_BASE_URL?: string;
+  OPENROUTER_MODEL?: string;
 }
 
 export type CrisisLevel = 0 | 1 | 2 | 3;

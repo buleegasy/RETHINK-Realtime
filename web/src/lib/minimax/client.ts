@@ -360,6 +360,12 @@ export class MiniMaxRealtimeClient {
         });
       }
 
+      if (type === 'rethink.crisis_intercepted') {
+        const msg = typeof (event as any).message === 'string' ? (event as any).message : '检测到安全危机，已启动紧急干预';
+        const tier = typeof (event as any).tier === 'string' ? (event as any).tier : undefined;
+        this.callbacks.onCrisisInterception?.({ message: msg, tier });
+      }
+
       if (type === 'error') {
         const errCode = event.error?.code;
         if (errCode === 'response_cancel_not_allowed') {

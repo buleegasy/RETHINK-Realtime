@@ -198,6 +198,18 @@ export function useVoiceSession() {
               await toolDispatcherRef.current.dispatch(toolCall, clientRef.current);
             }
           },
+          onCrisisInterception: (details) => {
+            audioGraph.stopPlayback();
+            setCBTStage('Crisis_Escalation');
+            setCrisisOverlayOpen(true);
+            addDialogueTurn({
+              id: `turn_${Date.now()}`,
+              role: 'assistant',
+              content: details.message,
+              timestamp: Date.now(),
+              stage: 'Crisis_Escalation',
+            });
+          },
         },
       });
 
