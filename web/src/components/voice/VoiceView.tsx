@@ -61,6 +61,11 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           fsmState={cbtStage}
           onClick={isActive ? onEndCall : onStartCall}
         />
+        {isActive && duplexPhase === 'listening' && (
+          <p className="mt-8 text-xs font-mono text-black/40 tracking-wider">
+            请随时开口说话，我在听...
+          </p>
+        )}
       </main>
 
       <footer className="w-full flex items-center justify-center pb-12 pt-4 px-6">

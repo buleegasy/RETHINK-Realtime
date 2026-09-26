@@ -102,17 +102,14 @@ export function useVoiceSession() {
     setErrorMessage(null);
     setHookState('connected');
     setSessionStatus('connected');
-    setDuplexPhase('speaking');
+    setDuplexPhase('listening');
 
     sessionIdRef.current = `kiosk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     transcriptionRef.current.reset();
 
-    const greetingText =
-      'Hi同学，欢迎来到 RETHINK。我们的通话记录将被加密保存。我该怎么称呼你呢？名字或者喜欢的昵称都行。';
-
     setActiveTranscript({
       user: '',
-      assistant: greetingText,
+      assistant: '',
     });
 
     try {
@@ -137,7 +134,7 @@ export function useVoiceSession() {
           onOpen: () => {
             setSessionStatus('connected');
             setHookState('connected');
-            clientRef.current?.triggerInitialGreeting(greetingText);
+            setDuplexPhase('listening');
           },
           onClose: () => {},
           onError: (err: any) => {
@@ -215,14 +212,6 @@ export function useVoiceSession() {
       timerRef.current = setInterval(() => {
         setCallDuration((prev) => prev + 1);
       }, 1000);
-
-      addDialogueTurn({
-        id: `turn_${Date.now()}`,
-        role: 'assistant',
-        content: greetingText,
-        timestamp: Date.now(),
-        stage: useBoothStore.getState().cbtStage,
-      });
     } catch (err: any) {
       console.error('[VoiceSession] 启动失败:', err);
       setErrorMessage(err?.message || '麦克风设备授权或初始化失败');
