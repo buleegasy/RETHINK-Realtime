@@ -18,6 +18,28 @@ import type { AdminSessionItem } from '../../types';
 import { SessionDeleteModal } from './SessionDeleteModal';
 import { SessionRestoreModal } from './SessionRestoreModal';
 
+function renderSessionBadge(s: AdminSessionItem) {
+  if (s.isDeleted) {
+    return (
+      <span className="bg-[#fce8e6] text-[#ba1a1a] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+        <ShieldAlert className="w-3 h-3" /> 已安全归档
+      </span>
+    );
+  }
+  if (s.crisisLevel >= 3 || s.isCrisis) {
+    return (
+      <span className="bg-[#fce8e6] text-[#ba1a1a] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+        <AlertTriangle className="w-3 h-3" /> 危机
+      </span>
+    );
+  }
+  return (
+    <span className="bg-[#f0fdf4] text-[#146c2e] text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+      <ShieldCheck className="w-3 h-3" /> 脱敏保护
+    </span>
+  );
+}
+
 export const SessionArchiveDrawer: React.FC = () => {
   const {
     sessions,
@@ -106,11 +128,13 @@ export const SessionArchiveDrawer: React.FC = () => {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading && (
         <div className="bg-white rounded-3xl p-12 text-center border border-[#e1e3e1]">
           <div className="text-xs text-[#5e5e5e]">正在加载真实个案档案...</div>
         </div>
-      ) : filteredSessions.length === 0 ? (
+      )}
+
+      {!isLoading && filteredSessions.length === 0 && (
         <div className="bg-white rounded-3xl p-12 text-center border border-[#e1e3e1] space-y-2">
           <Archive className="w-10 h-10 text-[#c4c7c5] mx-auto mb-2" />
           <h4 className="text-sm font-semibold text-[#1f1f1f]">
@@ -122,7 +146,9 @@ export const SessionArchiveDrawer: React.FC = () => {
               : '管理后台已严格剔除假数据，当学生通过电话亭终端完成咨询倾诉后将在此实时建档。'}
           </p>
         </div>
-      ) : (
+      )}
+
+      {!isLoading && filteredSessions.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredSessions.map((s) => (
             <div
@@ -138,19 +164,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                   <span className="text-sm font-bold text-[#1f1f1f]">
                     {s.deidentifiedReport?.userDisplayName || `来访者 #S${s.sessionId.slice(-4)}`}
                   </span>
-                  {s.isDeleted ? (
-                    <span className="bg-[#fce8e6] text-[#ba1a1a] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <ShieldAlert className="w-3 h-3" /> 已安全归档
-                    </span>
-                  ) : s.crisisLevel >= 3 || s.isCrisis ? (
-                    <span className="bg-[#fce8e6] text-[#ba1a1a] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" /> 危机
-                    </span>
-                  ) : (
-                    <span className="bg-[#f0fdf4] text-[#146c2e] text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3" /> 脱敏保护
-                    </span>
-                  )}
+                  {renderSessionBadge(s)}
                 </div>
 
                 <div className="flex items-center gap-1 text-xs text-[#747775]">

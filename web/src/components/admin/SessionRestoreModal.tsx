@@ -3,7 +3,6 @@ import {
   RotateCcw,
   X,
   Lock,
-  CheckCircle2,
   ShieldCheck,
 } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';

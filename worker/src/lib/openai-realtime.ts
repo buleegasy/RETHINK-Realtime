@@ -58,6 +58,14 @@ export function createWavHeader(dataLen: number, sampleRate = 24000, channels = 
   return new Uint8Array(buffer);
 }
 
+function stripTrailingSlashes(str: string): string {
+  let s = str.trim();
+  while (s.endsWith('/')) {
+    s = s.slice(0, -1);
+  }
+  return s;
+}
+
 export async function generateOpenAIChatReply(options: {
   messages: Array<{ role: string; content: string }>;
   apiKey: string;
@@ -67,7 +75,8 @@ export async function generateOpenAIChatReply(options: {
   const { messages, apiKey, model = 'gpt-4o-mini', baseUrl = 'https://api.apiyi.com/v1' } = options;
   if (!apiKey) return '';
 
-  const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const cleanUrl = stripTrailingSlashes(baseUrl);
+  const endpoint = cleanUrl.endsWith('/chat/completions') ? cleanUrl : `${cleanUrl}/chat/completions`;
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -163,7 +172,7 @@ export async function synthesizeRealtimeAudio(options: {
     }, timeoutMs);
 
     try {
-      const cleanBase = baseUrl.replace(/^http/, 'ws').replace(/\/+$/, '');
+      const cleanBase = stripTrailingSlashes(baseUrl.replace(/^http/, 'ws'));
       const url = cleanBase.endsWith('/realtime') ? `${cleanBase}?model=${encodeURIComponent(model)}` : `${cleanBase}/realtime?model=${encodeURIComponent(model)}`;
       const subprotocols = ['realtime', `openai-insecure-api-key.${apiKey}`];
 

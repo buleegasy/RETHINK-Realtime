@@ -136,16 +136,17 @@ export const CampusPulseDashboard: React.FC = () => {
                         className="w-full bg-[#ba1a1a] rounded-t-lg transition-all"
                       />
                     )}
-                    {normalCount > 0 ? (
+                    {normalCount > 0 && (
                       <div
                         style={{ height: `${normalHeight}%` }}
                         className={`w-full bg-[#004a77] transition-all ${
                           item.crisis > 0 ? 'rounded-b-lg' : 'rounded-lg'
                         }`}
                       />
-                    ) : item.crisis === 0 ? (
+                    )}
+                    {normalCount === 0 && item.crisis === 0 && (
                       <div className="w-full h-1 bg-[#e1e3e1] rounded-full mb-1" />
-                    ) : null}
+                    )}
                   </div>
                   <span className="text-[11px] font-medium text-[#747775] mt-2 block">
                     {item.date}

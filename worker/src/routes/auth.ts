@@ -49,7 +49,7 @@ authRouter.post('/login', async (c) => {
     }
   }
 
-  const token = `token_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const token = `token_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}`;
   const user = {
     uid: `user_${cleanUser}`,
     userName: displayName,
@@ -117,7 +117,7 @@ authRouter.post('/register', async (c) => {
     }
   }
 
-  const token = `token_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const token = `token_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}`;
   const user = {
     uid: `user_${cleanUser}`,
     userName: chosenName,
@@ -145,7 +145,7 @@ authRouter.post('/kiosk-login', async (c) => {
     ? body.deviceId.trim()
     : 'kiosk-booth-01';
 
-  const token = `kiosk_token_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const token = `kiosk_token_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}`;
   const user = {
     uid: `device_${deviceId}`,
     userName: '来访者',

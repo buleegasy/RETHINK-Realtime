@@ -1,2 +1,3 @@
 MINIMAX_API_KEY="your-minimax-api-key-here"
+OPENROUTER_API_KEY="your-openrouter-api-key-here"
 ENVIRONMENT="development"

@@ -145,7 +145,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
     fetchSessions: async (crisisOnly = false, includeDeleted?: boolean) => {
       set({ isLoading: true });
       try {
-        const incDel = includeDeleted !== undefined ? includeDeleted : get().showArchived;
+        const incDel = includeDeleted ?? get().showArchived;
         const res = await apiFetch(`/api/admin/sessions?crisisOnly=${crisisOnly ? 'true' : 'false'}&includeDeleted=${incDel ? 'true' : 'false'}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.sessions)) {
@@ -231,6 +231,13 @@ export const useAdminStore = create<AdminState>((set, get) => {
       }
     },
 
+    refreshAdminData: async () => {
+      await get().fetchSessions(false, get().showArchived);
+      await get().fetchCrises();
+      await get().fetchStats();
+      await get().fetchAuditLogs();
+    },
+
     deleteSession: async (sessionId: string, passcode: string, reason: string, operatorName?: string) => {
       try {
         const op = operatorName || get().teacherProfile?.displayName || '心理专职教师';
@@ -246,10 +253,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
         });
         const data = await res.json();
         if (data.success) {
-          await get().fetchSessions(false, get().showArchived);
-          await get().fetchCrises();
-          await get().fetchStats();
-          await get().fetchAuditLogs();
+          await get().refreshAdminData();
           return { success: true };
         }
         return { success: false, error: data.error || '删除验证失败' };
@@ -272,10 +276,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
         });
         const data = await res.json();
         if (data.success) {
-          await get().fetchSessions(false, get().showArchived);
-          await get().fetchCrises();
-          await get().fetchStats();
-          await get().fetchAuditLogs();
+          await get().refreshAdminData();
           return { success: true };
         }
         return { success: false, error: data.error || '恢复操作失败' };

@@ -84,7 +84,7 @@ export function useVoiceSession() {
     setSessionStatus('connected');
     setDuplexPhase('listening');
 
-    sessionIdRef.current = `kiosk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionIdRef.current = `kiosk_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     transcriptionRef.current.reset();
 
     try {

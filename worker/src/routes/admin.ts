@@ -71,6 +71,33 @@ async function ensureAuditTable(db: D1Database): Promise<void> {
   } catch {}
 }
 
+async function recordAuditLog(
+  env: Env,
+  payload: { session_id: string; operator_name: string; reason: string; created_at?: number },
+  prefix: string = 'audit'
+): Promise<CrisisAuditLog> {
+  const auditLog: CrisisAuditLog = {
+    id: `${prefix}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+    session_id: payload.session_id,
+    operator_name: payload.operator_name,
+    reason: payload.reason,
+    created_at: payload.created_at ?? Math.floor(Date.now() / 1000),
+  };
+  memoryAuditLogs.unshift(auditLog);
+
+  if (env.DB) {
+    try {
+      await ensureAuditTable(env.DB);
+      await env.DB.prepare(
+        'INSERT INTO crisis_audit_logs (id, session_id, operator_name, reason, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind(auditLog.id, auditLog.session_id, auditLog.operator_name, auditLog.reason, auditLog.created_at).run();
+    } catch (e) {
+      console.warn('[D1 Audit Insert Error]:', e);
+    }
+  }
+  return auditLog;
+}
+
 export async function addSessionRecordToStore(env: Env, record: SessionRecord): Promise<void> {
   const existingIdx = memorySessions.findIndex((s) => s.session_id === record.session_id);
   if (existingIdx >= 0) {
@@ -145,7 +172,7 @@ adminRouter.post('/login', async (c) => {
     return c.json({ success: false, error: '账号格式不正确' }, 400);
   }
 
-  const token = `teacher_token_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const token = `teacher_token_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}`;
   const user = {
     uid: `teacher_${cleanUser}`,
     username: cleanUser,
@@ -187,7 +214,7 @@ adminRouter.get('/stats', async (c) => {
 
   const validValences = allSessions
     .map((s) => s.emotional_valence)
-    .filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
   const avgValence = validValences.length > 0
     ? Number((validValences.reduce((acc, curr) => acc + curr, 0) / validValences.length).toFixed(2))
     : 0.0;
@@ -232,7 +259,7 @@ adminRouter.get('/stats', async (c) => {
     });
     const dayValences = daySessions
       .map((s) => s.emotional_valence)
-      .filter((v): v is number => typeof v === 'number' && !isNaN(v));
+      .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
     const dayAvgValence = dayValences.length > 0
       ? Number((dayValences.reduce((acc, curr) => acc + curr, 0) / dayValences.length).toFixed(2))
       : 0.0;
@@ -421,25 +448,11 @@ adminRouter.post('/crisis/unmask', async (c) => {
     return c.json({ success: false, error: '身份数据解密失败，安全口令或加密密钥不匹配' }, 500);
   }
 
-  const auditLog: CrisisAuditLog = {
-    id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  const auditLog = await recordAuditLog(env, {
     session_id,
-    operator_name: (operator_name && operator_name.trim()) || '心理专职教师',
+    operator_name: operator_name?.trim() || '心理专职教师',
     reason: '自杀/自残危机紧急线下干预穿透查看',
-    created_at: Math.floor(Date.now() / 1000),
-  };
-  memoryAuditLogs.unshift(auditLog);
-
-  if (env.DB) {
-    try {
-      await ensureAuditTable(env.DB);
-      await env.DB.prepare(
-        'INSERT INTO crisis_audit_logs (id, session_id, operator_name, reason, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).bind(auditLog.id, auditLog.session_id, auditLog.operator_name, auditLog.reason, auditLog.created_at).run();
-    } catch (e) {
-      console.warn('[D1 Audit Insert Error]:', e);
-    }
-  }
+  });
 
   return c.json({
     success: true,
@@ -515,7 +528,7 @@ adminRouter.post('/sessions/delete', async (c) => {
     return c.json({ success: false, error: '必须填写有效的删除/归档事由（至少2个字）' }, 400);
   }
 
-  const cleanOperator = (operator_name && operator_name.trim()) || '心理专职教师';
+  const cleanOperator = operator_name?.trim() || '心理专职教师';
   const cleanReason = reason.trim();
   const deletedAt = Math.floor(Date.now() / 1000);
 
@@ -538,25 +551,12 @@ adminRouter.post('/sessions/delete', async (c) => {
     }
   }
 
-  const auditLog: CrisisAuditLog = {
-    id: `audit_del_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  await recordAuditLog(env, {
     session_id,
     operator_name: cleanOperator,
     reason: `[安全归档/软删除] ${cleanReason}`,
     created_at: deletedAt,
-  };
-  memoryAuditLogs.unshift(auditLog);
-
-  if (env.DB) {
-    try {
-      await ensureAuditTable(env.DB);
-      await env.DB.prepare(
-        'INSERT INTO crisis_audit_logs (id, session_id, operator_name, reason, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).bind(auditLog.id, auditLog.session_id, auditLog.operator_name, auditLog.reason, auditLog.created_at).run();
-    } catch (e) {
-      console.warn('[D1 Audit Insert Error]:', e);
-    }
-  }
+  }, 'audit_del');
 
   return c.json({
     success: true,
@@ -588,7 +588,7 @@ adminRouter.post('/sessions/restore', async (c) => {
     }, 403);
   }
 
-  const cleanOperator = (operator_name && operator_name.trim()) || '心理专职教师';
+  const cleanOperator = operator_name?.trim() || '心理专职教师';
   const memTarget = memorySessions.find((s) => s.session_id === session_id);
   if (memTarget) {
     memTarget.is_deleted = 0;
@@ -608,25 +608,11 @@ adminRouter.post('/sessions/restore', async (c) => {
     }
   }
 
-  const auditLog: CrisisAuditLog = {
-    id: `audit_res_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  await recordAuditLog(env, {
     session_id,
     operator_name: cleanOperator,
     reason: '[恢复个案档案记录]',
-    created_at: Math.floor(Date.now() / 1000),
-  };
-  memoryAuditLogs.unshift(auditLog);
-
-  if (env.DB) {
-    try {
-      await ensureAuditTable(env.DB);
-      await env.DB.prepare(
-        'INSERT INTO crisis_audit_logs (id, session_id, operator_name, reason, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).bind(auditLog.id, auditLog.session_id, auditLog.operator_name, auditLog.reason, auditLog.created_at).run();
-    } catch (e) {
-      console.warn('[D1 Audit Insert Error]:', e);
-    }
-  }
+  }, 'audit_res');
 
   return c.json({
     success: true,

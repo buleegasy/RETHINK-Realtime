@@ -31,6 +31,14 @@ function safeCloseWebSocket(ws: WebSocket, code?: number, reason?: string): void
   }
 }
 
+function stripTrailingSlashes(str: string): string {
+  let s = str.trim();
+  while (s.endsWith('/')) {
+    s = s.slice(0, -1);
+  }
+  return s;
+}
+
 voiceRouter.get('/ws', async (c) => {
   const upgradeHeader = c.req.header('Upgrade');
   if (upgradeHeader?.toLowerCase() !== 'websocket') {
@@ -49,7 +57,7 @@ voiceRouter.get('/ws', async (c) => {
       const rawModel = c.req.query('model');
       const requestedModel = (!rawModel || rawModel === 'minimax-realtime') ? 'gpt-realtime-2.1-mini' : rawModel;
       const apiyiBase = env.APIYI_BASE_URL || env.OPENAI_BASE_URL || 'https://api.apiyi.com/v1';
-      const cleanBase = apiyiBase.replace(/\/+$/, '');
+      const cleanBase = stripTrailingSlashes(apiyiBase);
       const wsEndpoint = cleanBase.endsWith('/realtime') ? `${cleanBase}?model=${encodeURIComponent(requestedModel)}` : `${cleanBase}/realtime?model=${encodeURIComponent(requestedModel)}`;
       const upstreamRes = await fetch(wsEndpoint, {
         headers: {
@@ -135,6 +143,30 @@ voiceRouter.get('/ws', async (c) => {
           } catch {}
         });
 
+        const triggerCrisisIntervention = (tier: 'L1' | 'L2', summary: string, concerns: string[]) => {
+          isCrisisTriggered = true;
+          if (upstreamWs.readyState === WebSocket.OPEN) {
+            upstreamWs.send(JSON.stringify({ type: 'response.cancel' }));
+          }
+          if (serverWs.readyState === WebSocket.OPEN) {
+            serverWs.send(
+              JSON.stringify({
+                type: 'rethink.crisis_intercepted',
+                tier,
+                message: '我听到了你现在非常痛苦，请记住生命永远是最宝贵的。我现在立即为你接通紧急守护支持。',
+              })
+            );
+          }
+          sendCrisisWebhook(env.CRISIS_WEBHOOK_URL, {
+            sessionId,
+            crisisLevel: 3,
+            crisisSummary: summary,
+            occurredAt: new Date().toISOString(),
+            boothLocation: '校园心理驿站#01',
+            coreConcerns: concerns,
+          });
+        };
+
         upstreamWs.addEventListener('message', async (event) => {
           try {
             if (serverWs.readyState === WebSocket.OPEN) {
@@ -168,27 +200,7 @@ voiceRouter.get('/ws', async (c) => {
               thinkingController = new AbortController();
 
               if (isL1Crisis(userText)) {
-                isCrisisTriggered = true;
-                if (upstreamWs.readyState === WebSocket.OPEN) {
-                  upstreamWs.send(JSON.stringify({ type: 'response.cancel' }));
-                }
-                if (serverWs.readyState === WebSocket.OPEN) {
-                  serverWs.send(
-                    JSON.stringify({
-                      type: 'rethink.crisis_intercepted',
-                      tier: 'L1',
-                      message: '我听到了你现在非常痛苦，请记住生命永远是最宝贵的。我现在立即为你接通紧急守护支持。',
-                    })
-                  );
-                }
-                sendCrisisWebhook(env.CRISIS_WEBHOOK_URL, {
-                  sessionId,
-                  crisisLevel: 3,
-                  crisisSummary: 'L1本地即时硬过滤命中危机敏感词',
-                  occurredAt: new Date().toISOString(),
-                  boothLocation: '校园心理驿站#01',
-                  coreConcerns: ['自伤自杀危机', '紧急干预'],
-                });
+                triggerCrisisIntervention('L1', 'L1本地即时硬过滤命中危机敏感词', ['自伤自杀危机', '紧急干预']);
                 return;
               }
 
@@ -199,27 +211,7 @@ voiceRouter.get('/ws', async (c) => {
                 signal: thinkingController.signal,
               }).then((isCrisis) => {
                 if (isCrisis && currentSeq === sequenceId && !isCrisisTriggered) {
-                  isCrisisTriggered = true;
-                  if (upstreamWs.readyState === WebSocket.OPEN) {
-                    upstreamWs.send(JSON.stringify({ type: 'response.cancel' }));
-                  }
-                  if (serverWs.readyState === WebSocket.OPEN) {
-                    serverWs.send(
-                      JSON.stringify({
-                        type: 'rethink.crisis_intercepted',
-                        tier: 'L2',
-                        message: '我听到了你现在非常痛苦，请记住生命永远是最宝贵的。我现在立即为你接通紧急守护支持。',
-                      })
-                    );
-                  }
-                  sendCrisisWebhook(env.CRISIS_WEBHOOK_URL, {
-                    sessionId,
-                    crisisLevel: 3,
-                    crisisSummary: 'L2 OpenRouter DeepSeek V4 Flash语义熔断命中危机',
-                    occurredAt: new Date().toISOString(),
-                    boothLocation: '校园心理驿站#01',
-                    coreConcerns: ['自伤自杀危机', '语义旁路熔断'],
-                  });
+                  triggerCrisisIntervention('L2', 'L2 OpenRouter DeepSeek V4 Flash语义熔断命中危机', ['自伤自杀危机', '语义旁路熔断']);
                 }
               }).catch(() => {});
 
@@ -334,7 +326,7 @@ voiceRouter.get('/ws', async (c) => {
               }
 
               const record: SessionRecord = {
-                id: `rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                id: `rec_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
                 session_id: sessionId,
                 duration: 0,
                 stage: report.isCrisis ? 'Crisis_Escalation' : 'Socratic_Questioning',
@@ -521,7 +513,8 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
   if (replyText === '我一直在这里听你说，别着急，慢慢告诉我发生什么了。' && apiKey) {
     try {
       const minimaxBase = env.MINIMAX_BASE_URL || 'https://api.minimaxi.chat/v1';
-      const chatEndpoint = minimaxBase.endsWith('/text/chatcompletion_v2') ? minimaxBase : `${minimaxBase.replace(/\/+$/, '')}/text/chatcompletion_v2`;
+      const cleanMinimax = stripTrailingSlashes(minimaxBase);
+      const chatEndpoint = cleanMinimax.endsWith('/text/chatcompletion_v2') ? cleanMinimax : `${cleanMinimax}/text/chatcompletion_v2`;
       const chatRes = await fetch(chatEndpoint, {
         method: 'POST',
         headers: {

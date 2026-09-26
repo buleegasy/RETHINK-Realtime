@@ -106,8 +106,8 @@ export class AudioGraphService {
     const data = new Uint8Array(this.speakerAnalyserNode.frequencyBinCount);
     this.speakerAnalyserNode.getByteTimeDomainData(data);
     let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-      const v = (data[i] - 128) / 128;
+    for (const byte of data) {
+      const v = (byte - 128) / 128;
       sum += v * v;
     }
     return Math.sqrt(sum / data.length);
@@ -171,8 +171,7 @@ export class AudioGraphService {
       const inputBuffer = e.inputBuffer.getChannelData(0);
 
       let sum = 0;
-      for (let i = 0; i < inputBuffer.length; i++) {
-        const v = inputBuffer[i];
+      for (const v of inputBuffer) {
         sum += v * v;
       }
       const micRms = Math.sqrt(sum / inputBuffer.length);
@@ -233,6 +232,21 @@ export class AudioGraphService {
     this.inputGainNode.connect(this.processorNode);
     this.processorNode.connect(ctx.destination);
 
+    this.ensureOutputGraph(ctx);
+
+    if (!this.boundDeviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      this.boundDeviceChangeListener = () => {
+        this.reinitInputStream().catch(() => {});
+      };
+      try {
+        navigator.mediaDevices.addEventListener('devicechange', this.boundDeviceChangeListener);
+      } catch {}
+    }
+
+    this.nextPlayTime = ctx.currentTime;
+  }
+
+  private ensureOutputGraph(ctx: AudioContext): GainNode {
     if (!this.outputGainNode) {
       this.outputGainNode = ctx.createGain();
       this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
@@ -250,17 +264,38 @@ export class AudioGraphService {
         } catch {}
       }
     }
+    return this.outputGainNode;
+  }
 
-    if (!this.boundDeviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
-      this.boundDeviceChangeListener = () => {
-        this.reinitInputStream().catch(() => {});
-      };
-      try {
-        navigator.mediaDevices.addEventListener('devicechange', this.boundDeviceChangeListener);
-      } catch {}
+  private playDecodedAudioBuffer(ctx: AudioContext, audioBuffer: AudioBuffer, onEnded?: () => void): void {
+    const outputGain = this.ensureOutputGraph(ctx);
+    outputGain.gain.cancelScheduledValues(ctx.currentTime);
+    outputGain.gain.setValueAtTime(0.85, ctx.currentTime);
+
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(outputGain);
+    if (this.analyserNode) {
+      source.connect(this.analyserNode);
     }
 
-    this.nextPlayTime = ctx.currentTime;
+    source.onended = () => {
+      const idx = this.scheduledSources.indexOf(source);
+      if (idx !== -1) {
+        this.scheduledSources.splice(idx, 1);
+      }
+      if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
+        this.playbackStartCtxTime = null;
+        this.setAiSpeaking(false);
+        this.isJitterBuffering = true;
+        this.consecutiveSpeechFrames = 0;
+      }
+      onEnded?.();
+    };
+
+    this.setAiSpeaking(true);
+    source.start(ctx.currentTime);
+    this.scheduledSources.push(source);
   }
 
   public async playAudioUrl(url: string, onEnded?: () => void): Promise<void> {
@@ -269,54 +304,7 @@ export class AudioGraphService {
       const res = await fetch(url);
       const arrayBuffer = await res.arrayBuffer();
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-
-      if (!this.outputGainNode) {
-        this.outputGainNode = ctx.createGain();
-        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
-
-        this.speakerAnalyserNode = ctx.createAnalyser();
-        this.speakerAnalyserNode.fftSize = 256;
-        this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
-
-        this.outputGainNode.connect(this.speakerAnalyserNode);
-        this.speakerAnalyserNode.connect(ctx.destination);
-
-        if (this.streamDestination) {
-          try {
-            this.speakerAnalyserNode.connect(this.streamDestination);
-          } catch {}
-        }
-      }
-
-      if (this.outputGainNode) {
-        this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
-        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
-      }
-
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(this.outputGainNode);
-      if (this.analyserNode) {
-        source.connect(this.analyserNode);
-      }
-
-      source.onended = () => {
-        const idx = this.scheduledSources.indexOf(source);
-        if (idx !== -1) {
-          this.scheduledSources.splice(idx, 1);
-        }
-        if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
-          this.playbackStartCtxTime = null;
-          this.setAiSpeaking(false);
-          this.isJitterBuffering = true;
-          this.consecutiveSpeechFrames = 0;
-        }
-        onEnded?.();
-      };
-
-      this.setAiSpeaking(true);
-      source.start(ctx.currentTime);
-      this.scheduledSources.push(source);
+      this.playDecodedAudioBuffer(ctx, audioBuffer, onEnded);
     } catch {
       onEnded?.();
     }
@@ -335,54 +323,7 @@ export class AudioGraphService {
         bytes[i] = binary.charCodeAt(i);
       }
       const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
-
-      if (!this.outputGainNode) {
-        this.outputGainNode = ctx.createGain();
-        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
-
-        this.speakerAnalyserNode = ctx.createAnalyser();
-        this.speakerAnalyserNode.fftSize = 256;
-        this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
-
-        this.outputGainNode.connect(this.speakerAnalyserNode);
-        this.speakerAnalyserNode.connect(ctx.destination);
-
-        if (this.streamDestination) {
-          try {
-            this.speakerAnalyserNode.connect(this.streamDestination);
-          } catch {}
-        }
-      }
-
-      if (this.outputGainNode) {
-        this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
-        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
-      }
-
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(this.outputGainNode);
-      if (this.analyserNode) {
-        source.connect(this.analyserNode);
-      }
-
-      source.onended = () => {
-        const idx = this.scheduledSources.indexOf(source);
-        if (idx !== -1) {
-          this.scheduledSources.splice(idx, 1);
-        }
-        if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
-          this.playbackStartCtxTime = null;
-          this.setAiSpeaking(false);
-          this.isJitterBuffering = true;
-          this.consecutiveSpeechFrames = 0;
-        }
-        onEnded?.();
-      };
-
-      this.setAiSpeaking(true);
-      source.start(ctx.currentTime);
-      this.scheduledSources.push(source);
+      this.playDecodedAudioBuffer(ctx, audioBuffer, onEnded);
     } catch {
       onEnded?.();
     }
@@ -456,9 +397,10 @@ export class AudioGraphService {
     this.jitterBuffer.push(buffer);
     this.jitterBufferedSec += buffer.duration;
 
-    const threshold = this.scheduledSources.length === 0
-      ? (this.isJitterBuffering ? this.JITTER_TARGET_SEC : this.JITTER_REBUFFER_SEC)
-      : 0;
+    let threshold = 0;
+    if (this.scheduledSources.length === 0) {
+      threshold = this.isJitterBuffering ? this.JITTER_TARGET_SEC : this.JITTER_REBUFFER_SEC;
+    }
 
     if (this.jitterBufferedSec >= threshold) {
       this.isJitterBuffering = false;

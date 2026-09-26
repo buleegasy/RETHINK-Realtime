@@ -17,7 +17,7 @@ export class BufferedTranscriptionPipeline implements ITranscriptionPipeline {
 
     if (speaker === 'user') {
       if (!this.currentTurnId.user) {
-        this.currentTurnId.user = `user_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        this.currentTurnId.user = `user_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
       }
       this.userBuffer += delta;
       this.notifySubscribers({
@@ -29,7 +29,7 @@ export class BufferedTranscriptionPipeline implements ITranscriptionPipeline {
       });
     } else {
       if (!this.currentTurnId.assistant) {
-        this.currentTurnId.assistant = `assistant_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        this.currentTurnId.assistant = `assistant_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
       }
       this.assistantBuffer += delta;
       this.notifySubscribers({

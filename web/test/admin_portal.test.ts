@@ -109,19 +109,14 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
     expect(updated?.dispositionNote).toBe('已在咨询室开展线下危机评估');
   });
 
-  it('安全归档软删除需口令验证，成功后触发刷新并保留底层数据', async () => {
-    globalThis.fetch = vi.fn().mockImplementation((url: string, opts: any) => {
-      if (url.includes('/api/admin/sessions/delete')) {
+  function mockPasscodeFetch(endpointSubstr: string) {
+    return vi.fn().mockImplementation((url: string, opts: any) => {
+      if (url.includes(endpointSubstr)) {
         const body = JSON.parse(opts.body);
-        if (body.secondary_passcode === 'teacher-safe-2026') {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ success: true, session_id: body.session_id }),
-          });
-        }
+        const isCorrect = body.secondary_passcode === 'teacher-safe-2026';
         return Promise.resolve({
-          ok: false,
-          json: () => Promise.resolve({ success: false, error: '二次口令错误' }),
+          ok: isCorrect,
+          json: () => Promise.resolve(isCorrect ? { success: true, session_id: body.session_id } : { success: false, error: '口令错误' }),
         });
       }
       return Promise.resolve({
@@ -129,6 +124,10 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
         json: () => Promise.resolve({ success: true, sessions: [], crises: [], logs: [] }),
       });
     });
+  }
+
+  it('安全归档软删除需口令验证，成功后触发刷新并保留底层数据', async () => {
+    globalThis.fetch = mockPasscodeFetch('/api/admin/sessions/delete');
 
     const failRes = await useAdminStore.getState().deleteSession('sess_123', 'wrong-code', '测试删除');
     expect(failRes.success).toBe(false);
@@ -138,25 +137,7 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
   });
 
   it('恢复档案接口需口令验证，成功后恢复档案', async () => {
-    globalThis.fetch = vi.fn().mockImplementation((url: string, opts: any) => {
-      if (url.includes('/api/admin/sessions/restore')) {
-        const body = JSON.parse(opts.body);
-        if (body.secondary_passcode === 'teacher-safe-2026') {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ success: true, session_id: body.session_id }),
-          });
-        }
-        return Promise.resolve({
-          ok: false,
-          json: () => Promise.resolve({ success: false, error: '口令错误' }),
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ success: true, sessions: [], crises: [], logs: [] }),
-      });
-    });
+    globalThis.fetch = mockPasscodeFetch('/api/admin/sessions/restore');
 
     const failRes = await useAdminStore.getState().restoreSession('sess_123', 'wrong');
     expect(failRes.success).toBe(false);
