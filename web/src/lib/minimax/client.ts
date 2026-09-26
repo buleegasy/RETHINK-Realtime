@@ -88,9 +88,9 @@ export class MiniMaxRealtimeClient {
     const config = { ...this.options.sessionConfig, ...customConfig };
     const vadConfig = config.turnDetection ?? {
       type: 'server_vad',
-      threshold: 0.8,
+      threshold: 0.5,
       prefix_padding_ms: 300,
-      silence_duration_ms: 800,
+      silence_duration_ms: 700,
       create_response: true,
     };
 
@@ -101,7 +101,7 @@ export class MiniMaxRealtimeClient {
       voice: config.voice || DEFAULT_VOICE,
       input_audio_format: 'pcm16',
       output_audio_format: 'pcm16',
-      input_audio_transcription: { model: 'whisper-1' },
+      input_audio_transcription: { model: 'whisper-1', language: 'zh' },
       turn_detection: vadConfig,
       audio: {
         input: {

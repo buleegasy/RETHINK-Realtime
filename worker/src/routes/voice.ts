@@ -65,9 +65,9 @@ voiceRouter.get('/ws', async (c) => {
                 const incomingVad = incoming.turn_detection || incoming.audio?.input?.turn_detection;
                 const turnDetection = {
                   type: 'server_vad',
-                  threshold: incomingVad?.threshold ?? 0.8,
+                  threshold: incomingVad?.threshold ?? 0.5,
                   prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 300,
-                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 800,
+                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 700,
                   create_response: true,
                 };
                 const cleanSession: Record<string, unknown> = {
@@ -76,7 +76,7 @@ voiceRouter.get('/ws', async (c) => {
                   voice: incoming.voice || 'maple',
                   input_audio_format: 'pcm16',
                   output_audio_format: 'pcm16',
-                  input_audio_transcription: { model: 'whisper-1' },
+                  input_audio_transcription: incoming.input_audio_transcription || { model: 'whisper-1', language: 'zh' },
                   turn_detection: turnDetection,
                   tools: incoming.tools || [],
                   tool_choice: 'auto',
