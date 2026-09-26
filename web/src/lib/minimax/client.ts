@@ -4,6 +4,7 @@ import {
   DEFAULT_VOICE,
   CBT_VOICE_TOOLS,
   DEFAULT_VOICE_INSTRUCTIONS,
+  OPENING_GREETING,
 } from './constants';
 import type { MiniMaxClientCallbacks, MiniMaxSessionConfig, MiniMaxServerEvent } from './types';
 import { getWsUrl } from '../api';
@@ -13,6 +14,7 @@ export interface MiniMaxClientOptions {
   sessionConfig?: MiniMaxSessionConfig;
   callbacks?: MiniMaxClientCallbacks;
   maxReconnectAttempts?: number;
+  sendGreetingOnConnect?: boolean;
 }
 
 export class MiniMaxRealtimeClient {
@@ -58,6 +60,10 @@ export class MiniMaxRealtimeClient {
         this.startKeepalive();
 
         this.sendSessionUpdate();
+
+        if (this.options.sendGreetingOnConnect !== false) {
+          this.sendGreeting();
+        }
 
         this.flushQueue();
 
@@ -126,6 +132,17 @@ export class MiniMaxRealtimeClient {
     this.send({
       type: 'session.update',
       session: sessionPayload,
+    });
+  }
+
+  public sendGreeting(customGreeting?: string): void {
+    const greeting = customGreeting || OPENING_GREETING;
+    this.send({
+      type: 'response.create',
+      response: {
+        modalities: ['audio', 'text'],
+        instructions: `请直接输出开场第一句话，字面一字不差地输出：“${greeting}”`,
+      },
     });
   }
 
@@ -338,8 +355,8 @@ export class MiniMaxRealtimeClient {
 
       if (type === 'conversation.item.truncated') {
         this.callbacks.onItemTruncated?.({
-          itemId: event.item_id,
-          audioEndMs: event.audio_end_ms,
+          itemId: typeof event.item_id === 'string' ? event.item_id : undefined,
+          audioEndMs: typeof event.audio_end_ms === 'number' ? event.audio_end_ms : undefined,
         });
       }
 

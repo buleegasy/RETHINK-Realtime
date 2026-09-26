@@ -63,6 +63,24 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     client.disconnect();
   });
 
+  it('建立连接时应自动发送 response.create 主动播报开场问候语', async () => {
+    const client = new MiniMaxRealtimeClient({
+      relayUrl: 'ws://localhost:8787/api/voice/ws',
+    });
+
+    client.connect();
+    await new Promise((r) => setTimeout(r, 20));
+
+    const ws = (client as any).ws as MockWebSocket;
+    expect(ws.sentMessages.length).toBeGreaterThanOrEqual(2);
+
+    const greetingMsg = JSON.parse(ws.sentMessages[1]);
+    expect(greetingMsg.type).toBe('response.create');
+    expect(greetingMsg.response.instructions).toContain('Hi，欢迎来到Rethink');
+
+    client.disconnect();
+  });
+
   it('appendAudioChunk 应正确发送 input_audio_buffer.append 帧', async () => {
     const client = new MiniMaxRealtimeClient({
       relayUrl: 'ws://localhost:8787/api/voice/ws',

@@ -158,11 +158,17 @@ export class AudioGraphService {
     this.analyserNode.fftSize = 256;
     this.analyserNode.smoothingTimeConstant = 0.5;
 
+    let warmUpFrames = 4;
     this.processorNode = ctx.createScriptProcessor(2048, 1, 1);
     this.processorNode.onaudioprocess = (e) => {
       const out = e.outputBuffer.getChannelData(0);
       out.fill(0);
       if (this.isMuted) return;
+
+      if (warmUpFrames > 0) {
+        warmUpFrames--;
+        return;
+      }
 
       const inputBuffer = e.inputBuffer.getChannelData(0);
 
