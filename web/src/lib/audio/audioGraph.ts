@@ -51,7 +51,7 @@ export class AudioGraphService {
     this.processorNode.connect(ctx.destination);
 
     this.outputGainNode = ctx.createGain();
-    this.outputGainNode.gain.setValueAtTime(1.0, ctx.currentTime);
+    this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
     this.outputGainNode.connect(ctx.destination);
 
     this.nextPlayTime = ctx.currentTime;
@@ -66,7 +66,7 @@ export class AudioGraphService {
 
       if (!this.outputGainNode) {
         this.outputGainNode = ctx.createGain();
-        this.outputGainNode.gain.setValueAtTime(1.0, ctx.currentTime);
+        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
         this.outputGainNode.connect(ctx.destination);
       }
 
@@ -108,7 +108,7 @@ export class AudioGraphService {
 
       if (!this.outputGainNode) {
         this.outputGainNode = ctx.createGain();
-        this.outputGainNode.gain.setValueAtTime(1.0, ctx.currentTime);
+        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
         this.outputGainNode.connect(ctx.destination);
       }
 
@@ -187,7 +187,7 @@ export class AudioGraphService {
     setTimeout(() => {
       if (this.outputGainNode && this.audioCtx) {
         this.outputGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
-        this.outputGainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+        this.outputGainNode.gain.setValueAtTime(0.85, this.audioCtx.currentTime);
       }
       this.nextPlayTime = this.audioCtx ? this.audioCtx.currentTime : 0;
     }, 45);

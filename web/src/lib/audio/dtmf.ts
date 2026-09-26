@@ -49,8 +49,8 @@ export function playDtmfTone(key: string, durationMs: number = 140): void {
 
   const gainNode = ctx.createGain();
   gainNode.gain.setValueAtTime(0.001, now);
-  gainNode.gain.exponentialRampToValueAtTime(0.12, now + 0.015);
-  gainNode.gain.setValueAtTime(0.12, now + durSec - 0.02);
+  gainNode.gain.exponentialRampToValueAtTime(0.04, now + 0.015);
+  gainNode.gain.setValueAtTime(0.04, now + durSec - 0.02);
   gainNode.gain.exponentialRampToValueAtTime(0.001, now + durSec);
 
   oscLow.connect(gainNode);
@@ -71,12 +71,14 @@ export function playHookSwitchSound(isOffHook: boolean): void {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
 
-  osc.type = isOffHook ? 'triangle' : 'sine';
-  osc.frequency.setValueAtTime(isOffHook ? 320 : 180, now);
-  osc.frequency.exponentialRampToValueAtTime(isOffHook ? 120 : 60, now + 0.06);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(isOffHook ? 280 : 160, now);
+  osc.frequency.exponentialRampToValueAtTime(isOffHook ? 140 : 80, now + 0.05);
 
-  gain.gain.setValueAtTime(0.2, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+  const initialGain = isOffHook ? 0.035 : 0.025;
+  gain.gain.setValueAtTime(0.001, now);
+  gain.gain.exponentialRampToValueAtTime(initialGain, now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
 
   osc.connect(gain);
   gain.connect(ctx.destination);
