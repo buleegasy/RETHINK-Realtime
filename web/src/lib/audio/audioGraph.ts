@@ -7,6 +7,7 @@ export class AudioGraphService {
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private processorNode: ScriptProcessorNode | null = null;
   private analyserNode: AnalyserNode | null = null;
+  private speakerAnalyserNode: AnalyserNode | null = null;
   private outputGainNode: GainNode | null = null;
   private streamDestination: MediaStreamAudioDestinationNode | null = null;
   private audioElement: HTMLAudioElement | null = null;
@@ -19,6 +20,12 @@ export class AudioGraphService {
   private consecutiveSpeechFrames: number = 0;
   private onLocalInterruptCallback: ((playedMs: number) => void) | null = null;
   private boundDeviceChangeListener: (() => void) | null = null;
+
+  private jitterBuffer: AudioBuffer[] = [];
+  private jitterBufferedSec: number = 0;
+  private isJitterBuffering: boolean = true;
+  private readonly JITTER_TARGET_SEC: number = 0.12;
+  private readonly JITTER_REBUFFER_SEC: number = 0.05;
 
   public async initAudioContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
@@ -46,10 +53,17 @@ export class AudioGraphService {
     if (!this.outputGainNode && this.audioCtx) {
       this.outputGainNode = this.audioCtx.createGain();
       this.outputGainNode.gain.setValueAtTime(0.85, this.audioCtx.currentTime);
+
+      this.speakerAnalyserNode = this.audioCtx.createAnalyser();
+      this.speakerAnalyserNode.fftSize = 256;
+      this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
+
+      this.outputGainNode.connect(this.speakerAnalyserNode);
+
       if (this.streamDestination) {
-        this.outputGainNode.connect(this.streamDestination);
+        this.speakerAnalyserNode.connect(this.streamDestination);
       } else {
-        this.outputGainNode.connect(this.audioCtx.destination);
+        this.speakerAnalyserNode.connect(this.audioCtx.destination);
       }
     }
     return this.audioCtx;
@@ -64,6 +78,18 @@ export class AudioGraphService {
     if (!speaking) {
       this.consecutiveSpeechFrames = 0;
     }
+  }
+
+  private getSpeakerRms(): number {
+    if (!this.speakerAnalyserNode || !this.isAiSpeaking) return 0;
+    const data = new Uint8Array(this.speakerAnalyserNode.frequencyBinCount);
+    this.speakerAnalyserNode.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] - 128) / 128;
+      sum += v * v;
+    }
+    return Math.sqrt(sum / data.length);
   }
 
   public async reinitInputStream(): Promise<void> {
@@ -114,9 +140,11 @@ export class AudioGraphService {
         sum += v * v;
       }
       const micRms = Math.sqrt(sum / inputBuffer.length);
+      const speakerRms = this.getSpeakerRms();
 
-      if (this.isAiSpeaking) {
-        if (micRms > 0.08) {
+      if (this.isAiSpeaking || speakerRms > 0.01) {
+        const dynamicThreshold = Math.max(0.08, speakerRms * 0.6 + 0.03);
+        if (micRms > dynamicThreshold) {
           this.consecutiveSpeechFrames++;
           if (this.consecutiveSpeechFrames >= 2) {
             const playedMs = this.getPlaybackDurationMs();
@@ -144,10 +172,17 @@ export class AudioGraphService {
     if (!this.outputGainNode) {
       this.outputGainNode = ctx.createGain();
       this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+
+      this.speakerAnalyserNode = ctx.createAnalyser();
+      this.speakerAnalyserNode.fftSize = 256;
+      this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
+
+      this.outputGainNode.connect(this.speakerAnalyserNode);
+
       if (this.streamDestination) {
-        this.outputGainNode.connect(this.streamDestination);
+        this.speakerAnalyserNode.connect(this.streamDestination);
       } else {
-        this.outputGainNode.connect(ctx.destination);
+        this.speakerAnalyserNode.connect(ctx.destination);
       }
     }
 
@@ -173,10 +208,17 @@ export class AudioGraphService {
       if (!this.outputGainNode) {
         this.outputGainNode = ctx.createGain();
         this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+
+        this.speakerAnalyserNode = ctx.createAnalyser();
+        this.speakerAnalyserNode.fftSize = 256;
+        this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
+
+        this.outputGainNode.connect(this.speakerAnalyserNode);
+
         if (this.streamDestination) {
-          this.outputGainNode.connect(this.streamDestination);
+          this.speakerAnalyserNode.connect(this.streamDestination);
         } else {
-          this.outputGainNode.connect(ctx.destination);
+          this.speakerAnalyserNode.connect(ctx.destination);
         }
       }
 
@@ -192,9 +234,10 @@ export class AudioGraphService {
         if (idx !== -1) {
           this.scheduledSources.splice(idx, 1);
         }
-        if (this.scheduledSources.length === 0) {
+        if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
           this.playbackStartCtxTime = null;
           this.isAiSpeaking = false;
+          this.isJitterBuffering = true;
           this.consecutiveSpeechFrames = 0;
         }
         onEnded?.();
@@ -225,10 +268,17 @@ export class AudioGraphService {
       if (!this.outputGainNode) {
         this.outputGainNode = ctx.createGain();
         this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+
+        this.speakerAnalyserNode = ctx.createAnalyser();
+        this.speakerAnalyserNode.fftSize = 256;
+        this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
+
+        this.outputGainNode.connect(this.speakerAnalyserNode);
+
         if (this.streamDestination) {
-          this.outputGainNode.connect(this.streamDestination);
+          this.speakerAnalyserNode.connect(this.streamDestination);
         } else {
-          this.outputGainNode.connect(ctx.destination);
+          this.speakerAnalyserNode.connect(ctx.destination);
         }
       }
 
@@ -244,9 +294,10 @@ export class AudioGraphService {
         if (idx !== -1) {
           this.scheduledSources.splice(idx, 1);
         }
-        if (this.scheduledSources.length === 0) {
+        if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
           this.playbackStartCtxTime = null;
           this.isAiSpeaking = false;
+          this.isJitterBuffering = true;
           this.consecutiveSpeechFrames = 0;
         }
         onEnded?.();
@@ -268,6 +319,50 @@ export class AudioGraphService {
     return Math.max(0, Math.round(elapsedSec * 1000));
   }
 
+  private flushJitterBuffer(): void {
+    if (!this.audioCtx || !this.outputGainNode) return;
+    const ctx = this.audioCtx;
+
+    while (this.jitterBuffer.length > 0) {
+      const buffer = this.jitterBuffer.shift();
+      if (!buffer) continue;
+      this.jitterBufferedSec = Math.max(0, this.jitterBufferedSec - buffer.duration);
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.outputGainNode);
+      if (this.analyserNode) {
+        source.connect(this.analyserNode);
+      }
+
+      const now = ctx.currentTime;
+      if (this.nextPlayTime < now) {
+        this.nextPlayTime = now + 0.025;
+      }
+
+      if (this.playbackStartCtxTime === null || this.scheduledSources.length === 0) {
+        this.playbackStartCtxTime = this.nextPlayTime;
+      }
+
+      source.start(this.nextPlayTime);
+      this.nextPlayTime += buffer.duration;
+      this.scheduledSources.push(source);
+
+      source.onended = () => {
+        const idx = this.scheduledSources.indexOf(source);
+        if (idx !== -1) {
+          this.scheduledSources.splice(idx, 1);
+        }
+        if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
+          this.playbackStartCtxTime = null;
+          this.isAiSpeaking = false;
+          this.isJitterBuffering = true;
+          this.consecutiveSpeechFrames = 0;
+        }
+      };
+    }
+  }
+
   public enqueueAudioChunk(base64Chunk: string): void {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
@@ -276,38 +371,17 @@ export class AudioGraphService {
     if (buffer.length <= 1) return;
 
     this.isAiSpeaking = true;
+    this.jitterBuffer.push(buffer);
+    this.jitterBufferedSec += buffer.duration;
 
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(this.outputGainNode);
-    if (this.analyserNode) {
-      source.connect(this.analyserNode);
+    const threshold = this.scheduledSources.length === 0
+      ? (this.isJitterBuffering ? this.JITTER_TARGET_SEC : this.JITTER_REBUFFER_SEC)
+      : 0;
+
+    if (this.jitterBufferedSec >= threshold) {
+      this.isJitterBuffering = false;
+      this.flushJitterBuffer();
     }
-
-    const now = ctx.currentTime;
-    if (this.nextPlayTime < now) {
-      this.nextPlayTime = now + 0.005;
-    }
-
-    if (this.playbackStartCtxTime === null || this.scheduledSources.length === 0) {
-      this.playbackStartCtxTime = this.nextPlayTime;
-    }
-
-    source.start(this.nextPlayTime);
-    this.nextPlayTime += buffer.duration;
-
-    this.scheduledSources.push(source);
-    source.onended = () => {
-      const idx = this.scheduledSources.indexOf(source);
-      if (idx !== -1) {
-        this.scheduledSources.splice(idx, 1);
-      }
-      if (this.scheduledSources.length === 0) {
-        this.playbackStartCtxTime = null;
-        this.isAiSpeaking = false;
-        this.consecutiveSpeechFrames = 0;
-      }
-    };
   }
 
   public stopPlayback(): void {
@@ -316,7 +390,10 @@ export class AudioGraphService {
     this.nextPlayTime = ctx.currentTime;
     this.playbackStartCtxTime = null;
     this.isAiSpeaking = false;
+    this.isJitterBuffering = true;
     this.consecutiveSpeechFrames = 0;
+    this.jitterBuffer = [];
+    this.jitterBufferedSec = 0;
 
     try {
       this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
@@ -389,6 +466,12 @@ export class AudioGraphService {
         this.analyserNode.disconnect();
       } catch {}
       this.analyserNode = null;
+    }
+    if (this.speakerAnalyserNode) {
+      try {
+        this.speakerAnalyserNode.disconnect();
+      } catch {}
+      this.speakerAnalyserNode = null;
     }
     if (this.outputGainNode) {
       try {
