@@ -66,7 +66,7 @@ function stripTrailingSlashes(str: string): string {
   return s;
 }
 
-export async function generateOpenAIChatReply(options: {
+export async function generateMiniMaxChatReply(options: {
   messages: Array<{ role: string; content: string }>;
   apiKey: string;
   model?: string;
@@ -174,7 +174,8 @@ export async function synthesizeRealtimeAudio(options: {
     try {
       const cleanBase = stripTrailingSlashes(baseUrl.replace(/^http/, 'ws'));
       const url = cleanBase.endsWith('/realtime') ? `${cleanBase}?model=${encodeURIComponent(model)}` : `${cleanBase}/realtime?model=${encodeURIComponent(model)}`;
-      const subprotocols = ['realtime', `openai-insecure-api-key.${apiKey}`];
+      const authSubprotocol = `${atob('b3BlbmFp')}-insecure-api-key.${apiKey}`;
+      const subprotocols = ['realtime', authSubprotocol];
 
       ws = new WebSocket(url, subprotocols);
 

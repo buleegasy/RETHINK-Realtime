@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { createWavHeader, generateOpenAIChatReply, synthesizeRealtimeAudio } from '../src/lib/openai-realtime';
+import { createWavHeader, generateMiniMaxChatReply, synthesizeRealtimeAudio } from '../src/lib/minimax-voice-relay';
 
-describe('OpenAI Realtime 模块单元测试', () => {
+describe('MiniMax Voice Relay 模块单元测试', () => {
   it('createWavHeader 应生成标准的 44 字节 WAV 头', () => {
     const header = createWavHeader(48000, 24000, 1, 16);
     expect(header.length).toBe(44);
@@ -18,8 +18,8 @@ describe('OpenAI Realtime 模块单元测试', () => {
     expect(view.getUint16(34, true)).toBe(16);
   });
 
-  it('generateOpenAIChatReply 在未提供 apiKey 时优雅返回空字符串', async () => {
-    const reply = await generateOpenAIChatReply({
+  it('generateMiniMaxChatReply 在未提供 apiKey 时优雅返回空字符串', async () => {
+    const reply = await generateMiniMaxChatReply({
       messages: [{ role: 'user', content: '你好' }],
       apiKey: '',
     });
