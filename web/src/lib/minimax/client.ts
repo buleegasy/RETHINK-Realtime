@@ -92,11 +92,11 @@ export class MiniMaxRealtimeClient {
 
   public sendSessionUpdate(customConfig?: MiniMaxSessionConfig): void {
     const config = { ...this.options.sessionConfig, ...customConfig };
-    const vadConfig = config.turnDetection ?? {
+    const vadConfig = config.turnDetection !== undefined ? config.turnDetection : {
       type: 'server_vad',
       threshold: 0.3,
       prefix_padding_ms: 500,
-      silence_duration_ms: 700,
+      silence_duration_ms: 600,
       create_response: true,
     };
 

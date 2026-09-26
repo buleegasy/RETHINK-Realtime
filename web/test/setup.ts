@@ -30,6 +30,18 @@ class MockAudioContext {
     };
   }
 
+  createDynamicsCompressor() {
+    return {
+      threshold: { setValueAtTime: () => {} },
+      knee: { setValueAtTime: () => {} },
+      ratio: { setValueAtTime: () => {} },
+      attack: { setValueAtTime: () => {} },
+      release: { setValueAtTime: () => {} },
+      connect: () => {},
+      disconnect: () => {},
+    };
+  }
+
   createOscillator() {
     return {
       type: 'sine',

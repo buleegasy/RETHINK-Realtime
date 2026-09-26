@@ -11,12 +11,14 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.31",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwind-merge": "^3.5.0",
+    "wavtools": "^0.1.5",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

@@ -9,7 +9,8 @@ export class AudioGraphService {
   private analyserNode: AnalyserNode | null = null;
   private speakerAnalyserNode: AnalyserNode | null = null;
   private outputGainNode: GainNode | null = null;
-  private inputGainNode: GainNode | null = null;
+  private preGainNode: GainNode | null = null;
+  private compressorNode: DynamicsCompressorNode | null = null;
   private streamDestination: MediaStreamAudioDestinationNode | null = null;
   private audioElement: HTMLAudioElement | null = null;
 
@@ -108,13 +109,10 @@ export class AudioGraphService {
       }
       this.mediaStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
       this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
-      if (this.inputGainNode) {
-        this.sourceNode.connect(this.inputGainNode);
+      if (this.preGainNode) {
+        this.sourceNode.connect(this.preGainNode);
       } else if (this.analyserNode) {
         this.sourceNode.connect(this.analyserNode);
-      }
-      if (this.processorNode && this.analyserNode && !this.inputGainNode) {
-        this.analyserNode.connect(this.processorNode);
       }
     } catch {}
   }
@@ -125,8 +123,15 @@ export class AudioGraphService {
     this.mediaStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
     this.sourceNode = ctx.createMediaStreamSource(this.mediaStream);
 
-    this.inputGainNode = ctx.createGain();
-    this.inputGainNode.gain.setValueAtTime(1.35, ctx.currentTime);
+    this.preGainNode = ctx.createGain();
+    this.preGainNode.gain.setValueAtTime(2.5, ctx.currentTime);
+
+    this.compressorNode = ctx.createDynamicsCompressor();
+    this.compressorNode.threshold.setValueAtTime(-40, ctx.currentTime);
+    this.compressorNode.knee.setValueAtTime(20, ctx.currentTime);
+    this.compressorNode.ratio.setValueAtTime(8, ctx.currentTime);
+    this.compressorNode.attack.setValueAtTime(0.003, ctx.currentTime);
+    this.compressorNode.release.setValueAtTime(0.25, ctx.currentTime);
 
     this.analyserNode = ctx.createAnalyser();
     this.analyserNode.fftSize = 256;
@@ -171,9 +176,10 @@ export class AudioGraphService {
       }
     };
 
-    this.sourceNode.connect(this.inputGainNode);
-    this.inputGainNode.connect(this.analyserNode);
-    this.inputGainNode.connect(this.processorNode);
+    this.sourceNode.connect(this.preGainNode);
+    this.preGainNode.connect(this.compressorNode);
+    this.compressorNode.connect(this.analyserNode);
+    this.compressorNode.connect(this.processorNode);
     this.processorNode.connect(ctx.destination);
 
     if (!this.outputGainNode) {
@@ -461,6 +467,18 @@ export class AudioGraphService {
         this.processorNode.disconnect();
       } catch {}
       this.processorNode = null;
+    }
+    if (this.compressorNode) {
+      try {
+        this.compressorNode.disconnect();
+      } catch {}
+      this.compressorNode = null;
+    }
+    if (this.preGainNode) {
+      try {
+        this.preGainNode.disconnect();
+      } catch {}
+      this.preGainNode = null;
     }
     if (this.sourceNode) {
       try {
