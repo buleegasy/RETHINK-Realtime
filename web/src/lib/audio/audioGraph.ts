@@ -10,8 +10,11 @@ export class AudioGraphService {
   private outputGainNode: GainNode | null = null;
 
   private nextPlayTime: number = 0;
+  private lastPlaybackEndTime: number = 0;
   private scheduledSources: AudioBufferSourceNode[] = [];
   private isMuted: boolean = false;
+  private speechHangoverMs: number = 0;
+  private lastProcessTime: number = 0;
 
   public async initAudioContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
@@ -24,6 +27,16 @@ export class AudioGraphService {
     return this.audioCtx;
   }
 
+  public isPlaybackActive(): boolean {
+    if (!this.audioCtx) return false;
+    const now = this.audioCtx.currentTime;
+    return (
+      this.scheduledSources.length > 0 ||
+      this.nextPlayTime > now + 0.02 ||
+      now < this.lastPlaybackEndTime + 0.35
+    );
+  }
+
   public async startRecording(onAudioChunk: (pcm16Base64: string) => void): Promise<void> {
     const ctx = await this.initAudioContext();
 
@@ -34,12 +47,48 @@ export class AudioGraphService {
     this.analyserNode.fftSize = 256;
     this.analyserNode.smoothingTimeConstant = 0.5;
 
+    this.speechHangoverMs = 0;
+    this.lastProcessTime = 0;
+
     this.processorNode = ctx.createScriptProcessor(2048, 1, 1);
     this.processorNode.onaudioprocess = (e) => {
       const out = e.outputBuffer.getChannelData(0);
       out.fill(0);
       if (this.isMuted) return;
+
       const inputBuffer = e.inputBuffer.getChannelData(0);
+      let sum = 0;
+      for (let i = 0; i < inputBuffer.length; i++) {
+        const s = inputBuffer[i];
+        sum += s * s;
+      }
+      const rms = Math.sqrt(sum / inputBuffer.length);
+
+      const now = ctx.currentTime * 1000;
+      const elapsed = this.lastProcessTime > 0 ? (now - this.lastProcessTime) : 50;
+      this.lastProcessTime = now;
+
+      const isPlaying = this.isPlaybackActive();
+
+      if (isPlaying) {
+        if (rms >= 0.06) {
+          this.speechHangoverMs = 1000;
+        } else {
+          this.speechHangoverMs = 0;
+          return;
+        }
+      } else {
+        if (rms >= 0.014) {
+          this.speechHangoverMs = 1000;
+        } else if (this.speechHangoverMs > 0) {
+          this.speechHangoverMs = Math.max(0, this.speechHangoverMs - elapsed);
+        }
+      }
+
+      if (this.speechHangoverMs <= 0) {
+        return;
+      }
+
       const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
       if (base64) {
         onAudioChunk(base64);
@@ -82,10 +131,14 @@ export class AudioGraphService {
         if (idx !== -1) {
           this.scheduledSources.splice(idx, 1);
         }
+        if (this.audioCtx) {
+          this.lastPlaybackEndTime = this.audioCtx.currentTime;
+        }
         onEnded?.();
       };
 
       source.start(ctx.currentTime);
+      this.lastPlaybackEndTime = ctx.currentTime + audioBuffer.duration;
       this.scheduledSources.push(source);
     } catch {
       onEnded?.();
@@ -124,10 +177,14 @@ export class AudioGraphService {
         if (idx !== -1) {
           this.scheduledSources.splice(idx, 1);
         }
+        if (this.audioCtx) {
+          this.lastPlaybackEndTime = this.audioCtx.currentTime;
+        }
         onEnded?.();
       };
 
       source.start(ctx.currentTime);
+      this.lastPlaybackEndTime = ctx.currentTime + audioBuffer.duration;
       this.scheduledSources.push(source);
     } catch {
       onEnded?.();
@@ -155,12 +212,16 @@ export class AudioGraphService {
 
     source.start(this.nextPlayTime);
     this.nextPlayTime += buffer.duration;
+    this.lastPlaybackEndTime = this.nextPlayTime;
 
     this.scheduledSources.push(source);
     source.onended = () => {
       const idx = this.scheduledSources.indexOf(source);
       if (idx !== -1) {
         this.scheduledSources.splice(idx, 1);
+      }
+      if (this.audioCtx) {
+        this.lastPlaybackEndTime = Math.max(this.lastPlaybackEndTime, this.audioCtx.currentTime);
       }
     };
   }
@@ -169,6 +230,8 @@ export class AudioGraphService {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
     this.nextPlayTime = ctx.currentTime;
+    this.lastPlaybackEndTime = 0;
+    this.speechHangoverMs = 0;
 
     try {
       this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
@@ -213,7 +276,7 @@ export class AudioGraphService {
       sum += v * v;
     }
     const rms = Math.sqrt(sum / dataArray.length);
-    return Math.min(1, rms * 4); 
+    return Math.min(1, rms * 4);
   }
 
   public cleanup(): void {

@@ -65,11 +65,12 @@ voiceRouter.get('/ws', async (c) => {
                 payload.session.output_modalities = ['audio'];
                 payload.session.voice = 'maple';
                 delete payload.session.modalities;
-                const turnDetection = payload.session.turn_detection || payload.session.audio?.input?.turn_detection || {
+                const incomingVad = payload.session.turn_detection || payload.session.audio?.input?.turn_detection;
+                const turnDetection = {
                   type: 'server_vad',
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 600,
+                  threshold: Math.max(0.75, incomingVad?.threshold ?? 0.75),
+                  prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 300,
+                  silence_duration_ms: Math.max(800, incomingVad?.silence_duration_ms ?? 800),
                   create_response: true,
                 };
                 payload.session.turn_detection = turnDetection;
@@ -243,7 +244,7 @@ voiceRouter.post('/chat', async (c) => {
 【声音与口语核心准则】
 1. 声音带有自然的呼吸感与温度，绝对严禁输出任何 Markdown 符号（如星号、反引号、代码块、列表编号）。
 2. 每次回复控制在 1-2 句话以内，极简自然，倾听多于说教，把表达空间留给学生。
-3. 适度运用口语语气词（如“嗯...”、“我懂”、“我在听”、“慢慢说”），自然真切。
+3. 绝对严禁自言自语或输出无意义口头禅（如“听起来……”、“好呀”、“随时告诉我”等），学生沉默时保持静默。
 4. 若学生告知了名字或昵称，在对话中亲切自然地称呼对方。
 ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
 

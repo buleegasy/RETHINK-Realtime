@@ -157,11 +157,12 @@ export function useVoiceSession() {
             clientRef.current?.interrupt();
             setDuplexPhase('listening');
             const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
-            if (asstSeg && asstSeg.text) {
+            const asstText = (asstSeg?.text || '').trim();
+            if (asstSeg && asstText) {
               addDialogueTurn({
                 id: asstSeg.id,
                 role: 'assistant',
-                content: asstSeg.text,
+                content: asstText,
                 timestamp: asstSeg.timestamp,
                 stage: useBoothStore.getState().cbtStage,
               });
@@ -173,21 +174,23 @@ export function useVoiceSession() {
           onTurnEnd: () => {
             setDuplexPhase('listening');
             const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
-            if (asstSeg && asstSeg.text) {
+            const asstText = (asstSeg?.text || '').trim();
+            if (asstSeg && asstText) {
               addDialogueTurn({
                 id: asstSeg.id,
                 role: 'assistant',
-                content: asstSeg.text,
+                content: asstText,
                 timestamp: asstSeg.timestamp,
                 stage: useBoothStore.getState().cbtStage,
               });
             }
             const userSeg = transcriptionRef.current.finalizeCurrentTurn('user');
-            if (userSeg && userSeg.text) {
+            const userText = (userSeg?.text || '').replace(/^[.,，。？！?\s]+$/, '').trim();
+            if (userSeg && userText) {
               addDialogueTurn({
                 id: userSeg.id,
                 role: 'user',
-                content: userSeg.text,
+                content: userText,
                 timestamp: userSeg.timestamp,
                 stage: useBoothStore.getState().cbtStage,
               });
