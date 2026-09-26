@@ -149,7 +149,7 @@ export function useVoiceSession() {
             if (audioGraph.isPlaybackActive() && playedMs < 600) {
               return;
             }
-            audioGraph.stopPlayback();
+            audioGraph.stopPlayback(150);
             clientRef.current?.updateTurnDetection('listening');
             const itemId = details?.itemId || clientRef.current?.getCurrentResponseItemId();
             clientRef.current?.interrupt({
@@ -204,7 +204,7 @@ export function useVoiceSession() {
             }
           },
           onCrisisInterception: (details) => {
-            audioGraph.stopPlayback();
+            audioGraph.stopPlayback(50);
             setCBTStage('Crisis_Escalation');
             setCrisisOverlayOpen(true);
             addDialogueTurn({
@@ -313,7 +313,7 @@ export function useVoiceSession() {
   const interrupt = useCallback(() => {
     const playedMs = audioGraphRef.current ? audioGraphRef.current.getPlaybackDurationMs() : 0;
     if (audioGraphRef.current) {
-      audioGraphRef.current.stopPlayback();
+      audioGraphRef.current.stopPlayback(150);
     }
     if (clientRef.current) {
       clientRef.current.updateTurnDetection('listening');

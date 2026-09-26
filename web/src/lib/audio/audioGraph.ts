@@ -182,7 +182,7 @@ export class AudioGraphService {
           if (micRms > dynamicThreshold) {
             this.consecutiveSpeechFrames++;
             if (this.consecutiveSpeechFrames >= 5) {
-              this.stopPlayback();
+              this.stopPlayback(150);
               this.consecutiveSpeechFrames = 0;
               this.onLocalInterruptCallback?.(playedMs);
               shouldStreamChunk = true;
@@ -268,6 +268,11 @@ export class AudioGraphService {
         }
       }
 
+      if (this.outputGainNode) {
+        this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
+        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+      }
+
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(this.outputGainNode);
@@ -329,6 +334,11 @@ export class AudioGraphService {
         }
       }
 
+      if (this.outputGainNode) {
+        this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
+        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+      }
+
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(this.outputGainNode);
@@ -369,6 +379,11 @@ export class AudioGraphService {
   private flushJitterBuffer(): void {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
+
+    if (this.outputGainNode) {
+      this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
+      this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+    }
 
     while (this.jitterBuffer.length > 0) {
       const buffer = this.jitterBuffer.shift();
@@ -431,10 +446,10 @@ export class AudioGraphService {
     }
   }
 
-  public stopPlayback(): void {
+  public stopPlayback(fadeDurationMs: number = 150): void {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
-    this.nextPlayTime = ctx.currentTime;
+    const wasSpeaking = this.isAiSpeaking;
     this.playbackStartCtxTime = null;
     this.setAiSpeaking(false);
     this.isJitterBuffering = true;
@@ -442,27 +457,56 @@ export class AudioGraphService {
     this.jitterBuffer = [];
     this.jitterBufferedSec = 0;
 
-    try {
-      this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
-      this.outputGainNode.gain.setValueAtTime(this.outputGainNode.gain.value, ctx.currentTime);
-      this.outputGainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.015);
-    } catch {}
-
-    for (const s of this.scheduledSources) {
-      try {
-        s.stop();
-        s.disconnect();
-      } catch {}
-    }
+    const sourcesToStop = [...this.scheduledSources];
     this.scheduledSources = [];
 
+    if ((sourcesToStop.length === 0 && !wasSpeaking) || fadeDurationMs <= 0) {
+      try {
+        this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
+        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+      } catch {}
+      for (const s of sourcesToStop) {
+        try {
+          s.stop();
+          s.disconnect();
+        } catch {}
+      }
+      this.nextPlayTime = ctx.currentTime;
+      return;
+    }
+
+    const fadeDurationSec = fadeDurationMs / 1000;
+    const fadeEndTime = ctx.currentTime + fadeDurationSec;
+
+    try {
+      this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
+      const currentGain = Math.max(0.001, this.outputGainNode.gain.value);
+      this.outputGainNode.gain.setValueAtTime(currentGain, ctx.currentTime);
+      this.outputGainNode.gain.exponentialRampToValueAtTime(0.0001, fadeEndTime);
+    } catch {}
+
+    for (const s of sourcesToStop) {
+      try {
+        s.stop(fadeEndTime);
+      } catch {
+        try {
+          s.stop();
+        } catch {}
+      }
+    }
+
     setTimeout(() => {
+      for (const s of sourcesToStop) {
+        try {
+          s.disconnect();
+        } catch {}
+      }
       if (this.outputGainNode && this.audioCtx) {
         this.outputGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
         this.outputGainNode.gain.setValueAtTime(0.85, this.audioCtx.currentTime);
       }
       this.nextPlayTime = this.audioCtx ? this.audioCtx.currentTime : 0;
-    }, 20);
+    }, fadeDurationMs + 20);
   }
 
   public setMute(muted: boolean): void {
@@ -489,7 +533,7 @@ export class AudioGraphService {
   }
 
   public cleanup(): void {
-    this.stopPlayback();
+    this.stopPlayback(0);
     if (this.boundDeviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
       try {
         navigator.mediaDevices.removeEventListener('devicechange', this.boundDeviceChangeListener);
