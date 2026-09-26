@@ -26,7 +26,6 @@ export function useVoiceSession() {
     setCBTStage,
     setIsMuted,
     setAudioLevel,
-    setActiveTranscript,
     addDialogueTurn,
     setLatestReport,
     setCrisisOverlayOpen,
@@ -79,25 +78,6 @@ export function useVoiceSession() {
     setAudioLevel(0);
   }, [setAudioLevel]);
 
-  useEffect(() => {
-    const unsub = transcriptionRef.current.subscribe((segment) => {
-      if (segment.speaker === 'user') {
-        setActiveTranscript({
-          user: segment.text,
-          assistant: useBoothStore.getState().activeTranscript.assistant,
-        });
-      } else {
-        setActiveTranscript({
-          user: useBoothStore.getState().activeTranscript.user,
-          assistant: segment.text,
-        });
-      }
-    });
-    return () => {
-      unsub();
-    };
-  }, [setActiveTranscript]);
-
   const startCall = useCallback(async () => {
     setErrorMessage(null);
     setHookState('connected');
@@ -107,13 +87,16 @@ export function useVoiceSession() {
     sessionIdRef.current = `kiosk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     transcriptionRef.current.reset();
 
-    setActiveTranscript({
-      user: '',
-      assistant: '',
-    });
-
     try {
       const audioGraph = getAudioGraph();
+      audioGraph.setOnLocalInterrupt((playedMs) => {
+        const itemId = clientRef.current?.getCurrentResponseItemId();
+        clientRef.current?.interrupt({
+          itemId: itemId || undefined,
+          audioEndMs: playedMs,
+        });
+        setDuplexPhase('listening');
+      });
 
       toolDispatcherRef.current = new RealtimeToolDispatcher({
         ragProvider: ragProviderRef.current,
@@ -171,9 +154,11 @@ export function useVoiceSession() {
           },
           onTurnStart: () => {
             setDuplexPhase('speaking');
+            audioGraph.setAiSpeaking(true);
           },
           onTurnEnd: () => {
             setDuplexPhase('listening');
+            audioGraph.setAiSpeaking(false);
             const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
             if (asstSeg?.text) {
               addDialogueTurn({

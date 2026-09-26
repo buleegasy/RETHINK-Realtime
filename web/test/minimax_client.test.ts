@@ -163,4 +163,68 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
 
     client.disconnect();
   });
+
+  it('打断时若有未完成的工具调用应自动发送 conversation.item.delete 清洗孤儿状态', async () => {
+    const client = new MiniMaxRealtimeClient({
+      relayUrl: 'ws://localhost:8787/api/voice/ws',
+    });
+
+    client.connect();
+    await new Promise((r) => setTimeout(r, 15));
+
+    const ws = (client as any).ws as MockWebSocket;
+
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'response.function_call_arguments.delta',
+        item_id: 'call_item_test_456',
+        delta: '{"location":',
+      }),
+    });
+
+    client.interrupt({ itemId: 'item_asst_999', audioEndMs: 800 });
+
+    expect(ws.sentMessages.length).toBeGreaterThanOrEqual(4);
+
+    const deleteMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 3]);
+    expect(deleteMsg.type).toBe('conversation.item.delete');
+    expect(deleteMsg.item_id).toBe('call_item_test_456');
+
+    const cancelMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 2]);
+    expect(cancelMsg.type).toBe('response.cancel');
+
+    const truncateMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
+    expect(truncateMsg.type).toBe('conversation.item.truncate');
+    expect(truncateMsg.item_id).toBe('item_asst_999');
+
+    client.disconnect();
+  });
+
+  it('收到 conversation.item.truncated 应触发 onItemTruncated 回调', async () => {
+    const onItemTruncated = vi.fn();
+    const client = new MiniMaxRealtimeClient({
+      relayUrl: 'ws://localhost:8787/api/voice/ws',
+      callbacks: { onItemTruncated },
+    });
+
+    client.connect();
+    await new Promise((r) => setTimeout(r, 15));
+
+    const ws = (client as any).ws as MockWebSocket;
+
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'conversation.item.truncated',
+        item_id: 'item_asst_trunc',
+        audio_end_ms: 1200,
+      }),
+    });
+
+    expect(onItemTruncated).toHaveBeenCalledWith({
+      itemId: 'item_asst_trunc',
+      audioEndMs: 1200,
+    });
+
+    client.disconnect();
+  });
 });

@@ -58,5 +58,6 @@ export interface MiniMaxClientCallbacks {
   onTurnStart?: () => void;
   onTurnEnd?: () => void;
   onSpeechStarted?: (details?: { audioStartMs?: number; itemId?: string }) => void;
+  onItemTruncated?: (details: { itemId?: string; audioEndMs?: number }) => void;
   onToolCall?: (toolCall: { name: string; callId: string; args: Record<string, unknown> }) => void;
 }

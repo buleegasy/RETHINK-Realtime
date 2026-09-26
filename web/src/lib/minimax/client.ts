@@ -26,6 +26,7 @@ export class MiniMaxRealtimeClient {
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private messageQueue: Record<string, unknown>[] = [];
   private currentResponseItemId: string | null = null;
+  private currentToolCallItemId: string | null = null;
 
   constructor(options?: MiniMaxClientOptions) {
     this.options = options || {};
@@ -153,6 +154,13 @@ export class MiniMaxRealtimeClient {
   }
 
   public interrupt(options?: { itemId?: string; audioEndMs?: number }): void {
+    if (this.currentToolCallItemId) {
+      this.send({
+        type: 'conversation.item.delete',
+        item_id: this.currentToolCallItemId,
+      });
+      this.currentToolCallItemId = null;
+    }
     this.send({
       type: 'response.cancel',
     });
@@ -281,6 +289,27 @@ export class MiniMaxRealtimeClient {
           }
           this.callbacks.onToolCall?.({ name, callId, args: parsedArgs });
         }
+      }
+
+      if (
+        type === 'response.function_call_arguments.delta' ||
+        (type === 'response.output_item.added' && (event.item?.type === 'function_call' || event.item?.type === 'function_call_output'))
+      ) {
+        const itemId = event.item_id || event.item?.id;
+        if (itemId) {
+          this.currentToolCallItemId = itemId;
+        }
+      }
+
+      if (type === 'response.function_call_arguments.done') {
+        this.currentToolCallItemId = null;
+      }
+
+      if (type === 'conversation.item.truncated') {
+        this.callbacks.onItemTruncated?.({
+          itemId: event.item_id,
+          audioEndMs: event.audio_end_ms,
+        });
       }
 
       if (type === 'error') {
