@@ -175,7 +175,7 @@ export class AudioGraphService {
       const speakerRms = this.getSpeakerRms();
 
       if (this.isAiSpeaking || speakerRms > 0.01) {
-        const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.08);
+        const dynamicThreshold = Math.max(0.25, speakerRms * 0.95 + 0.12);
         if (micRms > dynamicThreshold) {
           this.consecutiveSpeechFrames++;
           if (this.consecutiveSpeechFrames >= 3) {

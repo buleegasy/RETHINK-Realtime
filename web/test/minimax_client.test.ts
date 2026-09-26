@@ -241,7 +241,7 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     const ws = (client as any).ws as MockWebSocket;
     const speakingMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
     expect(speakingMsg.type).toBe('session.update');
-    expect(speakingMsg.session.turn_detection.threshold).toBe(0.75);
+    expect(speakingMsg.session.turn_detection.threshold).toBe(0.85);
     expect(speakingMsg.session.turn_detection.silence_duration_ms).toBe(500);
 
     client.updateTurnDetection('listening');
