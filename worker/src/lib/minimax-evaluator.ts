@@ -33,7 +33,7 @@ export async function evaluateTranscriptWithMiniMax(
 
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
+    const timer = setTimeout(() => controller.abort(), 6000);
 
     const prompt = `你是中学校园心理危机干预与脱敏评估专家。请分析以下学生倾诉对话文本，严格返回 JSON 格式结果：
 {
@@ -48,16 +48,29 @@ export async function evaluateTranscriptWithMiniMax(
 待评估文本:
 """${transcript.slice(0, 1500)}"""`;
 
-    const res = await fetch('https://api.minimaxi.chat/v1/text/chatcompletion_v2', {
+    const isMiniMax = apiKey.startsWith('ey') || apiKey.length > 100;
+    const url = isMiniMax
+      ? 'https://api.minimaxi.chat/v1/text/chatcompletion_v2'
+      : 'https://api.apiyi.com/v1/chat/completions';
+
+    const payload = isMiniMax
+      ? {
+          model: 'abab6.5s-chat',
+          messages: [{ role: 'user', content: prompt }],
+        }
+      : {
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+        };
+
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: 'abab6.5s-chat',
-        messages: [{ role: 'user', content: prompt }],
-      }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
     clearTimeout(timer);

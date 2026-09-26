@@ -338,7 +338,8 @@ voiceRouter.post('/session/persist', async (c) => {
   const effectiveDuration = duration || 0;
   const effectiveStage = stage || 'Active_Listening';
 
-  const evalResult = await evaluateTranscriptWithMiniMax(transcript_text || '', env.MINIMAX_API_KEY);
+  const evalApiKey = env.APIYI_API_KEY || env.OPENAI_API_KEY || env.MINIMAX_API_KEY;
+  const evalResult = await evaluateTranscriptWithMiniMax(transcript_text || '', evalApiKey);
   const isCrisisFlag = (payload.is_crisis || evalResult.isCrisis || evalResult.crisisLevel >= 3 || effectiveStage === 'Crisis_Escalation') ? 1 : 0;
   const crisisLevel = isCrisisFlag ? Math.max(3, evalResult.crisisLevel) : evalResult.crisisLevel;
 
