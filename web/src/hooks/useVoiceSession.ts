@@ -199,7 +199,7 @@ export function useVoiceSession() {
       });
 
       await audioGraph.startRecording((pcm16Base64) => {
-        if (clientRef.current?.ready && useBoothStore.getState().duplexPhase === 'listening') {
+        if (clientRef.current?.ready) {
           clientRef.current.sendAudioChunk(pcm16Base64);
         }
       });

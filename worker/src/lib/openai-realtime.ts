@@ -169,14 +169,9 @@ export async function synthesizeRealtimeAudio(options: {
           JSON.stringify({
             type: 'session.update',
             session: {
-              type: 'realtime',
-              output_modalities: ['audio'],
-              audio: {
-                output: {
-                  format: { type: 'audio/pcm', rate: 24000 },
-                  voice,
-                },
-              },
+              modalities: ['audio'],
+              voice,
+              output_audio_format: 'pcm16',
             },
           })
         );

@@ -61,35 +61,34 @@ voiceRouter.get('/ws', async (c) => {
               } catch {}
 
               if (payload && payload.type === 'session.update' && payload.session) {
-                payload.session.type = 'realtime';
-                payload.session.output_modalities = ['audio'];
-                payload.session.voice = 'maple';
-                delete payload.session.modalities;
-                const incomingVad = payload.session.turn_detection || payload.session.audio?.input?.turn_detection;
+                const incoming = payload.session;
+                const incomingVad = incoming.turn_detection || incoming.audio?.input?.turn_detection;
                 const turnDetection = {
                   type: 'server_vad',
-                  threshold: Math.max(0.95, incomingVad?.threshold ?? 0.95),
+                  threshold: incomingVad?.threshold ?? 0.8,
                   prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 300,
-                  silence_duration_ms: Math.max(1000, incomingVad?.silence_duration_ms ?? 1000),
+                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 800,
                   create_response: true,
                 };
-                payload.session.turn_detection = turnDetection;
-                payload.session.audio = {
-                  input: {
-                    format: { type: 'audio/pcm', rate: 24000 },
-                    transcription: { model: 'whisper-1' },
-                    turn_detection: turnDetection,
-                  },
-                  output: {
-                    format: { type: 'audio/pcm', rate: 24000 },
-                    voice: 'maple',
-                  },
+                const cleanSession: Record<string, unknown> = {
+                  modalities: incoming.modalities || ['text', 'audio'],
+                  instructions: incoming.instructions || '',
+                  voice: incoming.voice || 'maple',
+                  input_audio_format: 'pcm16',
+                  output_audio_format: 'pcm16',
+                  input_audio_transcription: { model: 'whisper-1' },
+                  turn_detection: turnDetection,
+                  tools: incoming.tools || [],
+                  tool_choice: 'auto',
+                  temperature: 0.7,
                 };
-                upstreamWs.send(JSON.stringify(payload));
-              } else if (payload && payload.type === 'response.create' && payload.response) {
-                if (payload.response.modalities) {
-                  delete payload.response.modalities;
-                }
+                upstreamWs.send(
+                  JSON.stringify({
+                    type: 'session.update',
+                    session: cleanSession,
+                  })
+                );
+              } else if (payload && payload.type === 'response.create') {
                 upstreamWs.send(JSON.stringify(payload));
               } else {
                 upstreamWs.send(event.data);

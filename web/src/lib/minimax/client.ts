@@ -88,17 +88,20 @@ export class MiniMaxRealtimeClient {
     const config = { ...this.options.sessionConfig, ...customConfig };
     const vadConfig = config.turnDetection ?? {
       type: 'server_vad',
-      threshold: 0.95,
+      threshold: 0.8,
       prefix_padding_ms: 300,
-      silence_duration_ms: 1000,
+      silence_duration_ms: 800,
       create_response: true,
     };
 
     const sessionPayload: Record<string, unknown> = {
       type: 'realtime',
-      output_modalities: ['audio'],
+      modalities: ['text', 'audio'],
       instructions: config.instructions || DEFAULT_VOICE_INSTRUCTIONS,
       voice: config.voice || DEFAULT_VOICE,
+      input_audio_format: 'pcm16',
+      output_audio_format: 'pcm16',
+      input_audio_transcription: { model: 'whisper-1' },
       turn_detection: vadConfig,
       audio: {
         input: {
@@ -205,19 +208,20 @@ export class MiniMaxRealtimeClient {
         }
       }
 
-      if (type === 'response.output_text.delta' || type === 'response.text.delta') {
-        const text = event.delta || event.text;
+      if (
+        type === 'response.output_text.delta' ||
+        type === 'response.text.delta' ||
+        type === 'response.output_audio_transcript.delta' ||
+        type === 'response.audio_transcript.delta'
+      ) {
+        const text = event.delta || event.text || event.transcript || (event as any).transcript;
         if (text) {
           this.callbacks.onTextDelta?.(text);
         }
       }
 
-      if (
-        type === 'response.output_audio_transcript.delta' ||
-        type === 'response.audio_transcript.delta' ||
-        type === 'conversation.item.input_audio_transcription.completed'
-      ) {
-        const transcript = event.delta || event.transcript || (event as any).transcript;
+      if (type === 'conversation.item.input_audio_transcription.completed') {
+        const transcript = event.transcript || (event as any).transcript;
         if (transcript) {
           this.callbacks.onTranscriptDelta?.(transcript);
         }
@@ -231,11 +235,7 @@ export class MiniMaxRealtimeClient {
         this.callbacks.onTurnStart?.();
       }
 
-      if (
-        type === 'response.done' ||
-        type === 'response.output_item.done' ||
-        type === 'input_audio_buffer.speech_stopped'
-      ) {
+      if (type === 'response.done') {
         this.callbacks.onTurnEnd?.();
       }
 
