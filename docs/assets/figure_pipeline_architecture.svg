@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000.5617499999998 1747.2" width="1000.5617499999998" height="1747.2" style="--bg:#1F1F1F;--fg:#CCCCCC;--line:#CCCCCC;--accent:#0078D4;--muted:#CCCCCCCC;--surface:#181818;--border:#CCCCCC;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 85%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="7" refY="2.5" orient="auto">
+    <polygon points="0 0, 8 2.5, 0 5" fill="var(--_arrow)" stroke="var(--_arrow)" stroke-width="0.75" stroke-linejoin="round" />
+  </marker>
+  <marker id="arrowhead-start" markerWidth="8" markerHeight="5" refX="1" refY="2.5" orient="auto-start-reverse">
+    <polygon points="8 0, 0 2.5, 8 5" fill="var(--_arrow)" stroke="var(--_arrow)" stroke-width="0.75" stroke-linejoin="round" />
+  </marker>
+</defs>
+<g class="subgraph" data-id="_ASR" data-label="用户侧语音识别 ASR">
+  <rect x="447.7209583333332" y="40" width="470.7702499999999" height="488.20000000000005" rx="0" ry="0" fill="var(--_group-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <rect x="447.7209583333332" y="40" width="470.7702499999999" height="28" rx="0" ry="0" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="459.7209583333332" y="54" font-size="12" font-weight="600" fill="var(--_text-sec)" dy="4.199999999999999">用户侧语音识别 ASR</text>
+</g>
+<g class="subgraph" data-id="_TTS_Delta" data-label="助手侧语音同步转写 TTS Delta">
+  <rect x="40" y="824.0000000000001" width="578.867" height="96.9" rx="0" ry="0" fill="var(--_group-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <rect x="40" y="824.0000000000001" width="578.867" height="28" rx="0" ry="0" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="52" y="838.0000000000001" font-size="12" font-weight="600" fill="var(--_text-sec)" dy="4.199999999999999">助手侧语音同步转写 TTS Delta</text>
+</g>
+<g class="subgraph" data-id="_Worker_" data-label="边缘网关 Worker 旁路拦截">
+  <rect x="405.74074999999993" y="588.2" width="544.781" height="181.8" rx="0" ry="0" fill="var(--_group-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <rect x="405.74074999999993" y="588.2" width="544.781" height="28" rx="0" ry="0" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="417.74074999999993" y="602.2" font-size="12" font-weight="600" fill="var(--_text-sec)" dy="4.199999999999999">边缘网关 Worker 旁路拦截</text>
+</g>
+<g class="subgraph" data-id="" data-label="前端转写管道与状态聚合">
+  <rect x="577.8147499999999" y="980.9000000000001" width="325.149" height="726.3" rx="0" ry="0" fill="var(--_group-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <rect x="577.8147499999999" y="980.9000000000001" width="325.149" height="28" rx="0" ry="0" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="589.8147499999999" y="994.9000000000001" font-size="12" font-weight="600" fill="var(--_text-sec)" dy="4.199999999999999">前端转写管道与状态聚合</text>
+</g>
+<polyline class="edge" data-from="Client" data-to="VoiceHook" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="onTranscriptDelta / onTextDelta" points="162.5745,80.9 162.5745,197.2" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="VoiceHook" data-to="Pipeline" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="162.5745,234.1 162.5745,282.1" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="Pipeline" data-to="CleanedText" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="cleanBuffer 过滤语气词" points="162.5745,319 162.5745,435.3" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="CleanedText" data-to="BoothStore" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="finalizeCurrentTurn" points="162.5745,472.20000000000005 162.5745,588.5" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="BoothStore" data-to="ReportGen" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="162.5745,625.4 162.5745,673.4" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="Upstream" data-to="AudioDelta" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="实时语音流" points="530.3392083333332,359 530.3392083333332,371 497.0300833333332,371 497.0300833333332,558.2 234.3669999999999,558.2 234.3669999999999,806.0000000000001 139.219,806.0000000000001 139.21899999999994,868.0000000000001" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="Upstream" data-to="TextDelta" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="实时文本/转写流" points="582.1374583333333,359 582.1374583333333,383 529.4292083333332,383 529.4292083333332,570.2 329.96074999999996,570.2 329.96074999999996,806.0000000000001 426.6524999999999,806.0000000000001 426.6524999999999,868.0000000000001" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="TransCompleted" data-to="WorkerRelay" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="721.4602083333332,512.2 721.4602083333332,572.2 667.2014999999999,572.2 667.2014999999999,632.2" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="TransCompleted" data-to="Client" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="721.4602083333332,512.2 721.4602083333332,572.2 740.38925,572.2 740.38925,1024.9" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="TextDelta" data-to="Client" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="426.6524999999999,904.9000000000001 426.6524999999999,962.9000000000001 711.4145833333332,962.9000000000001 711.4145833333333,1024.9" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="Mic" data-to="AudioGraph" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="582.1374583333331,120.9 582.1374583333331,168.9" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="AudioGraph" data-to="Upstream" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="input_audio_buffer.append" points="582.1374583333331,205.8 582.1374583333331,322.1" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="Upstream" data-to="TransCompleted" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="Server-side 实时流式 ASR" points="633.9357083333332,359 633.9357083333332,371 721.4602083333332,371 721.4602083333332,475.3" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="WorkerRelay" data-to="SafetyFilter" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="667.2014999999999,669.1 667.2014999999999,693.1 532.0062499999999,693.1 532.0062499999999,717.1" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="WorkerRelay" data-to="ShadowReasoning" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="667.2014999999999,669.1 667.2014999999999,693.1 802.3967499999999,693.1 802.3967499999999,717.1" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<g class="edge-label" data-from="Client" data-to="VoiceHook" data-label="onTranscriptDelta / onTextDelta">
+  <rect x="78.57450000000001" y="123.9" width="167.932" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="162.5405" y="139.05" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">onTranscriptDelta / onTextDelta</text>
+</g>
+<g class="edge-label" data-from="Pipeline" data-to="CleanedText" data-label="cleanBuffer 过滤语气词">
+  <rect x="95.5745" y="362" width="133.48000000000002" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="162.3145" y="377.15" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">cleanBuffer 过滤语气词</text>
+</g>
+<g class="edge-label" data-from="CleanedText" data-to="BoothStore" data-label="finalizeCurrentTurn">
+  <rect x="106.5745" y="515.2" width="111.50200000000002" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="162.3255" y="530.35" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">finalizeCurrentTurn</text>
+</g>
+<g class="edge-label" data-from="Upstream" data-to="AudioDelta" data-label="实时语音流">
+  <rect x="195.3669999999999" y="744.7000000000002" width="77.05000000000001" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="233.8919999999999" y="759.8500000000001" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">实时语音流</text>
+</g>
+<g class="edge-label" data-from="Upstream" data-to="TextDelta" data-label="实时文本/转写流">
+  <rect x="277.96074999999996" y="744.7000000000002" width="103.78000000000002" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="329.85074999999995" y="759.8500000000001" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">实时文本/转写流</text>
+</g>
+<g class="edge-label" data-from="AudioGraph" data-to="Upstream" data-label="input_audio_buffer.append">
+  <rect x="510.13745833333326" y="248.80000000000004" width="143.57800000000003" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="581.9264583333332" y="263.95000000000005" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">input_audio_buffer.append</text>
+</g>
+<g class="edge-label" data-from="Upstream" data-to="TransCompleted" data-label="Server-side 实时流式 ASR">
+  <rect x="665.4602083333332" y="402" width="111.50200000000001" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="721.2112083333332" y="417.15" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">Server-side 实时流式 ASR</text>
+</g>
+<g class="node" data-id="Mic" data-label="麦克风 24kHz PCM16" data-shape="rectangle">
+  <rect x="497.8069583333332" y="84" width="168.66099999999997" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="582.1374583333333" y="102.45" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">麦克风 24kHz PCM16</text>
+</g>
+<g class="node" data-id="AudioGraph" data-label="AudioGraphService 录音与分帧" data-shape="rectangle">
+  <rect x="463.7209583333332" y="168.9" width="236.833" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="582.1374583333333" y="187.35000000000002" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">AudioGraphService 录音与分帧</text>
+</g>
+<g class="node" data-id="Upstream" data-label="Realtime WebSocket 服务端" data-shape="rectangle">
+  <rect x="478.5409583333332" y="322.1" width="207.19299999999998" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="582.1374583333331" y="340.55" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Realtime WebSocket 服务端</text>
+</g>
+<g class="node" data-id="TransCompleted" data-label="conversation.item.input_audio_transcription.completed" data-shape="rectangle">
+  <rect x="540.4292083333332" y="475.3" width="362.0619999999999" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="721.4602083333332" y="493.75" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">conversation.item.input_audio_transcription.completed</text>
+</g>
+<g class="node" data-id="AudioDelta" data-label="response.audio.delta" data-shape="rectangle">
+  <rect x="56" y="868.0000000000001" width="166.438" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="139.219" y="886.4500000000002" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">response.audio.delta</text>
+</g>
+<g class="node" data-id="TextDelta" data-label="response.audio_transcript.delta / response.text.delta" data-shape="rectangle">
+  <rect x="250.438" y="868.0000000000001" width="352.4289999999999" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="426.6524999999999" y="886.4500000000002" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">response.audio_transcript.delta / response.text.delta</text>
+</g>
+<g class="node" data-id="WorkerRelay" data-label="worker/routes/voice.ts 旁路监听" data-shape="rectangle">
+  <rect x="548.0439999999999" y="632.2" width="238.31499999999994" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="667.2014999999999" y="650.6500000000001" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">worker/routes/voice.ts 旁路监听</text>
+</g>
+<g class="node" data-id="SafetyFilter" data-label="isL1Crisis 实时心理危机检测" data-shape="rectangle">
+  <rect x="421.74074999999993" y="717.1" width="220.53099999999998" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="532.0062499999999" y="735.5500000000001" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">isL1Crisis 实时心理危机检测</text>
+</g>
+<g class="node" data-id="ShadowReasoning" data-label="后台异步影子推理与情景记忆沉淀" data-shape="rectangle">
+  <rect x="670.2717499999999" y="717.1" width="264.25" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="802.3967499999999" y="735.5500000000001" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">后台异步影子推理与情景记忆沉淀</text>
+</g>
+<g class="node" data-id="Client" data-label="MiniMaxRealtimeClient" data-shape="rectangle">
+  <rect x="653.46525" y="1024.9" width="173.84799999999996" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="740.38925" y="1043.3500000000001" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">MiniMaxRealtimeClient</text>
+</g>
+<g class="node" data-id="VoiceHook" data-label="useVoiceSession Hook" data-shape="rectangle">
+  <rect x="650.1307499999999" y="1178.1000000000001" width="180.517" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="740.38925" y="1196.5500000000002" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">useVoiceSession Hook</text>
+</g>
+<g class="node" data-id="Pipeline" data-label="BufferedTranscriptionPipeline" data-shape="rectangle">
+  <rect x="629.7532499999999" y="1263" width="221.27199999999996" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="740.3892499999998" y="1281.45" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">BufferedTranscriptionPipeline</text>
+</g>
+<g class="node" data-id="CleanedText" data-label="清洗后纯文本" data-shape="rectangle">
+  <rect x="674.9542499999999" y="1416.2" width="130.87" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="740.38925" y="1434.65" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">清洗后纯文本</text>
+</g>
+<g class="node" data-id="BoothStore" data-label="useBoothStore.dialogueHistory" data-shape="rectangle">
+  <rect x="626.7892499999999" y="1569.4" width="227.19999999999996" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="740.38925" y="1587.8500000000001" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">useBoothStore.dialogueHistory</text>
+</g>
+<g class="node" data-id="ReportGen" data-label="生成脱敏通话简报 &amp; AES-GCM 加密存储" data-shape="rectangle">
+  <rect x="593.8147499999999" y="1654.3000000000002" width="293.149" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="740.38925" y="1672.7500000000002" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">生成脱敏通话简报 &amp; AES-GCM 加密存储</text>
+</g>
+</svg>

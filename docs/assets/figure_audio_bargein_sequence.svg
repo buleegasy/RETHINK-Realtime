@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860.8129999999999 615.45" width="860.8129999999999" height="615.45" style="--bg:#1F1F1F;--fg:#CCCCCC;--line:#CCCCCC;--accent:#0078D4;--muted:#CCCCCCCC;--surface:#181818;--border:#CCCCCC;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 85%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="seq-arrow" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto-start-reverse">
+    <polygon points="0 0, 8 2.5, 0 5" fill="var(--_arrow)" />
+  </marker>
+  <marker id="seq-arrow-open" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto-start-reverse">
+    <polyline points="0 0, 8 2.5, 0 5" fill="none" stroke="var(--_arrow)" stroke-width="1" />
+  </marker>
+</defs>
+<g class="block" data-type="opt" data-label="用户随时打断插话 (Barge-in)">
+  <rect x="30" y="355.45" width="740.4069999999999" height="210.00000000000006" rx="0" ry="0" fill="none" stroke="var(--_node-stroke)" stroke-width="1" />
+  <rect x="30" y="355.45" width="201.79" height="18" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="36" y="364.45" font-size="11" font-weight="600" fill="var(--_text-sec)" dy="3.8499999999999996">opt [用户随时打断插话 (Barge-in)]</text>
+</g>
+<line class="lifeline" data-actor="User" x1="113.66149999999999" y1="92.45" x2="113.66149999999999" y2="585.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="Web" x1="295.7975" y1="70" x2="295.7975" y2="585.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="Worker" x1="467.5595" y1="70" x2="467.5595" y2="585.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="RT" x1="665.627" y1="70" x2="665.627" y2="585.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<g class="message" data-from="User" data-to="Web" data-label="实时说话 (24kHz PCM16)" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="113.66149999999999" y1="112.45" x2="295.7975" y2="112.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="204.7295" y="102.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">实时说话 (24kHz PCM16)</text>
+</g>
+<g class="message" data-from="Web" data-to="Worker" data-label="WebSocket input_audio_buffer.append" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="295.7975" y1="152.45" x2="467.5595" y2="152.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="381.6785" y="142.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">WebSocket input_audio_buffer.append</text>
+</g>
+<g class="message" data-from="Worker" data-to="RT" data-label="流式音频帧直接推入" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="467.5595" y1="192.45" x2="665.627" y2="192.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="566.59325" y="182.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">流式音频帧直接推入</text>
+</g>
+<g class="message" data-from="RT" data-to="Worker" data-label="response.audio.delta (24kHz 原生语音流)" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="665.627" y1="247.45" x2="467.5595" y2="247.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="566.59325" y="237.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">response.audio.delta (24kHz 原生语音流)</text>
+</g>
+<g class="message" data-from="Worker" data-to="Web" data-label="实时音频帧直接入队播放" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="467.5595" y1="287.45" x2="295.7975" y2="287.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="381.6785" y="277.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">实时音频帧直接入队播放</text>
+</g>
+<g class="message" data-from="Web" data-to="User" data-label="扬声器即时流式出声 (Maple 自然音色)" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="295.7975" y1="327.45" x2="113.66149999999999" y2="327.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="204.7295" y="317.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">扬声器即时流式出声 (Maple 自然音色)</text>
+</g>
+<g class="message" data-from="User" data-to="Web" data-label="用户打断发声" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="113.66149999999999" y1="395.45" x2="295.7975" y2="395.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="204.7295" y="385.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">用户打断发声</text>
+</g>
+<g class="message" data-from="RT" data-to="Web" data-label="input_audio_buffer.speech_started" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="665.627" y1="435.45" x2="295.7975" y2="435.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="480.71225" y="425.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">input_audio_buffer.speech_started</text>
+</g>
+<g class="message" data-from="Web" data-to="Web" data-label="audioGraph.stopPlayback() 瞬时静音" data-line-style="solid" data-arrow-head="filled" data-self="true">
+  <polyline points="295.7975,475.45 325.7975,475.45 325.7975,495.45 295.7975,495.45" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="333.7975" y="485.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">audioGraph.stopPlayback() 瞬时静音</text>
+</g>
+<g class="message" data-from="Web" data-to="RT" data-label="response.cancel (立刻停止回答)" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="295.7975" y1="545.45" x2="665.627" y2="545.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="480.71225" y="535.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">response.cancel (立刻停止回答)</text>
+</g>
+<g class="note" data-position="over" data-actors="RT">
+  <polygon points="500.441,200.45 824.8129999999999,200.45 830.8129999999999,206.45 830.8129999999999,223.45 500.441,223.45" fill="var(--bg)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <polygon points="824.8129999999999,200.45 830.8129999999999,206.45 824.8129999999999,206.45" fill="var(--_inner-stroke)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="665.627" y="211.95" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)"><tspan x="665.627" dy="-3.3000000000000007">服务端语音活性感知 (Server-side VAD)</tspan><tspan x="665.627" dy="14.3">端到端感知语气、停顿与情绪</tspan></text>
+</g>
+<g class="actor" data-id="User" data-label="来访学生 (麦克风)" data-type="actor">
+  <g transform="translate(95.66149999999999,32) scale(1.5)">
+    <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+    <path d="M15 10C15 11.6569 13.6569 13 12 13C10.3431 13 9 11.6569 9 10C9 8.34315 10.3431 7 12 7C13.6569 7 15 8.34315 15 10Z" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+    <path d="M5.62842 18.3563C7.08963 17.0398 9.39997 16 12 16C14.6 16 16.9104 17.0398 18.3716 18.3563" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+  </g>
+  <text x="113.66149999999999" y="84" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">来访学生 (麦克风)</text>
+</g>
+<g class="actor" data-id="Web" data-label="前端 AudioGraph" data-type="participant">
+  <rect x="227.323" y="30" width="136.949" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="295.7975" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">前端 AudioGraph</text>
+</g>
+<g class="actor" data-id="Worker" data-label="Cloudflare 边缘网关" data-type="participant">
+  <rect x="396.272" y="30" width="142.575" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="467.5595" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">Cloudflare 边缘网关</text>
+</g>
+<g class="actor" data-id="RT" data-label="MiniMax Realtime (语音模型)" data-type="participant">
+  <rect x="564.847" y="30" width="201.56" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="665.627" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">MiniMax Realtime (语音模型)</text>
+</g>
+</svg>
