@@ -106,6 +106,16 @@ export function useVoiceSession() {
           audioEndMs: playedMs,
         });
         setDuplexPhase('listening');
+        const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
+        if (asstSeg?.text) {
+          addDialogueTurn({
+            id: asstSeg.id,
+            role: 'assistant',
+            content: asstSeg.text,
+            timestamp: asstSeg.timestamp,
+            stage: useBoothStore.getState().cbtStage,
+          });
+        }
       });
 
       toolDispatcherRef.current = new RealtimeToolDispatcher({
@@ -146,7 +156,7 @@ export function useVoiceSession() {
           },
           onSpeechStarted: (details) => {
             const playedMs = audioGraph.getPlaybackDurationMs();
-            if (audioGraph.isPlaybackActive() && playedMs < 600) {
+            if (audioGraph.isPlaybackActive() && playedMs < 250) {
               return;
             }
             audioGraph.stopPlayback(150);
@@ -324,7 +334,17 @@ export function useVoiceSession() {
       });
     }
     setDuplexPhase('listening');
-  }, [setDuplexPhase]);
+    const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
+    if (asstSeg?.text) {
+      addDialogueTurn({
+        id: asstSeg.id,
+        role: 'assistant',
+        content: asstSeg.text,
+        timestamp: asstSeg.timestamp,
+        stage: useBoothStore.getState().cbtStage,
+      });
+    }
+  }, [setDuplexPhase, addDialogueTurn]);
 
   const toggleMute = useCallback(() => {
     const nextMuted = !isMuted;

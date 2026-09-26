@@ -45,6 +45,22 @@ describe('AudioGraphService 打断音量渐弱与状态管理验证', () => {
     expect(service.isPlaybackActive()).toBe(false);
   });
 
+  it('setAiSpeaking(false) 与 stopPlayback 应重置 preRollChunks 与连续帧数', async () => {
+    await service.initAudioContext();
+    (service as any).consecutiveSpeechFrames = 3;
+    (service as any).preRollChunks = ['chunk1', 'chunk2'];
+
+    service.setAiSpeaking(false);
+    expect((service as any).consecutiveSpeechFrames).toBe(0);
+    expect((service as any).preRollChunks).toEqual([]);
+
+    (service as any).consecutiveSpeechFrames = 3;
+    (service as any).preRollChunks = ['chunk3'];
+    service.stopPlayback(150);
+    expect((service as any).consecutiveSpeechFrames).toBe(0);
+    expect((service as any).preRollChunks).toEqual([]);
+  });
+
   it('cleanup 应安全释放所有节点与上下文', async () => {
     await service.initAudioContext();
     expect(() => service.cleanup()).not.toThrow();

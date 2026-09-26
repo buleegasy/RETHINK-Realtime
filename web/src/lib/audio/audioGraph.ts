@@ -20,6 +20,7 @@ export class AudioGraphService {
   private isMuted: boolean = false;
   private isAiSpeaking: boolean = false;
   private consecutiveSpeechFrames: number = 0;
+  private preRollChunks: string[] = [];
   private onLocalInterruptCallback: ((playedMs: number) => void) | null = null;
   private onPlaybackStateChange: ((isPlaying: boolean) => void) | null = null;
   private boundDeviceChangeListener: (() => void) | null = null;
@@ -85,10 +86,17 @@ export class AudioGraphService {
   }
 
   public setAiSpeaking(speaking: boolean): void {
-    if (this.isAiSpeaking === speaking) return;
+    if (this.isAiSpeaking === speaking) {
+      if (!speaking) {
+        this.consecutiveSpeechFrames = 0;
+        this.preRollChunks = [];
+      }
+      return;
+    }
     this.isAiSpeaking = speaking;
     if (!speaking) {
       this.consecutiveSpeechFrames = 0;
+      this.preRollChunks = [];
     }
     this.onPlaybackStateChange?.(speaking);
   }
@@ -174,32 +182,44 @@ export class AudioGraphService {
       let shouldStreamChunk = true;
 
       if (this.isAiSpeaking || this.isPlaybackActive()) {
-        if (playedMs < 600) {
+        // AI 刚开始播报的 250ms 内为扬声器初始瞬态抑制窗（对齐官方 App 瞬态保护）
+        if (playedMs < 250) {
           this.consecutiveSpeechFrames = 0;
-          shouldStreamChunk = false;
-        } else {
-          const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.1);
-          if (micRms > dynamicThreshold) {
-            this.consecutiveSpeechFrames++;
-            if (this.consecutiveSpeechFrames >= 5) {
-              this.stopPlayback(150);
-              this.consecutiveSpeechFrames = 0;
-              this.onLocalInterruptCallback?.(playedMs);
-              shouldStreamChunk = true;
-            } else {
-              shouldStreamChunk = false;
+          this.preRollChunks = [];
+          return;
+        }
+
+        const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.1);
+        if (micRms > dynamicThreshold) {
+          this.consecutiveSpeechFrames++;
+          const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
+          if (base64) {
+            this.preRollChunks.push(base64);
+            if (this.preRollChunks.length > 6) {
+              this.preRollChunks.shift();
             }
-          } else {
-            this.consecutiveSpeechFrames = 0;
-            shouldStreamChunk = false;
           }
+
+          if (this.consecutiveSpeechFrames >= 4) {
+            // 打断判定达标（连续 4 帧约 170ms）：执行平滑渐弱与前置缓冲回溯补发
+            const bufferedChunks = [...this.preRollChunks];
+            this.stopPlayback(150);
+            this.consecutiveSpeechFrames = 0;
+            this.preRollChunks = [];
+
+            // 零字头丢失补偿：将插话判定期间暂存的前置音频块完整补发给服务端
+            for (const chunk of bufferedChunks) {
+              onAudioChunk(chunk);
+            }
+            this.onLocalInterruptCallback?.(playedMs);
+          }
+        } else {
+          this.consecutiveSpeechFrames = 0;
+          this.preRollChunks = [];
         }
       } else {
         this.consecutiveSpeechFrames = 0;
-        shouldStreamChunk = true;
-      }
-
-      if (shouldStreamChunk) {
+        this.preRollChunks = [];
         const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
         if (base64) {
           onAudioChunk(base64);
@@ -454,6 +474,7 @@ export class AudioGraphService {
     this.setAiSpeaking(false);
     this.isJitterBuffering = true;
     this.consecutiveSpeechFrames = 0;
+    this.preRollChunks = [];
     this.jitterBuffer = [];
     this.jitterBufferedSec = 0;
 
