@@ -94,8 +94,8 @@ export class MiniMaxRealtimeClient {
     const config = { ...this.options.sessionConfig, ...customConfig };
     const vadConfig = config.turnDetection ?? {
       type: 'server_vad',
-      threshold: 0.5,
-      prefix_padding_ms: 300,
+      threshold: 0.3,
+      prefix_padding_ms: 500,
       silence_duration_ms: 700,
       create_response: true,
     };

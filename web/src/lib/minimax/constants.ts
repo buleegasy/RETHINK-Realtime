@@ -5,7 +5,7 @@ export const DEFAULT_VOICE = 'maple';
 export const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
   audio: {
     echoCancellation: true,
-    noiseSuppression: true,
+    noiseSuppression: false,
     autoGainControl: true,
     channelCount: 1,
     sampleRate: 24000,

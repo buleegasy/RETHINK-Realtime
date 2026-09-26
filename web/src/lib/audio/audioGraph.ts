@@ -9,6 +9,7 @@ export class AudioGraphService {
   private analyserNode: AnalyserNode | null = null;
   private speakerAnalyserNode: AnalyserNode | null = null;
   private outputGainNode: GainNode | null = null;
+  private inputGainNode: GainNode | null = null;
   private streamDestination: MediaStreamAudioDestinationNode | null = null;
   private audioElement: HTMLAudioElement | null = null;
 
@@ -107,10 +108,12 @@ export class AudioGraphService {
       }
       this.mediaStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
       this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
-      if (this.analyserNode) {
+      if (this.inputGainNode) {
+        this.sourceNode.connect(this.inputGainNode);
+      } else if (this.analyserNode) {
         this.sourceNode.connect(this.analyserNode);
       }
-      if (this.processorNode && this.analyserNode) {
+      if (this.processorNode && this.analyserNode && !this.inputGainNode) {
         this.analyserNode.connect(this.processorNode);
       }
     } catch {}
@@ -121,6 +124,9 @@ export class AudioGraphService {
 
     this.mediaStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
     this.sourceNode = ctx.createMediaStreamSource(this.mediaStream);
+
+    this.inputGainNode = ctx.createGain();
+    this.inputGainNode.gain.setValueAtTime(1.35, ctx.currentTime);
 
     this.analyserNode = ctx.createAnalyser();
     this.analyserNode.fftSize = 256;
@@ -165,8 +171,9 @@ export class AudioGraphService {
       }
     };
 
-    this.sourceNode.connect(this.analyserNode);
-    this.analyserNode.connect(this.processorNode);
+    this.sourceNode.connect(this.inputGainNode);
+    this.inputGainNode.connect(this.analyserNode);
+    this.inputGainNode.connect(this.processorNode);
     this.processorNode.connect(ctx.destination);
 
     if (!this.outputGainNode) {
