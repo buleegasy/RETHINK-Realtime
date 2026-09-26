@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { DefaultRagProvider } from '../src/lib/pipelines/rag/defaultRagProvider';
 import { SlidingWindowCompressor } from '../src/lib/pipelines/context/slidingWindowCompressor';
 import { WebCryptoAesGcm } from '../src/lib/pipelines/security/webCryptoAesGcm';
@@ -10,8 +10,10 @@ describe('五大扩展管线契约与核心算法验证 (Pipelines & Providers)'
 
   describe('Pillar 1: RAG 知识检索管线', () => {
     it('在离线或本地回退时能够准确匹配 CBT 策略胶囊并生成策略微提示', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
       const provider = new DefaultRagProvider('/api/voice/knowledge');
       const chunks = await provider.retrieve('月考没考好排名掉了');
+      fetchSpy.mockRestore();
 
       expect(chunks.length).toBeGreaterThan(0);
       expect(chunks[0].title).toContain('学业焦虑');
