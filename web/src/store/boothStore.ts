@@ -1,15 +1,23 @@
 import { create } from 'zustand';
-import type { CBTStage, DialogueTurn, SanitizedCbtReport } from '../types';
+import type {
+  BoothHookState,
+  VoiceSessionStatus,
+  DuplexPhase,
+  CBTStage,
+  DialogueTurn,
+  SanitizedCbtReport,
+} from '../types';
 
-export type HookState = 'idle' | 'connecting' | 'connected' | 'error' | 'hangup';
-export type SessionStatus = 'idle' | 'active' | 'finished';
-export type DuplexPhase = 'idle' | 'listening' | 'thinking' | 'speaking';
+export type HookState = BoothHookState;
+export type SessionStatus = VoiceSessionStatus;
+export type { DuplexPhase, CBTStage, BoothHookState, VoiceSessionStatus };
 
 export interface BoothState {
-  hookState: HookState;
-  sessionStatus: SessionStatus;
+  hookState: BoothHookState;
+  sessionStatus: VoiceSessionStatus;
   duplexPhase: DuplexPhase;
-  cbtStage: CBTStage | string;
+  cbtStage: CBTStage;
+  dialDigits: string;
   isMuted: boolean;
   callDuration: number;
   audioLevel: number;
@@ -20,10 +28,12 @@ export interface BoothState {
   isCrisisOverlayOpen: boolean;
   errorMessage: string | null;
 
-  setHookState: (state: HookState) => void;
-  setSessionStatus: (status: SessionStatus) => void;
+  setHookState: (state: BoothHookState) => void;
+  setSessionStatus: (status: VoiceSessionStatus) => void;
   setDuplexPhase: (phase: DuplexPhase) => void;
-  setCBTStage: (stage: CBTStage | string) => void;
+  setCBTStage: (stage: CBTStage) => void;
+  appendDialDigit: (digit: string) => void;
+  clearDialDigits: () => void;
   setIsMuted: (isMuted: boolean) => void;
   setAudioLevel: (level: number) => void;
   setActiveTranscript: (
@@ -41,10 +51,11 @@ export interface BoothState {
 }
 
 const initialState = {
-  hookState: 'idle' as HookState,
-  sessionStatus: 'idle' as SessionStatus,
+  hookState: 'on_hook' as BoothHookState,
+  sessionStatus: 'idle' as VoiceSessionStatus,
   duplexPhase: 'idle' as DuplexPhase,
-  cbtStage: '剥离事实' as CBTStage | string,
+  cbtStage: 'Active_Listening' as CBTStage,
+  dialDigits: '',
   isMuted: false,
   callDuration: 0,
   audioLevel: 0,
@@ -63,6 +74,9 @@ export const useBoothStore = create<BoothState>((set) => ({
   setSessionStatus: (sessionStatus) => set({ sessionStatus }),
   setDuplexPhase: (duplexPhase) => set({ duplexPhase }),
   setCBTStage: (cbtStage) => set({ cbtStage }),
+  appendDialDigit: (digit) =>
+    set((state) => ({ dialDigits: (state.dialDigits + digit).slice(-12) })),
+  clearDialDigits: () => set({ dialDigits: '' }),
   setIsMuted: (isMuted) => set({ isMuted }),
   setAudioLevel: (audioLevel) => set({ audioLevel }),
   setActiveTranscript: (transcript) =>

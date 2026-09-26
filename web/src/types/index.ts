@@ -1,16 +1,16 @@
 export type CBTStage =
-  | 'Pre_Info_Collection'   
-  | 'Active_Listening'       
-  | 'CBT_Stripping'          
-  | 'Socratic_Questioning'   
-  | 'Crisis_Escalation';     
+  | 'Pre_Info_Collection'
+  | 'Active_Listening'
+  | 'CBT_Stripping'
+  | 'Socratic_Questioning'
+  | 'Crisis_Escalation';
 
 export type BoothHookState =
-  | 'on_hook'    
-  | 'off_hook'   
-  | 'dialing'    
-  | 'connected'  
-  | 'ended';     
+  | 'on_hook'
+  | 'off_hook'
+  | 'dialing'
+  | 'connected'
+  | 'ended';
 
 export type DuplexPhase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -39,6 +39,27 @@ export interface AdminCrisisItem {
   emotionalValence: number;
   dispositionStatus: DispositionStatus;
   dispositionNote: string;
+  createdAt: number;
+  hasEncryptedIdentity: boolean;
+}
+
+export interface AdminSessionItem {
+  id: string;
+  sessionId: string;
+  duration: number;
+  stage: string;
+  isCrisis: boolean;
+  crisisLevel: number;
+  crisisSummary: string;
+  coreConcerns: string[];
+  emotionalValence: number;
+  deidentifiedReport: SanitizedCbtReport | null;
+  dispositionStatus: DispositionStatus;
+  dispositionNote: string;
+  isDeleted: boolean;
+  deletedAt: number | null;
+  deleteReason: string | null;
+  deletedBy: string | null;
   createdAt: number;
   hasEncryptedIdentity: boolean;
 }
@@ -86,7 +107,6 @@ export interface UserProfile {
   isAuthenticated: boolean;
 }
 
-
 export interface AuthResponse {
   success: boolean;
   token?: string;
@@ -106,16 +126,16 @@ export interface SanitizedCbtReport {
   sessionId: string;
   generatedAt: number;
   durationSeconds: number;
-  userDisplayName: string;       
+  userDisplayName: string;
   cbtStageReached: CBTStage;
-  coreConcerns: string[];        
+  coreConcerns: string[];
   cognitiveDistortions: string[];
   emotionalTrajectory: {
-    initial: string;             
-    final: string;               
-    deltaNotes: string;          
+    initial: string;
+    final: string;
+    deltaNotes: string;
   };
-  keyTakeaways: string[];        
-  homeworkAction?: string;       
-  isDeidentified: boolean;       
+  keyTakeaways: string[];
+  homeworkAction?: string;
+  isDeidentified: boolean;
 }

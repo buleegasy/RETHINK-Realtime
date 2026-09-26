@@ -38,7 +38,8 @@ voiceRouter.get('/ws', async (c) => {
 
   if (apiyiKey) {
     try {
-      const upstreamRes = await fetch('https://api.apiyi.com/v1/realtime?model=gpt-realtime-2.1-mini', {
+      const requestedModel = c.req.query('model') || 'gpt-realtime-2.1-mini';
+      const upstreamRes = await fetch(`https://api.apiyi.com/v1/realtime?model=${encodeURIComponent(requestedModel)}`, {
         headers: {
           Upgrade: 'websocket',
           Authorization: `Bearer ${apiyiKey}`,
@@ -61,17 +62,25 @@ voiceRouter.get('/ws', async (c) => {
               if (payload && payload.type === 'session.update' && payload.session) {
                 payload.session.type = 'realtime';
                 payload.session.output_modalities = ['audio'];
-                payload.session.voice = 'marin';
+                payload.session.voice = 'maple';
                 delete payload.session.modalities;
+                const turnDetection = payload.session.turn_detection || payload.session.audio?.input?.turn_detection || {
+                  type: 'server_vad',
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 600,
+                  create_response: true,
+                };
+                payload.session.turn_detection = turnDetection;
                 payload.session.audio = {
                   input: {
                     format: { type: 'audio/pcm', rate: 24000 },
                     transcription: { model: 'whisper-1' },
-                    turn_detection: payload.session.turn_detection || { type: 'server_vad' },
+                    turn_detection: turnDetection,
                   },
                   output: {
                     format: { type: 'audio/pcm', rate: 24000 },
-                    voice: 'marin',
+                    voice: 'maple',
                   },
                 };
                 upstreamWs.send(JSON.stringify(payload));
@@ -128,7 +137,7 @@ voiceRouter.get('/ws', async (c) => {
           id: `sess_${Date.now()}`,
           object: 'realtime.session',
           model: 'gpt-realtime-2.1-mini',
-          voice: 'marin',
+          voice: 'maple',
         },
       })
     );
@@ -228,12 +237,13 @@ voiceRouter.post('/chat', async (c) => {
     knowledgeHint = hintObj?.conciseDirective || '';
   } catch {}
 
-  const systemPrompt = `你是 RETHINK 校园心理支持智能体。当前处于【${currentStage}】阶段。
+  const systemPrompt = `你是 RETHINK 校园心理支持智能体。你使用 maple 音色，当前处于【${currentStage}】阶段。
 你以同龄死党的平视、真诚、温和、松弛语气，为来访学生提供即时陪伴与结构化 CBT 认知行为支持。
-【交谈核心准则】
-1. 绝对严禁输出任何 Markdown 符号（如星号、反引号、代码块），保持极自然纯口语。
-2. 每次回复控制在 1-2 句话以内，倾听多于说教，把表达空间留给学生。
-3. 若学生告知了名字或昵称，在对话中亲切自然地称呼对方。
+【声音与口语核心准则】
+1. 声音带有自然的呼吸感与温度，绝对严禁输出任何 Markdown 符号（如星号、反引号、代码块、列表编号）。
+2. 每次回复控制在 1-2 句话以内，极简自然，倾听多于说教，把表达空间留给学生。
+3. 适度运用口语语气词（如“嗯...”、“我懂”、“我在听”、“慢慢说”），自然真切。
+4. 若学生告知了名字或昵称，在对话中亲切自然地称呼对方。
 ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
 
   const messages = [
@@ -288,7 +298,7 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
       audioBase64 = await synthesizeRealtimeAudio({
         text: replyText,
         apiKey: apiyiKey,
-        voice: 'marin',
+        voice: 'maple',
         model: 'gpt-realtime-2.1-mini',
         timeoutMs: 12000,
       });

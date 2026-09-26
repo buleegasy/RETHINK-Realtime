@@ -63,4 +63,15 @@ export class RealtimeToolDispatcher {
         return { status: 'ignored', message: `Tool ${name} not found` };
     }
   }
+
+  public async dispatch(
+    toolCall: { name: string; callId: string; args: Record<string, unknown> },
+    client?: { sendToolOutput: (callId: string, output: Record<string, unknown>) => void } | null
+  ): Promise<Record<string, unknown>> {
+    const output = await this.handleToolCall(toolCall.name, toolCall.args);
+    if (client && toolCall.callId) {
+      client.sendToolOutput(toolCall.callId, output);
+    }
+    return output;
+  }
 }

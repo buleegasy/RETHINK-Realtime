@@ -86,17 +86,25 @@ export class MiniMaxRealtimeClient {
 
   public sendSessionUpdate(customConfig?: MiniMaxSessionConfig): void {
     const config = { ...this.options.sessionConfig, ...customConfig };
+    const vadConfig = config.turnDetection ?? {
+      type: 'server_vad',
+      threshold: 0.5,
+      prefix_padding_ms: 300,
+      silence_duration_ms: 600,
+      create_response: true,
+    };
 
     const sessionPayload: Record<string, unknown> = {
       type: 'realtime',
       output_modalities: ['audio'],
       instructions: config.instructions || DEFAULT_VOICE_INSTRUCTIONS,
       voice: config.voice || DEFAULT_VOICE,
+      turn_detection: vadConfig,
       audio: {
         input: {
           format: { type: 'audio/pcm', rate: AUDIO_SAMPLE_RATE },
           transcription: { model: 'whisper-1' },
-          turn_detection: config.turnDetection ?? { type: 'server_vad' },
+          turn_detection: vadConfig,
         },
         output: {
           format: { type: 'audio/pcm', rate: AUDIO_SAMPLE_RATE },

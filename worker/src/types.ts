@@ -26,6 +26,10 @@ export interface SessionRecord {
   deidentified_report?: string;
   disposition_status?: DispositionStatus;
   disposition_note?: string;
+  is_deleted?: number;
+  deleted_at?: number;
+  delete_reason?: string;
+  deleted_by?: string;
   created_at: number;
 }
 
@@ -73,5 +77,18 @@ export interface DispositionPayload {
 export interface WebhookTestPayload {
   webhook_url: string;
   provider?: string;
+}
+
+export interface DeleteSessionPayload {
+  session_id: string;
+  secondary_passcode: string;
+  reason: string;
+  operator_name?: string;
+}
+
+export interface RestoreSessionPayload {
+  session_id: string;
+  secondary_passcode: string;
+  operator_name?: string;
 }
 

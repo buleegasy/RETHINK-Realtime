@@ -38,9 +38,9 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
   });
 
   it('二次口令穿透成功后，将解密的真实学生身份映射至 unmaskedMap', async () => {
-    const fakeIdentity = {
-      username: '20240315',
-      realName: '林晓涵',
+    const realStudentIdentity = {
+      username: '20240999',
+      realName: '真实来访学生',
       gradeClass: '高一 (3) 班',
       emergencyContact: '班主任王老师 (13800138000)',
       boothLocation: '高中部教学楼连廊电话亭 #01',
@@ -55,7 +55,7 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
             Promise.resolve({
               success: true,
               session_id: 'sess_123',
-              realIdentity: fakeIdentity,
+              realIdentity: realStudentIdentity,
             }),
         });
       }
@@ -67,12 +67,12 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
 
     const res = await useAdminStore.getState().unmaskCrisis('sess_123', 'teacher-safe-2026', '心理老师');
     expect(res.success).toBe(true);
-    expect(res.identity?.realName).toBe('林晓涵');
+    expect(res.identity?.realName).toBe('真实来访学生');
 
     const mapped = useAdminStore.getState().unmaskedMap['sess_123'];
     expect(mapped).toBeDefined();
-    expect(mapped.username).toBe('20240315');
-    expect(mapped.realName).toBe('林晓涵');
+    expect(mapped.username).toBe('20240999');
+    expect(mapped.realName).toBe('真实来访学生');
   });
 
   it('更新危机处置状态与老师批注，同步更新状态树', async () => {
@@ -107,6 +107,62 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
     const updated = useAdminStore.getState().crises.find((c) => c.sessionId === 'sess_999');
     expect(updated?.dispositionStatus).toBe('intervened');
     expect(updated?.dispositionNote).toBe('已在咨询室开展线下危机评估');
+  });
+
+  it('安全归档软删除需口令验证，成功后触发刷新并保留底层数据', async () => {
+    globalThis.fetch = vi.fn().mockImplementation((url: string, opts: any) => {
+      if (url.includes('/api/admin/sessions/delete')) {
+        const body = JSON.parse(opts.body);
+        if (body.secondary_passcode === 'teacher-safe-2026') {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true, session_id: body.session_id }),
+          });
+        }
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ success: false, error: '二次口令错误' }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true, sessions: [], crises: [], logs: [] }),
+      });
+    });
+
+    const failRes = await useAdminStore.getState().deleteSession('sess_123', 'wrong-code', '测试删除');
+    expect(failRes.success).toBe(false);
+
+    const successRes = await useAdminStore.getState().deleteSession('sess_123', 'teacher-safe-2026', '演练结束安全归档');
+    expect(successRes.success).toBe(true);
+  });
+
+  it('恢复档案接口需口令验证，成功后恢复档案', async () => {
+    globalThis.fetch = vi.fn().mockImplementation((url: string, opts: any) => {
+      if (url.includes('/api/admin/sessions/restore')) {
+        const body = JSON.parse(opts.body);
+        if (body.secondary_passcode === 'teacher-safe-2026') {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true, session_id: body.session_id }),
+          });
+        }
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ success: false, error: '口令错误' }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true, sessions: [], crises: [], logs: [] }),
+      });
+    });
+
+    const failRes = await useAdminStore.getState().restoreSession('sess_123', 'wrong');
+    expect(failRes.success).toBe(false);
+
+    const okRes = await useAdminStore.getState().restoreSession('sess_123', 'teacher-safe-2026');
+    expect(okRes.success).toBe(true);
   });
 
   it('modeStore 支持切换至 admin 教师后台模式并触发持久化', () => {

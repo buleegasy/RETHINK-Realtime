@@ -97,7 +97,7 @@ export async function synthesizeRealtimeAudio(options: {
   const {
     text,
     apiKey,
-    voice = 'marin',
+    voice = 'maple',
     model = 'gpt-realtime-2.1-mini',
     timeoutMs = 15000,
   } = options;

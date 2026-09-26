@@ -19,13 +19,14 @@ export const CampusPulseDashboard: React.FC = () => {
   if (!stats) {
     return (
       <div className="bg-white rounded-3xl p-12 text-center border border-[#e1e3e1]">
-        <div className="text-xs text-[#5e5e5e]">正在加载...</div>
+        <div className="text-xs text-[#5e5e5e]">正在加载真实情绪指标...</div>
       </div>
     );
   }
 
-  const maxSessions = Math.max(...stats.weeklyTrend.map((t) => t.sessions), 5);
+  const maxSessions = Math.max(...stats.weeklyTrend.map((t) => t.sessions), 1);
   const totalConcerns = stats.concernDistribution.reduce((acc, curr) => acc + curr.count, 0) || 1;
+  const totalRiskCount = stats.riskDistribution.reduce((acc, curr) => acc + curr.count, 0);
 
   return (
     <div className="space-y-6">
@@ -131,16 +132,20 @@ export const CampusPulseDashboard: React.FC = () => {
                   <div className="w-full max-w-[40px] flex flex-col items-center justify-end h-full">
                     {item.crisis > 0 && (
                       <div
-                        style={{ height: `${Math.max(crisisHeight, 10)}%` }}
+                        style={{ height: `${crisisHeight}%` }}
                         className="w-full bg-[#ba1a1a] rounded-t-lg transition-all"
                       />
                     )}
-                    <div
-                      style={{ height: `${Math.max(normalHeight, 6)}%` }}
-                      className={`w-full bg-[#004a77] transition-all ${
-                        item.crisis > 0 ? 'rounded-b-lg' : 'rounded-t-lg rounded-b-lg'
-                      }`}
-                    />
+                    {normalCount > 0 ? (
+                      <div
+                        style={{ height: `${normalHeight}%` }}
+                        className={`w-full bg-[#004a77] transition-all ${
+                          item.crisis > 0 ? 'rounded-b-lg' : 'rounded-lg'
+                        }`}
+                      />
+                    ) : item.crisis === 0 ? (
+                      <div className="w-full h-1 bg-[#e1e3e1] rounded-full mb-1" />
+                    ) : null}
                   </div>
                   <span className="text-[11px] font-medium text-[#747775] mt-2 block">
                     {item.date}
@@ -169,8 +174,7 @@ export const CampusPulseDashboard: React.FC = () => {
                   { bg: 'bg-[#ba1a1a]', text: 'text-[#ba1a1a]' },
                 ];
                 const c = colors[r.level] || colors[0];
-                const total = stats.riskDistribution.reduce((acc, curr) => acc + curr.count, 0) || 1;
-                const percent = Math.round((r.count / total) * 100);
+                const percent = totalRiskCount > 0 ? Math.round((r.count / totalRiskCount) * 100) : 0;
 
                 return (
                   <div key={r.level} className="space-y-1.5">
@@ -181,7 +185,7 @@ export const CampusPulseDashboard: React.FC = () => {
                     <div className="w-full h-2 rounded-full bg-[#f0f4f9] overflow-hidden">
                       <div
                         style={{ width: `${percent}%` }}
-                        className={`h-full ${c.bg} rounded-full`}
+                        className={`h-full ${c.bg} rounded-full transition-all`}
                       />
                     </div>
                   </div>
@@ -197,38 +201,44 @@ export const CampusPulseDashboard: React.FC = () => {
           议题分布
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {stats.concernDistribution.map((item, idx) => {
-            const percent = Math.round((item.count / totalConcerns) * 100);
-            return (
-              <div
-                key={idx}
-                className="bg-[#f8f9fa] border border-[#e1e3e1] p-4 rounded-2xl space-y-2"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#1f1f1f]">
-                    {item.name}
+        {stats.concernDistribution.length === 0 ? (
+          <div className="text-center py-8 text-xs text-[#747775] bg-[#f8f9fa] rounded-2xl border border-dashed border-[#e1e3e1]">
+            暂无议题数据（真实倾诉完成后系统自动统计）
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {stats.concernDistribution.map((item, idx) => {
+              const percent = Math.round((item.count / totalConcerns) * 100);
+              return (
+                <div
+                  key={idx}
+                  className="bg-[#f8f9fa] border border-[#e1e3e1] p-4 rounded-2xl space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#1f1f1f]">
+                      {item.name}
+                    </span>
+                    <span className="text-[11px] font-mono text-[#004a77] bg-[#f0f4f9] px-2 py-0.5 rounded-full font-bold">
+                      #{idx + 1}
+                    </span>
+                  </div>
+                  <div className="text-xl font-bold text-[#1f1f1f]">
+                    {item.count} <span className="text-xs font-normal text-[#747775]">次</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-[#e1e3e1] overflow-hidden">
+                    <div
+                      style={{ width: `${percent}%` }}
+                      className="h-full bg-[#004a77] rounded-full"
+                    />
+                  </div>
+                  <span className="text-[11px] text-[#747775] block">
+                    {percent}%
                   </span>
-                  <span className="text-[11px] font-mono text-[#004a77] bg-[#f0f4f9] px-2 py-0.5 rounded-full font-bold">
-                    #{idx + 1}
-                  </span>
                 </div>
-                <div className="text-xl font-bold text-[#1f1f1f]">
-                  {item.count} <span className="text-xs font-normal text-[#747775]">次</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-[#e1e3e1] overflow-hidden">
-                  <div
-                    style={{ width: `${percent}%` }}
-                    className="h-full bg-[#004a77] rounded-full"
-                  />
-                </div>
-                <span className="text-[11px] text-[#747775] block">
-                  {percent}%
-                </span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

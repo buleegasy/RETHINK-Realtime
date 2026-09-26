@@ -8,16 +8,19 @@ import {
   MapPin,
   Sparkles,
   Save,
+  Trash2,
 } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
-import type { AdminCrisisItem, DispositionStatus } from '../../types';
+import type { AdminCrisisItem, AdminSessionItem, DispositionStatus } from '../../types';
 import { CrisisUnmaskModal } from './CrisisUnmaskModal';
+import { SessionDeleteModal } from './SessionDeleteModal';
 
 export const CrisisResponseCenter: React.FC = () => {
   const { crises, unmaskedMap, updateDisposition, fetchCrises } = useAdminStore();
   const [selectedCrisis, setSelectedCrisis] = useState<AdminCrisisItem | null>(null);
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
   const [savingMap, setSavingMap] = useState<Record<string, boolean>>({});
+  const [deletingCrisis, setDeletingCrisis] = useState<AdminSessionItem | null>(null);
 
   const handleStatusChange = async (sessionId: string, status: DispositionStatus) => {
     const note = editingNotes[sessionId];
@@ -35,10 +38,13 @@ export const CrisisResponseCenter: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#ffffff] border border-[#e1e3e1] p-6 rounded-3xl">
-        <div>
+        <div className="space-y-1">
           <h2 className="text-xl font-bold text-[#1f1f1f] tracking-tight">
             危机响应中心
           </h2>
+          <p className="text-xs text-[#747775]">
+            实时危机监控 · 双重口令穿透 · 全生命周期闭环
+          </p>
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
@@ -63,13 +69,16 @@ export const CrisisResponseCenter: React.FC = () => {
       </div>
 
       {crises.length === 0 ? (
-        <div className="bg-[#ffffff] border border-[#c4eed0] rounded-3xl p-12 text-center">
-          <div className="w-14 h-14 rounded-full bg-[#e8f5e9] text-[#146c2e] flex items-center justify-center mx-auto mb-3">
+        <div className="bg-[#ffffff] border border-[#c4eed0] rounded-3xl p-12 text-center space-y-2">
+          <div className="w-14 h-14 rounded-full bg-[#e8f5e9] text-[#146c2e] flex items-center justify-center mx-auto mb-2">
             <CheckCircle2 className="w-7 h-7" />
           </div>
           <h3 className="text-sm font-semibold text-[#1f1f1f]">
-            当前无危机事件
+            当前无未结案危机事件
           </h3>
+          <p className="text-xs text-[#747775]">
+            管理后台已启用实时监听与脱敏穿透机制，一旦电话亭监测到极端风险意向将在此即刻告警。
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5">
@@ -120,7 +129,7 @@ export const CrisisResponseCenter: React.FC = () => {
                     <div className="flex bg-[#f0f4f9] p-1 rounded-full text-xs font-medium border border-[#c4c7c5]">
                       <button
                         onClick={() => handleStatusChange(item.sessionId, 'pending_contact')}
-                        className={`px-3 py-1 rounded-full transition-colors ${
+                        className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
                           item.dispositionStatus === 'pending_contact'
                             ? 'bg-[#ba1a1a] text-white font-semibold'
                             : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
@@ -130,7 +139,7 @@ export const CrisisResponseCenter: React.FC = () => {
                       </button>
                       <button
                         onClick={() => handleStatusChange(item.sessionId, 'intervened')}
-                        className={`px-3 py-1 rounded-full transition-colors ${
+                        className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
                           item.dispositionStatus === 'intervened'
                             ? 'bg-[#004a77] text-white font-semibold'
                             : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
@@ -140,7 +149,7 @@ export const CrisisResponseCenter: React.FC = () => {
                       </button>
                       <button
                         onClick={() => handleStatusChange(item.sessionId, 'closed')}
-                        className={`px-3 py-1 rounded-full transition-colors ${
+                        className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
                           item.dispositionStatus === 'closed'
                             ? 'bg-[#146c2e] text-white font-semibold'
                             : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
@@ -149,6 +158,35 @@ export const CrisisResponseCenter: React.FC = () => {
                         已结案
                       </button>
                     </div>
+
+                    <button
+                      onClick={() =>
+                        setDeletingCrisis({
+                          id: item.sessionId,
+                          sessionId: item.sessionId,
+                          duration: item.duration,
+                          stage: 'Crisis_Escalation',
+                          isCrisis: true,
+                          crisisLevel: item.crisisLevel,
+                          crisisSummary: item.crisisSummary,
+                          coreConcerns: item.coreConcerns,
+                          emotionalValence: item.emotionalValence,
+                          deidentifiedReport: null,
+                          dispositionStatus: item.dispositionStatus,
+                          dispositionNote: item.dispositionNote,
+                          isDeleted: false,
+                          deletedAt: null,
+                          deleteReason: null,
+                          deletedBy: null,
+                          createdAt: item.createdAt,
+                          hasEncryptedIdentity: item.hasEncryptedIdentity,
+                        })
+                      }
+                      title="安全归档此危机记录"
+                      className="p-2 rounded-full border border-[#f2b8b5] text-[#ba1a1a] hover:bg-[#fce8e6] transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
@@ -243,6 +281,17 @@ export const CrisisResponseCenter: React.FC = () => {
         <CrisisUnmaskModal
           crisis={selectedCrisis}
           onClose={() => setSelectedCrisis(null)}
+        />
+      )}
+
+      {deletingCrisis && (
+        <SessionDeleteModal
+          session={deletingCrisis}
+          onClose={() => setDeletingCrisis(null)}
+          onSuccess={() => {
+            setDeletingCrisis(null);
+            fetchCrises();
+          }}
         />
       )}
     </div>

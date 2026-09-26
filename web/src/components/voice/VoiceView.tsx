@@ -21,6 +21,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const duplexPhase = useBoothStore((s) => s.duplexPhase);
   const audioLevel = useBoothStore((s) => s.audioLevel);
   const callDuration = useBoothStore((s) => s.callDuration);
+  const cbtStage = useBoothStore((s) => s.cbtStage);
 
   const isActive = sessionStatus === 'connected' || sessionStatus === 'connecting';
 
@@ -54,8 +55,10 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
       <main className="flex-1 flex flex-col items-center justify-center p-6">
         <VoiceOrb
+          status={sessionStatus}
           duplexPhase={duplexPhase}
           audioLevel={audioLevel}
+          fsmState={cbtStage}
           onClick={isActive ? onEndCall : onStartCall}
         />
       </main>

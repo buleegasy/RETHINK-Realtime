@@ -6,7 +6,7 @@ describe('Worker 路由与健康检查测试', () => {
     const res = await app.request('/');
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.status).toBe('ok');
     expect(body.service).toBe('rethink-realtime-worker');
     expect(body.model).toBe('minimax-realtime');
@@ -20,7 +20,7 @@ describe('Worker 路由与健康检查测试', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.ok).toBe(true);
     expect(Array.isArray(body.chunks)).toBe(true);
     expect(body.chunks.length).toBeGreaterThan(0);
@@ -35,7 +35,7 @@ describe('Worker 路由与健康检查测试', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.ok).toBe(true);
   });
 
@@ -47,7 +47,7 @@ describe('Worker 路由与健康检查测试', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.ok).toBe(true);
     expect(body.isCrisis).toBe(true);
     expect(body.nextStage).toBe('Crisis_Escalation');
@@ -61,7 +61,7 @@ describe('Worker 路由与健康检查测试', () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.ok).toBe(false);
   });
 
@@ -74,7 +74,7 @@ describe('Worker 路由与健康检查测试', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as any;
       expect(data.success).toBe(true);
       expect(data.token).toBeDefined();
       expect(data.user.userName).toBe('testuser');
@@ -92,7 +92,7 @@ describe('Worker 路由与健康检查测试', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as any;
       expect(data.success).toBe(true);
       expect(data.user.displayName).toBe('小李同学');
     });
@@ -105,7 +105,7 @@ describe('Worker 路由与健康检查测试', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as any;
       expect(data.success).toBe(true);
       expect(data.user.role).toBe('kiosk_device');
       expect(data.user.deviceId).toBe('pi-booth-campus-01');
@@ -121,7 +121,7 @@ describe('Worker 路由与健康检查测试', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.success).toBe(true);
       expect(body.deviceId).toBe('pi-booth-01');
       expect(body.serverTime).toBeDefined();
@@ -131,7 +131,7 @@ describe('Worker 路由与健康检查测试', () => {
       const res = await app.request('/api/kiosk/config/pi-booth-01');
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.success).toBe(true);
       expect(body.config.autoResetSeconds).toBe(30);
       expect(body.config.silenceTimeoutSeconds).toBe(120);

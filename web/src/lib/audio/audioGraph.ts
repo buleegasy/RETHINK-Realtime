@@ -34,7 +34,7 @@ export class AudioGraphService {
     this.analyserNode.fftSize = 256;
     this.analyserNode.smoothingTimeConstant = 0.5;
 
-    this.processorNode = ctx.createScriptProcessor(4096, 1, 1);
+    this.processorNode = ctx.createScriptProcessor(2048, 1, 1);
     this.processorNode.onaudioprocess = (e) => {
       const out = e.outputBuffer.getChannelData(0);
       out.fill(0);
@@ -151,6 +151,8 @@ export class AudioGraphService {
     const now = ctx.currentTime;
     if (this.nextPlayTime < now) {
       this.nextPlayTime = now + 0.005;
+    } else if (this.nextPlayTime > now + 0.35) {
+      this.nextPlayTime = now + 0.05;
     }
 
     source.start(this.nextPlayTime);
@@ -168,30 +170,29 @@ export class AudioGraphService {
   public stopPlayback(): void {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
+    this.nextPlayTime = ctx.currentTime;
 
     try {
       this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
       this.outputGainNode.gain.setValueAtTime(this.outputGainNode.gain.value, ctx.currentTime);
-      this.outputGainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.05);
-    } catch {
+      this.outputGainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.04);
+    } catch {}
 
+    for (const s of this.scheduledSources) {
+      try {
+        s.stop();
+        s.disconnect();
+      } catch {}
     }
+    this.scheduledSources = [];
 
     setTimeout(() => {
-      for (const s of this.scheduledSources) {
-        try {
-          s.stop();
-          s.disconnect();
-        } catch {
-
-        }
-      }
-      this.scheduledSources = [];
       if (this.outputGainNode && this.audioCtx) {
+        this.outputGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
         this.outputGainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
       }
       this.nextPlayTime = this.audioCtx ? this.audioCtx.currentTime : 0;
-    }, 55);
+    }, 45);
   }
 
   public setMute(muted: boolean): void {

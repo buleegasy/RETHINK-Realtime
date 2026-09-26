@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   AdminStats,
   AdminCrisisItem,
+  AdminSessionItem,
   UnmaskedIdentity,
   CrisisAuditLog,
   DispositionStatus,
@@ -16,26 +17,30 @@ interface AdminState {
   activeTab: 'pulse' | 'crises' | 'sessions' | 'settings';
   stats: AdminStats | null;
   crises: AdminCrisisItem[];
-  sessions: any[];
+  sessions: AdminSessionItem[];
+  showArchived: boolean;
   unmaskedMap: Record<string, UnmaskedIdentity>;
   auditLogs: CrisisAuditLog[];
   buzzerEnabled: boolean;
   isLoading: boolean;
   error: string | null;
-  selectedSession: any | null;
+  selectedSession: AdminSessionItem | null;
 
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   fetchStats: () => Promise<void>;
   fetchCrises: () => Promise<void>;
-  fetchSessions: (crisisOnly?: boolean) => Promise<void>;
+  fetchSessions: (crisisOnly?: boolean, includeDeleted?: boolean) => Promise<void>;
   fetchAuditLogs: () => Promise<void>;
   unmaskCrisis: (sessionId: string, passcode: string, operatorName?: string) => Promise<{ success: boolean; identity?: UnmaskedIdentity; error?: string }>;
   updateDisposition: (sessionId: string, status: DispositionStatus, note?: string) => Promise<boolean>;
+  deleteSession: (sessionId: string, passcode: string, reason: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
+  restoreSession: (sessionId: string, passcode: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
+  setShowArchived: (show: boolean) => void;
   setBuzzerEnabled: (enabled: boolean) => void;
   playBuzzer: () => void;
   setActiveTab: (tab: 'pulse' | 'crises' | 'sessions' | 'settings') => void;
-  setSelectedSession: (session: any | null) => void;
+  setSelectedSession: (session: AdminSessionItem | null) => void;
 }
 
 const STORAGE_KEY = 'rethink_teacher_auth';
@@ -59,6 +64,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
     stats: null,
     crises: [],
     sessions: [],
+    showArchived: false,
     unmaskedMap: {},
     auditLogs: [],
     buzzerEnabled: true,
@@ -105,6 +111,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
         stats: null,
         crises: [],
         sessions: [],
+        showArchived: false,
         unmaskedMap: {},
         auditLogs: [],
         selectedSession: null,
@@ -135,10 +142,11 @@ export const useAdminStore = create<AdminState>((set, get) => {
       } catch {}
     },
 
-    fetchSessions: async (crisisOnly = false) => {
+    fetchSessions: async (crisisOnly = false, includeDeleted?: boolean) => {
       set({ isLoading: true });
       try {
-        const res = await apiFetch(`/api/admin/sessions?crisisOnly=${crisisOnly ? 'true' : 'false'}`);
+        const incDel = includeDeleted !== undefined ? includeDeleted : get().showArchived;
+        const res = await apiFetch(`/api/admin/sessions?crisisOnly=${crisisOnly ? 'true' : 'false'}&includeDeleted=${incDel ? 'true' : 'false'}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.sessions)) {
           set({ sessions: data.sessions, isLoading: false });
@@ -221,6 +229,64 @@ export const useAdminStore = create<AdminState>((set, get) => {
       } catch {
         return false;
       }
+    },
+
+    deleteSession: async (sessionId: string, passcode: string, reason: string, operatorName?: string) => {
+      try {
+        const op = operatorName || get().teacherProfile?.displayName || '心理专职教师';
+        const res = await apiFetch('/api/admin/sessions/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            secondary_passcode: passcode,
+            reason,
+            operator_name: op,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          await get().fetchSessions(false, get().showArchived);
+          await get().fetchCrises();
+          await get().fetchStats();
+          await get().fetchAuditLogs();
+          return { success: true };
+        }
+        return { success: false, error: data.error || '删除验证失败' };
+      } catch (err: any) {
+        return { success: false, error: err?.message || '网络异常' };
+      }
+    },
+
+    restoreSession: async (sessionId: string, passcode: string, operatorName?: string) => {
+      try {
+        const op = operatorName || get().teacherProfile?.displayName || '心理专职教师';
+        const res = await apiFetch('/api/admin/sessions/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            secondary_passcode: passcode,
+            operator_name: op,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          await get().fetchSessions(false, get().showArchived);
+          await get().fetchCrises();
+          await get().fetchStats();
+          await get().fetchAuditLogs();
+          return { success: true };
+        }
+        return { success: false, error: data.error || '恢复操作失败' };
+      } catch (err: any) {
+        return { success: false, error: err?.message || '网络异常' };
+      }
+    },
+
+    setShowArchived: (show: boolean) => {
+      set({ showArchived: show });
+      get().fetchSessions(false, show);
     },
 
     setBuzzerEnabled: (enabled: boolean) => {

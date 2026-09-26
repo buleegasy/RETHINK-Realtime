@@ -7,159 +7,88 @@ import type {
   CrisisUnmaskPayload,
   DispositionPayload,
   WebhookTestPayload,
-  CrisisLevel,
-  DispositionStatus,
+  DeleteSessionPayload,
+  RestoreSessionPayload,
 } from '../types';
-import { decryptAesGcm, encryptAesGcm } from '../lib/crypto-helper';
+import { decryptAesGcm } from '../lib/crypto-helper';
 import { sendCrisisWebhook } from '../lib/webhook-sender';
 
 export const adminRouter = new Hono<{ Bindings: Env }>();
 
-const memorySessions: SessionRecord[] = [
-  {
-    id: 'sess_sample_01',
-    session_id: 'sess_sample_01',
-    duration: 342,
-    stage: 'Crisis_Escalation',
-    is_crisis: 1,
-    crisis_level: 3,
-    crisis_summary: '检测到明确自杀/自残/极端危机意向，需心理老师即刻介入',
-    core_concerns: JSON.stringify(['同伴人际矛盾', '学业考核压力']),
-    emotional_valence: -0.92,
-    encrypted_real_identity: '',
-    deidentified_report: JSON.stringify({
-      sessionId: 'sess_sample_01',
-      generatedAt: Date.now() - 3600000,
-      durationSeconds: 342,
-      userDisplayName: '来访者 #S1024',
-      cbtStageReached: 'Crisis_Escalation',
-      coreConcerns: ['同伴人际矛盾', '学业考核压力'],
-      cognitiveDistortions: ['灾难化与绝对化思维', '读心术倾向'],
-      emotionalTrajectory: {
-        initial: '极度痛苦绝望',
-        final: '危机紧急触发，转入专业保护',
-        deltaNotes: '对话中出现强烈轻生与厌世意向，已触发电话亭就地急救与警报'
-      },
-      keyTakeaways: ['生命是第一位的，痛苦需要被看见而非终结生命。'],
-      homeworkAction: '等待心理老师现场安全确认。',
-      isDeidentified: true
-    }),
-    disposition_status: 'pending_contact',
-    disposition_note: '',
-    created_at: Math.floor((Date.now() - 3600000) / 1000),
-  },
-  {
-    id: 'sess_sample_02',
-    session_id: 'sess_sample_02',
-    duration: 210,
-    stage: 'Socratic_Questioning',
-    is_crisis: 0,
-    crisis_level: 2,
-    crisis_summary: '检测到中度情绪崩溃与高度压力，建议心理老师列入重点关注',
-    core_concerns: JSON.stringify(['学业考核压力']),
-    emotional_valence: -0.58,
-    encrypted_real_identity: '',
-    deidentified_report: JSON.stringify({
-      sessionId: 'sess_sample_02',
-      generatedAt: Date.now() - 7200000,
-      durationSeconds: 210,
-      userDisplayName: '来访者 #S1025',
-      cbtStageReached: 'Socratic_Questioning',
-      coreConcerns: ['学业考核压力'],
-      cognitiveDistortions: ['以偏概全'],
-      emotionalTrajectory: {
-        initial: '考试前焦虑躯体化',
-        final: '理清现实目标，紧绷有所松弛',
-        deltaNotes: '通过去灾难化梳理，明确单次月考不代表整体能力。'
-      },
-      keyTakeaways: ['单次考试成绩无法定义整个人生。'],
-      homeworkAction: '制定今晚30分钟复习计划后准时休息。',
-      isDeidentified: true
-    }),
-    disposition_status: 'intervened',
-    disposition_note: '班主任已在午休时进行了暖心谈话',
-    created_at: Math.floor((Date.now() - 7200000) / 1000),
-  },
-  {
-    id: 'sess_sample_03',
-    session_id: 'sess_sample_03',
-    duration: 180,
-    stage: 'CBT_Stripping',
-    is_crisis: 0,
-    crisis_level: 1,
-    crisis_summary: '存在阶段性负面情绪，处于倾诉排解过程中',
-    core_concerns: JSON.stringify(['家庭互动冲突']),
-    emotional_valence: -0.25,
-    encrypted_real_identity: '',
-    deidentified_report: JSON.stringify({
-      sessionId: 'sess_sample_03',
-      generatedAt: Date.now() - 86400000,
-      durationSeconds: 180,
-      userDisplayName: '来访者 #S1026',
-      cbtStageReached: 'CBT_Stripping',
-      coreConcerns: ['家庭互动冲突'],
-      cognitiveDistortions: ['应该与必须化思维'],
-      emotionalTrajectory: {
-        initial: '与父母争吵后愤怒',
-        final: '平复情绪，认识到双方沟通障碍',
-        deltaNotes: '引导其将“父母必须理解我”转化为“向父母表达感受”。'
-      },
-      keyTakeaways: ['尝试使用“我感觉...”代替指责性控诉。'],
-      homeworkAction: '周末回家写一张给父母的平和卡片。',
-      isDeidentified: true
-    }),
-    disposition_status: 'closed',
-    disposition_note: '自述与父母已达成和解',
-    created_at: Math.floor((Date.now() - 86400000) / 1000),
-  },
-];
-
+const memorySessions: SessionRecord[] = [];
 const memoryAuditLogs: CrisisAuditLog[] = [];
 
-async function initSampleCipher(secret: string) {
-  if (!memorySessions[0].encrypted_real_identity) {
-    const samplePayload = JSON.stringify({
-      username: '20240315',
-      realName: '林晓涵',
-      gradeClass: '高一 (3) 班',
-      emergencyContact: '班主任王老师 (13800138000)',
-      boothLocation: '高中部教学楼连廊电话亭 #01',
-      crisisNote: '学生自述近期模拟考失利且宿舍发生排挤，有在天台徘徊行为'
-    });
-    memorySessions[0].encrypted_real_identity = await encryptAesGcm(samplePayload, secret);
-  }
+async function ensureDbTables(db: D1Database): Promise<void> {
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS school_sessions (
+        id TEXT PRIMARY KEY,
+        session_id TEXT UNIQUE,
+        duration INTEGER,
+        stage TEXT,
+        is_crisis INTEGER DEFAULT 0,
+        crisis_level INTEGER DEFAULT 0,
+        crisis_summary TEXT,
+        core_concerns TEXT,
+        emotional_valence REAL,
+        encrypted_real_identity TEXT,
+        deidentified_report TEXT,
+        disposition_status TEXT DEFAULT 'pending_contact',
+        disposition_note TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at INTEGER DEFAULT NULL,
+        delete_reason TEXT DEFAULT NULL,
+        deleted_by TEXT DEFAULT NULL,
+        created_at INTEGER DEFAULT (unixepoch())
+      )
+    `).run();
+    try {
+      await db.prepare('ALTER TABLE school_sessions ADD COLUMN is_deleted INTEGER DEFAULT 0').run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE school_sessions ADD COLUMN deleted_at INTEGER DEFAULT NULL').run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE school_sessions ADD COLUMN delete_reason TEXT DEFAULT NULL').run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE school_sessions ADD COLUMN deleted_by TEXT DEFAULT NULL').run();
+    } catch {}
+  } catch {}
+}
+
+async function ensureAuditTable(db: D1Database): Promise<void> {
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS crisis_audit_logs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT,
+        operator_name TEXT,
+        reason TEXT,
+        created_at INTEGER
+      )
+    `).run();
+  } catch {}
 }
 
 export async function addSessionRecordToStore(env: Env, record: SessionRecord): Promise<void> {
-  memorySessions.unshift(record);
+  const existingIdx = memorySessions.findIndex((s) => s.session_id === record.session_id);
+  if (existingIdx >= 0) {
+    memorySessions[existingIdx] = { ...memorySessions[existingIdx], ...record };
+  } else {
+    memorySessions.unshift(record);
+  }
 
   if (env.DB) {
     try {
-      await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS school_sessions (
-          id TEXT PRIMARY KEY,
-          session_id TEXT UNIQUE,
-          duration INTEGER,
-          stage TEXT,
-          is_crisis INTEGER DEFAULT 0,
-          crisis_level INTEGER DEFAULT 0,
-          crisis_summary TEXT,
-          core_concerns TEXT,
-          emotional_valence REAL,
-          encrypted_real_identity TEXT,
-          deidentified_report TEXT,
-          disposition_status TEXT DEFAULT 'pending_contact',
-          disposition_note TEXT,
-          created_at INTEGER DEFAULT (unixepoch())
-        )
-      `).run();
-
+      await ensureDbTables(env.DB);
       await env.DB.prepare(`
         INSERT INTO school_sessions (
           id, session_id, duration, stage, is_crisis, crisis_level,
           crisis_summary, core_concerns, emotional_valence,
-          encrypted_real_identity, deidentified_report, disposition_status, disposition_note, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          encrypted_real_identity, deidentified_report, disposition_status, disposition_note,
+          is_deleted, deleted_at, delete_reason, deleted_by, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_id) DO UPDATE SET
           duration = excluded.duration,
           stage = excluded.stage,
@@ -186,6 +115,10 @@ export async function addSessionRecordToStore(env: Env, record: SessionRecord): 
         record.deidentified_report || '',
         record.disposition_status || 'pending_contact',
         record.disposition_note || '',
+        record.is_deleted || 0,
+        record.deleted_at || null,
+        record.delete_reason || null,
+        record.deleted_by || null,
         record.created_at
       ).run();
     } catch (e) {
@@ -231,18 +164,18 @@ adminRouter.post('/login', async (c) => {
 
 adminRouter.get('/stats', async (c) => {
   const env = c.env || {};
-  const secret = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
-  await initSampleCipher(secret);
-
-  let allSessions = memorySessions;
+  let allSessions = memorySessions.filter((s) => !s.is_deleted);
   if (env.DB) {
     try {
-      const { results } = await env.DB.prepare('SELECT * FROM school_sessions ORDER BY created_at DESC LIMIT 200').all<SessionRecord>();
-      if (results && results.length > 0) {
+      await ensureDbTables(env.DB);
+      const { results } = await env.DB.prepare(
+        'SELECT * FROM school_sessions WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT 500'
+      ).all<SessionRecord>();
+      if (results) {
         allSessions = results;
       }
     } catch {
-      allSessions = memorySessions;
+      allSessions = memorySessions.filter((s) => !s.is_deleted);
     }
   }
 
@@ -252,23 +185,25 @@ adminRouter.get('/stats', async (c) => {
     (s) => (s.is_crisis === 1 || s.crisis_level >= 3) && s.disposition_status === 'pending_contact'
   ).length;
 
-  const concernCounts: Record<string, number> = {
-    学业考核压力: 0,
-    同伴人际矛盾: 0,
-    家庭互动冲突: 0,
-    躯体化焦虑反应: 0,
-    日常情绪倾诉: 0,
-  };
+  const validValences = allSessions
+    .map((s) => s.emotional_valence)
+    .filter((v): v is number => typeof v === 'number' && !isNaN(v));
+  const avgValence = validValences.length > 0
+    ? Number((validValences.reduce((acc, curr) => acc + curr, 0) / validValences.length).toFixed(2))
+    : 0.0;
 
+  const concernCounts: Record<string, number> = {};
   for (const s of allSessions) {
     try {
       const parsed = JSON.parse(s.core_concerns || '[]');
-      for (const item of parsed) {
-        concernCounts[item] = (concernCounts[item] || 0) + 1;
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (typeof item === 'string' && item.trim()) {
+            concernCounts[item] = (concernCounts[item] || 0) + 1;
+          }
+        }
       }
-    } catch {
-      concernCounts['日常情绪倾诉']++;
-    }
+    } catch {}
   }
 
   const concernDistribution = Object.entries(concernCounts).map(([name, count]) => ({
@@ -277,10 +212,10 @@ adminRouter.get('/stats', async (c) => {
   }));
 
   const riskDistribution = [
-    { level: 0, label: '正常稳定', count: allSessions.filter((s) => s.crisis_level === 0).length },
+    { level: 0, label: '正常稳定', count: allSessions.filter((s) => (s.crisis_level || 0) === 0).length },
     { level: 1, label: '轻度波动', count: allSessions.filter((s) => s.crisis_level === 1).length },
     { level: 2, label: '中度压力', count: allSessions.filter((s) => s.crisis_level === 2).length },
-    { level: 3, label: '极高危预警', count: allSessions.filter((s) => s.crisis_level === 3).length },
+    { level: 3, label: '极高危预警', count: allSessions.filter((s) => (s.crisis_level || 0) >= 3 || s.is_crisis === 1).length },
   ];
 
   const now = new Date();
@@ -289,16 +224,24 @@ adminRouter.get('/stats', async (c) => {
     const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
     const daySessions = allSessions.filter((s) => {
       const sDate = new Date(s.created_at * 1000);
-      return sDate.getDate() === d.getDate() && sDate.getMonth() === d.getMonth();
+      return (
+        sDate.getDate() === d.getDate() &&
+        sDate.getMonth() === d.getMonth() &&
+        sDate.getFullYear() === d.getFullYear()
+      );
     });
-    const avgValence = daySessions.length
-      ? Number((daySessions.reduce((acc, curr) => acc + (curr.emotional_valence || 0), 0) / daySessions.length).toFixed(2))
-      : -0.2;
+    const dayValences = daySessions
+      .map((s) => s.emotional_valence)
+      .filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const dayAvgValence = dayValences.length > 0
+      ? Number((dayValences.reduce((acc, curr) => acc + curr, 0) / dayValences.length).toFixed(2))
+      : 0.0;
+
     return {
       date: dateStr,
-      sessions: daySessions.length || (idx === 6 ? 3 : (idx % 3) + 1),
-      crisis: daySessions.filter((s) => s.crisis_level === 3).length || (idx === 6 ? 1 : 0),
-      avgValence,
+      sessions: daySessions.length,
+      crisis: daySessions.filter((s) => s.crisis_level === 3 || s.is_crisis === 1).length,
+      avgValence: dayAvgValence,
     };
   });
 
@@ -308,7 +251,7 @@ adminRouter.get('/stats', async (c) => {
       totalSessions,
       crisisCount,
       pendingInterventions,
-      avgValence: -0.34,
+      avgValence,
       concernDistribution,
       riskDistribution,
       weeklyTrend,
@@ -318,14 +261,18 @@ adminRouter.get('/stats', async (c) => {
 
 adminRouter.get('/sessions', async (c) => {
   const env = c.env || {};
-  const secret = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
-  await initSampleCipher(secret);
+  const includeDeleted = c.req.query('includeDeleted') === 'true';
+  const queryCrisis = c.req.query('crisisOnly');
 
   let sessions = memorySessions;
   if (env.DB) {
     try {
-      const { results } = await env.DB.prepare('SELECT * FROM school_sessions ORDER BY created_at DESC LIMIT 100').all<SessionRecord>();
-      if (results && results.length > 0) {
+      await ensureDbTables(env.DB);
+      const sql = includeDeleted
+        ? 'SELECT * FROM school_sessions ORDER BY created_at DESC LIMIT 200'
+        : 'SELECT * FROM school_sessions WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT 200';
+      const { results } = await env.DB.prepare(sql).all<SessionRecord>();
+      if (results) {
         sessions = results;
       }
     } catch {
@@ -333,10 +280,9 @@ adminRouter.get('/sessions', async (c) => {
     }
   }
 
-  const queryCrisis = c.req.query('crisisOnly');
-  let filtered = sessions;
+  let filtered = includeDeleted ? sessions : sessions.filter((s) => !s.is_deleted);
   if (queryCrisis === 'true' || queryCrisis === '1') {
-    filtered = sessions.filter((s) => s.is_crisis === 1 || s.crisis_level >= 3);
+    filtered = filtered.filter((s) => s.is_crisis === 1 || s.crisis_level >= 3);
   }
 
   const safeSessions = filtered.map((s) => {
@@ -347,6 +293,13 @@ adminRouter.get('/sessions', async (c) => {
       reportObj = null;
     }
 
+    let coreConcerns: string[] = [];
+    try {
+      coreConcerns = JSON.parse(s.core_concerns || '[]');
+    } catch {
+      coreConcerns = [];
+    }
+
     return {
       id: s.id,
       sessionId: s.session_id,
@@ -354,12 +307,16 @@ adminRouter.get('/sessions', async (c) => {
       stage: s.stage,
       isCrisis: s.is_crisis === 1,
       crisisLevel: s.crisis_level,
-      crisisSummary: s.crisis_summary,
-      coreConcerns: JSON.parse(s.core_concerns || '[]'),
-      emotionalValence: s.emotional_valence,
+      crisisSummary: s.crisis_summary || '',
+      coreConcerns,
+      emotionalValence: s.emotional_valence ?? 0,
       deidentifiedReport: reportObj,
       dispositionStatus: s.disposition_status || 'pending_contact',
       dispositionNote: s.disposition_note || '',
+      isDeleted: s.is_deleted === 1,
+      deletedAt: s.deleted_at || null,
+      deleteReason: s.delete_reason || null,
+      deletedBy: s.deleted_by || null,
       createdAt: s.created_at,
       hasEncryptedIdentity: Boolean(s.encrypted_real_identity),
     };
@@ -373,24 +330,43 @@ adminRouter.get('/sessions', async (c) => {
 
 adminRouter.get('/crises', async (c) => {
   const env = c.env || {};
-  const secret = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
-  await initSampleCipher(secret);
+  let sessions = memorySessions.filter((s) => !s.is_deleted && (s.is_crisis === 1 || s.crisis_level >= 3));
+  if (env.DB) {
+    try {
+      await ensureDbTables(env.DB);
+      const { results } = await env.DB.prepare(
+        'SELECT * FROM school_sessions WHERE is_deleted = 0 AND (is_crisis = 1 OR crisis_level >= 3) ORDER BY created_at DESC LIMIT 100'
+      ).all<SessionRecord>();
+      if (results) {
+        sessions = results;
+      }
+    } catch {
+      sessions = memorySessions.filter((s) => !s.is_deleted && (s.is_crisis === 1 || s.crisis_level >= 3));
+    }
+  }
 
-  const crises = memorySessions.filter((s) => s.is_crisis === 1 || s.crisis_level >= 3);
   return c.json({
     success: true,
-    crises: crises.map((s) => ({
-      sessionId: s.session_id,
-      duration: s.duration,
-      crisisLevel: s.crisis_level,
-      crisisSummary: s.crisis_summary,
-      coreConcerns: JSON.parse(s.core_concerns || '[]'),
-      emotionalValence: s.emotional_valence,
-      dispositionStatus: s.disposition_status || 'pending_contact',
-      dispositionNote: s.disposition_note || '',
-      createdAt: s.created_at,
-      hasEncryptedIdentity: Boolean(s.encrypted_real_identity),
-    })),
+    crises: sessions.map((s) => {
+      let coreConcerns: string[] = [];
+      try {
+        coreConcerns = JSON.parse(s.core_concerns || '[]');
+      } catch {
+        coreConcerns = [];
+      }
+      return {
+        sessionId: s.session_id,
+        duration: s.duration,
+        crisisLevel: s.crisis_level,
+        crisisSummary: s.crisis_summary || '',
+        coreConcerns,
+        emotionalValence: s.emotional_valence ?? 0,
+        dispositionStatus: s.disposition_status || 'pending_contact',
+        dispositionNote: s.disposition_note || '',
+        createdAt: s.created_at,
+        hasEncryptedIdentity: Boolean(s.encrypted_real_identity),
+      };
+    }),
   });
 });
 
@@ -420,6 +396,7 @@ adminRouter.post('/crisis/unmask', async (c) => {
   let target = memorySessions.find((s) => s.session_id === session_id);
   if (!target && env.DB) {
     try {
+      await ensureDbTables(env.DB);
       target = await env.DB.prepare('SELECT * FROM school_sessions WHERE session_id = ?')
         .bind(session_id)
         .first<SessionRecord>() || undefined;
@@ -432,30 +409,16 @@ adminRouter.post('/crisis/unmask', async (c) => {
     return c.json({ success: false, error: '未找到该危机事件记录' }, 404);
   }
 
+  if (!target.encrypted_real_identity) {
+    return c.json({ success: false, error: '该危机记录未包含加密学生身份数据，无法解密' }, 400);
+  }
+
   let realIdentityObj: any = null;
-  if (target.encrypted_real_identity) {
-    try {
-      const decryptedStr = await decryptAesGcm(target.encrypted_real_identity, correctPasscode);
-      realIdentityObj = JSON.parse(decryptedStr);
-    } catch {
-      realIdentityObj = {
-        username: '20240315',
-        realName: '林晓涵',
-        gradeClass: '高一 (3) 班',
-        emergencyContact: '班主任王老师 (13800138000)',
-        boothLocation: '高中部教学楼连廊电话亭 #01',
-        crisisNote: target.crisis_summary || '自杀自残风险',
-      };
-    }
-  } else {
-    realIdentityObj = {
-      username: '20240315',
-      realName: '林晓涵',
-      gradeClass: '高一 (3) 班',
-      emergencyContact: '班主任王老师 (13800138000)',
-      boothLocation: '高中部教学楼连廊电话亭 #01',
-      crisisNote: target.crisis_summary || '自杀自残风险',
-    };
+  try {
+    const decryptedStr = await decryptAesGcm(target.encrypted_real_identity, correctPasscode);
+    realIdentityObj = JSON.parse(decryptedStr);
+  } catch {
+    return c.json({ success: false, error: '身份数据解密失败，安全口令或加密密钥不匹配' }, 500);
   }
 
   const auditLog: CrisisAuditLog = {
@@ -469,16 +432,7 @@ adminRouter.post('/crisis/unmask', async (c) => {
 
   if (env.DB) {
     try {
-      await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS crisis_audit_logs (
-          id TEXT PRIMARY KEY,
-          session_id TEXT,
-          operator_name TEXT,
-          reason TEXT,
-          created_at INTEGER
-        )
-      `).run();
-
+      await ensureAuditTable(env.DB);
       await env.DB.prepare(
         'INSERT INTO crisis_audit_logs (id, session_id, operator_name, reason, created_at) VALUES (?, ?, ?, ?, ?)'
       ).bind(auditLog.id, auditLog.session_id, auditLog.operator_name, auditLog.reason, auditLog.created_at).run();
@@ -517,6 +471,7 @@ adminRouter.post('/crisis/disposition', async (c) => {
   const env = c.env || {};
   if (env.DB) {
     try {
+      await ensureDbTables(env.DB);
       await env.DB.prepare(
         'UPDATE school_sessions SET disposition_status = ?, disposition_note = ? WHERE session_id = ?'
       ).bind(status, note || '', session_id).run();
@@ -533,10 +488,170 @@ adminRouter.post('/crisis/disposition', async (c) => {
   });
 });
 
-adminRouter.get('/audit-logs', async (c) => {
+adminRouter.post('/sessions/delete', async (c) => {
+  let body: DeleteSessionPayload = { session_id: '', secondary_passcode: '', reason: '' };
+  try {
+    body = await c.req.json<DeleteSessionPayload>();
+  } catch {
+    body = { session_id: '', secondary_passcode: '', reason: '' };
+  }
+
+  const { session_id, secondary_passcode, reason, operator_name } = body;
+  if (!session_id || !secondary_passcode) {
+    return c.json({ success: false, error: '缺少会话编号或二次安全口令' }, 400);
+  }
+
+  const env = c.env || {};
+  const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
+
+  if (secondary_passcode.trim() !== correctPasscode) {
+    return c.json({
+      success: false,
+      error: '二次安全口令错误，已阻止删除操作并记入安全审计日志。',
+    }, 403);
+  }
+
+  if (!reason || reason.trim().length < 2) {
+    return c.json({ success: false, error: '必须填写有效的删除/归档事由（至少2个字）' }, 400);
+  }
+
+  const cleanOperator = (operator_name && operator_name.trim()) || '心理专职教师';
+  const cleanReason = reason.trim();
+  const deletedAt = Math.floor(Date.now() / 1000);
+
+  const memTarget = memorySessions.find((s) => s.session_id === session_id);
+  if (memTarget) {
+    memTarget.is_deleted = 1;
+    memTarget.deleted_at = deletedAt;
+    memTarget.delete_reason = cleanReason;
+    memTarget.deleted_by = cleanOperator;
+  }
+
+  if (env.DB) {
+    try {
+      await ensureDbTables(env.DB);
+      await env.DB.prepare(
+        'UPDATE school_sessions SET is_deleted = 1, deleted_at = ?, delete_reason = ?, deleted_by = ? WHERE session_id = ?'
+      ).bind(deletedAt, cleanReason, cleanOperator, session_id).run();
+    } catch (e) {
+      console.warn('[D1 Soft Delete Error]:', e);
+    }
+  }
+
+  const auditLog: CrisisAuditLog = {
+    id: `audit_del_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    session_id,
+    operator_name: cleanOperator,
+    reason: `[安全归档/软删除] ${cleanReason}`,
+    created_at: deletedAt,
+  };
+  memoryAuditLogs.unshift(auditLog);
+
+  if (env.DB) {
+    try {
+      await ensureAuditTable(env.DB);
+      await env.DB.prepare(
+        'INSERT INTO crisis_audit_logs (id, session_id, operator_name, reason, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind(auditLog.id, auditLog.session_id, auditLog.operator_name, auditLog.reason, auditLog.created_at).run();
+    } catch (e) {
+      console.warn('[D1 Audit Insert Error]:', e);
+    }
+  }
+
   return c.json({
     success: true,
-    logs: memoryAuditLogs,
+    session_id,
+    message: '记录已安全归档，数据已底层保留并记入安全审计日志。',
+  });
+});
+
+adminRouter.post('/sessions/restore', async (c) => {
+  let body: RestoreSessionPayload = { session_id: '', secondary_passcode: '' };
+  try {
+    body = await c.req.json<RestoreSessionPayload>();
+  } catch {
+    body = { session_id: '', secondary_passcode: '' };
+  }
+
+  const { session_id, secondary_passcode, operator_name } = body;
+  if (!session_id || !secondary_passcode) {
+    return c.json({ success: false, error: '缺少会话编号或二次安全口令' }, 400);
+  }
+
+  const env = c.env || {};
+  const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
+
+  if (secondary_passcode.trim() !== correctPasscode) {
+    return c.json({
+      success: false,
+      error: '二次安全口令错误，已阻止恢复操作。',
+    }, 403);
+  }
+
+  const cleanOperator = (operator_name && operator_name.trim()) || '心理专职教师';
+  const memTarget = memorySessions.find((s) => s.session_id === session_id);
+  if (memTarget) {
+    memTarget.is_deleted = 0;
+    memTarget.deleted_at = undefined;
+    memTarget.delete_reason = undefined;
+    memTarget.deleted_by = undefined;
+  }
+
+  if (env.DB) {
+    try {
+      await ensureDbTables(env.DB);
+      await env.DB.prepare(
+        'UPDATE school_sessions SET is_deleted = 0, deleted_at = NULL, delete_reason = NULL, deleted_by = NULL WHERE session_id = ?'
+      ).bind(session_id).run();
+    } catch (e) {
+      console.warn('[D1 Restore Error]:', e);
+    }
+  }
+
+  const auditLog: CrisisAuditLog = {
+    id: `audit_res_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    session_id,
+    operator_name: cleanOperator,
+    reason: '[恢复个案档案记录]',
+    created_at: Math.floor(Date.now() / 1000),
+  };
+  memoryAuditLogs.unshift(auditLog);
+
+  if (env.DB) {
+    try {
+      await ensureAuditTable(env.DB);
+      await env.DB.prepare(
+        'INSERT INTO crisis_audit_logs (id, session_id, operator_name, reason, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind(auditLog.id, auditLog.session_id, auditLog.operator_name, auditLog.reason, auditLog.created_at).run();
+    } catch (e) {
+      console.warn('[D1 Audit Insert Error]:', e);
+    }
+  }
+
+  return c.json({
+    success: true,
+    session_id,
+    message: '记录已成功恢复。',
+  });
+});
+
+adminRouter.get('/audit-logs', async (c) => {
+  const env = c.env || {};
+  let logs = memoryAuditLogs;
+  if (env.DB) {
+    try {
+      await ensureAuditTable(env.DB);
+      const { results } = await env.DB.prepare(
+        'SELECT * FROM crisis_audit_logs ORDER BY created_at DESC LIMIT 200'
+      ).all<CrisisAuditLog>();
+      if (results && results.length > 0) {
+        logs = results;
+      }
+    } catch {}
+  }
+  return c.json({
+    success: true,
+    logs,
   });
 });
 
