@@ -157,12 +157,11 @@ export function useVoiceSession() {
             clientRef.current?.interrupt();
             setDuplexPhase('listening');
             const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
-            const asstText = (asstSeg?.text || '').trim();
-            if (asstSeg && asstText) {
+            if (asstSeg?.text) {
               addDialogueTurn({
                 id: asstSeg.id,
                 role: 'assistant',
-                content: asstText,
+                content: asstSeg.text,
                 timestamp: asstSeg.timestamp,
                 stage: useBoothStore.getState().cbtStage,
               });
@@ -174,23 +173,21 @@ export function useVoiceSession() {
           onTurnEnd: () => {
             setDuplexPhase('listening');
             const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
-            const asstText = (asstSeg?.text || '').trim();
-            if (asstSeg && asstText) {
+            if (asstSeg?.text) {
               addDialogueTurn({
                 id: asstSeg.id,
                 role: 'assistant',
-                content: asstText,
+                content: asstSeg.text,
                 timestamp: asstSeg.timestamp,
                 stage: useBoothStore.getState().cbtStage,
               });
             }
             const userSeg = transcriptionRef.current.finalizeCurrentTurn('user');
-            const userText = (userSeg?.text || '').replace(/^[.,，。？！?\s]+$/, '').trim();
-            if (userSeg && userText) {
+            if (userSeg?.text) {
               addDialogueTurn({
                 id: userSeg.id,
                 role: 'user',
-                content: userText,
+                content: userSeg.text,
                 timestamp: userSeg.timestamp,
                 stage: useBoothStore.getState().cbtStage,
               });
@@ -205,7 +202,7 @@ export function useVoiceSession() {
       });
 
       await audioGraph.startRecording((pcm16Base64) => {
-        if (clientRef.current?.ready) {
+        if (clientRef.current?.ready && useBoothStore.getState().duplexPhase === 'listening') {
           clientRef.current.sendAudioChunk(pcm16Base64);
         }
       });
