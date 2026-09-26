@@ -133,7 +133,7 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     client.disconnect();
   });
 
-  it('triggerInitialGreeting 应发送带有开场破冰指令的 response.create 帧', async () => {
+  it('sendToolOutput 应正确发送 conversation.item.create 与 response.create 帧', async () => {
     const client = new MiniMaxRealtimeClient({
       relayUrl: 'ws://localhost:8787/api/voice/ws',
     });
@@ -141,15 +141,18 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     client.connect();
     await new Promise((r) => setTimeout(r, 15));
 
-    client.triggerInitialGreeting();
+    client.sendToolOutput('call_123', { status: 'ok' });
 
     const ws = (client as any).ws as MockWebSocket;
-    const lastMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
+    expect(ws.sentMessages.length).toBeGreaterThanOrEqual(3);
 
-    expect(lastMsg.type).toBe('response.create');
-    expect(lastMsg.response.instructions).toContain('欢迎来到 RETHINK');
-    expect(lastMsg.response.instructions).toContain('加密保存');
-    expect(lastMsg.response.instructions).toContain('我该怎么称呼你呢');
+    const toolMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 2]);
+    expect(toolMsg.type).toBe('conversation.item.create');
+    expect(toolMsg.item.type).toBe('function_call_output');
+    expect(toolMsg.item.call_id).toBe('call_123');
+
+    const respMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
+    expect(respMsg.type).toBe('response.create');
 
     client.disconnect();
   });

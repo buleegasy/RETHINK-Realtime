@@ -158,19 +158,6 @@ export class MiniMaxRealtimeClient {
     });
   }
 
-  public triggerInitialGreeting(customDirective?: string): void {
-    const directive =
-      customDirective ||
-      '请立即主动说出你的第一句开场问候：“Hi同学，欢迎来到 RETHINK。我们的通话记录将被加密保存。我该怎么称呼你呢？名字或者喜欢的昵称都行。”请以温暖自然的语气原样口语化说出。';
-
-    this.send({
-      type: 'response.create',
-      response: {
-        instructions: directive,
-      },
-    });
-  }
-
   public send(payload: Record<string, unknown>): void {
     if (this.ready && this.ws) {
       try {
