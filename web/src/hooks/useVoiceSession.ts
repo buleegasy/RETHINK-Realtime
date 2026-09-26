@@ -218,7 +218,6 @@ export function useVoiceSession() {
     updateUserName,
     setErrorMessage,
     addDialogueTurn,
-    setActiveTranscript,
     startVisualizer,
     setCallDuration,
   ]);
