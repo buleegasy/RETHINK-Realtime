@@ -89,7 +89,17 @@ export function useVoiceSession() {
 
     try {
       const audioGraph = getAudioGraph();
+      audioGraph.setOnPlaybackStateChange((isPlaying) => {
+        if (isPlaying) {
+          clientRef.current?.updateTurnDetection('speaking');
+          setDuplexPhase('speaking');
+        } else {
+          clientRef.current?.updateTurnDetection('listening');
+          setDuplexPhase('listening');
+        }
+      });
       audioGraph.setOnLocalInterrupt((playedMs) => {
+        clientRef.current?.updateTurnDetection('listening');
         const itemId = clientRef.current?.getCurrentResponseItemId();
         clientRef.current?.interrupt({
           itemId: itemId || undefined,
@@ -135,6 +145,7 @@ export function useVoiceSession() {
           onSpeechStarted: (details) => {
             const playedMs = audioGraph.getPlaybackDurationMs();
             audioGraph.stopPlayback();
+            clientRef.current?.updateTurnDetection('listening');
             const itemId = details?.itemId || clientRef.current?.getCurrentResponseItemId();
             clientRef.current?.interrupt({
               itemId: itemId || undefined,
@@ -155,10 +166,12 @@ export function useVoiceSession() {
           onTurnStart: () => {
             setDuplexPhase('speaking');
             audioGraph.setAiSpeaking(true);
+            clientRef.current?.updateTurnDetection('speaking');
           },
           onTurnEnd: () => {
-            setDuplexPhase('listening');
             audioGraph.setAiSpeaking(false);
+            clientRef.current?.updateTurnDetection('listening');
+            setDuplexPhase('listening');
             const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
             if (asstSeg?.text) {
               addDialogueTurn({
@@ -286,6 +299,7 @@ export function useVoiceSession() {
       audioGraphRef.current.stopPlayback();
     }
     if (clientRef.current) {
+      clientRef.current.updateTurnDetection('listening');
       const itemId = clientRef.current.getCurrentResponseItemId();
       clientRef.current.interrupt({
         itemId: itemId || undefined,

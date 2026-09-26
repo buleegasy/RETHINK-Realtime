@@ -94,9 +94,9 @@ export class MiniMaxRealtimeClient {
     const config = { ...this.options.sessionConfig, ...customConfig };
     const vadConfig = config.turnDetection !== undefined ? config.turnDetection : {
       type: 'server_vad',
-      threshold: 0.3,
-      prefix_padding_ms: 500,
-      silence_duration_ms: 600,
+      threshold: 0.32,
+      prefix_padding_ms: 450,
+      silence_duration_ms: 850,
       create_response: true,
     };
 
@@ -126,6 +126,37 @@ export class MiniMaxRealtimeClient {
     this.send({
       type: 'session.update',
       session: sessionPayload,
+    });
+  }
+
+  public updateTurnDetection(mode: 'speaking' | 'listening'): void {
+    if (!this.ready) return;
+    const vadConfig = mode === 'speaking'
+      ? {
+          type: 'server_vad',
+          threshold: 0.75,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 500,
+          create_response: true,
+        }
+      : {
+          type: 'server_vad',
+          threshold: 0.32,
+          prefix_padding_ms: 450,
+          silence_duration_ms: 850,
+          create_response: true,
+        };
+
+    this.send({
+      type: 'session.update',
+      session: {
+        turn_detection: vadConfig,
+        audio: {
+          input: {
+            turn_detection: vadConfig,
+          },
+        },
+      },
     });
   }
 

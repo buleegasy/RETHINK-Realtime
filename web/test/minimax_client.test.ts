@@ -227,4 +227,29 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
 
     client.disconnect();
   });
+
+  it('updateTurnDetection 应在 speaking 和 listening 状态下分别下发高低阈值', async () => {
+    const client = new MiniMaxRealtimeClient({
+      relayUrl: 'ws://localhost:8787/api/voice/ws',
+    });
+
+    client.connect();
+    await new Promise((r) => setTimeout(r, 15));
+
+    client.updateTurnDetection('speaking');
+
+    const ws = (client as any).ws as MockWebSocket;
+    const speakingMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
+    expect(speakingMsg.type).toBe('session.update');
+    expect(speakingMsg.session.turn_detection.threshold).toBe(0.75);
+    expect(speakingMsg.session.turn_detection.silence_duration_ms).toBe(500);
+
+    client.updateTurnDetection('listening');
+    const listeningMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
+    expect(listeningMsg.type).toBe('session.update');
+    expect(listeningMsg.session.turn_detection.threshold).toBe(0.32);
+    expect(listeningMsg.session.turn_detection.silence_duration_ms).toBe(850);
+
+    client.disconnect();
+  });
 });

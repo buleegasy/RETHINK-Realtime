@@ -11,6 +11,7 @@ export class AudioGraphService {
   private outputGainNode: GainNode | null = null;
   private preGainNode: GainNode | null = null;
   private compressorNode: DynamicsCompressorNode | null = null;
+  private highpassFilterNode: BiquadFilterNode | null = null;
   private streamDestination: MediaStreamAudioDestinationNode | null = null;
   private audioElement: HTMLAudioElement | null = null;
 
@@ -21,6 +22,7 @@ export class AudioGraphService {
   private isAiSpeaking: boolean = false;
   private consecutiveSpeechFrames: number = 0;
   private onLocalInterruptCallback: ((playedMs: number) => void) | null = null;
+  private onPlaybackStateChange: ((isPlaying: boolean) => void) | null = null;
   private boundDeviceChangeListener: (() => void) | null = null;
 
   private jitterBuffer: AudioBuffer[] = [];
@@ -75,11 +77,23 @@ export class AudioGraphService {
     this.onLocalInterruptCallback = callback;
   }
 
+  public setOnPlaybackStateChange(callback: (isPlaying: boolean) => void): void {
+    this.onPlaybackStateChange = callback;
+  }
+
   public setAiSpeaking(speaking: boolean): void {
+    if (this.isAiSpeaking === speaking) return;
     this.isAiSpeaking = speaking;
     if (!speaking) {
       this.consecutiveSpeechFrames = 0;
     }
+    if (this.preGainNode && this.audioCtx) {
+      try {
+        const targetGain = speaking ? 1.0 : 2.5;
+        this.preGainNode.gain.setValueAtTime(targetGain, this.audioCtx.currentTime);
+      } catch {}
+    }
+    this.onPlaybackStateChange?.(speaking);
   }
 
   private getSpeakerRms(): number {
@@ -109,7 +123,9 @@ export class AudioGraphService {
       }
       this.mediaStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
       this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
-      if (this.preGainNode) {
+      if (this.highpassFilterNode) {
+        this.sourceNode.connect(this.highpassFilterNode);
+      } else if (this.preGainNode) {
         this.sourceNode.connect(this.preGainNode);
       } else if (this.analyserNode) {
         this.sourceNode.connect(this.analyserNode);
@@ -122,6 +138,11 @@ export class AudioGraphService {
 
     this.mediaStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
     this.sourceNode = ctx.createMediaStreamSource(this.mediaStream);
+
+    this.highpassFilterNode = ctx.createBiquadFilter();
+    this.highpassFilterNode.type = 'highpass';
+    this.highpassFilterNode.frequency.setValueAtTime(120, ctx.currentTime);
+    this.highpassFilterNode.Q.setValueAtTime(0.7, ctx.currentTime);
 
     this.preGainNode = ctx.createGain();
     this.preGainNode.gain.setValueAtTime(2.5, ctx.currentTime);
@@ -154,10 +175,10 @@ export class AudioGraphService {
       const speakerRms = this.getSpeakerRms();
 
       if (this.isAiSpeaking || speakerRms > 0.01) {
-        const dynamicThreshold = Math.max(0.08, speakerRms * 0.6 + 0.03);
+        const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.08);
         if (micRms > dynamicThreshold) {
           this.consecutiveSpeechFrames++;
-          if (this.consecutiveSpeechFrames >= 2) {
+          if (this.consecutiveSpeechFrames >= 3) {
             const playedMs = this.getPlaybackDurationMs();
             this.stopPlayback();
             this.consecutiveSpeechFrames = 0;
@@ -176,7 +197,8 @@ export class AudioGraphService {
       }
     };
 
-    this.sourceNode.connect(this.preGainNode);
+    this.sourceNode.connect(this.highpassFilterNode);
+    this.highpassFilterNode.connect(this.preGainNode);
     this.preGainNode.connect(this.compressorNode);
     this.compressorNode.connect(this.analyserNode);
     this.compressorNode.connect(this.processorNode);
@@ -249,14 +271,14 @@ export class AudioGraphService {
         }
         if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
           this.playbackStartCtxTime = null;
-          this.isAiSpeaking = false;
+          this.setAiSpeaking(false);
           this.isJitterBuffering = true;
           this.consecutiveSpeechFrames = 0;
         }
         onEnded?.();
       };
 
-      this.isAiSpeaking = true;
+      this.setAiSpeaking(true);
       source.start(ctx.currentTime);
       this.scheduledSources.push(source);
     } catch {
@@ -309,14 +331,14 @@ export class AudioGraphService {
         }
         if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
           this.playbackStartCtxTime = null;
-          this.isAiSpeaking = false;
+          this.setAiSpeaking(false);
           this.isJitterBuffering = true;
           this.consecutiveSpeechFrames = 0;
         }
         onEnded?.();
       };
 
-      this.isAiSpeaking = true;
+      this.setAiSpeaking(true);
       source.start(ctx.currentTime);
       this.scheduledSources.push(source);
     } catch {
@@ -368,7 +390,7 @@ export class AudioGraphService {
         }
         if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
           this.playbackStartCtxTime = null;
-          this.isAiSpeaking = false;
+          this.setAiSpeaking(false);
           this.isJitterBuffering = true;
           this.consecutiveSpeechFrames = 0;
         }
@@ -383,7 +405,7 @@ export class AudioGraphService {
     const buffer = base64PCMToAudioBuffer(base64Chunk, ctx, 24000);
     if (buffer.length <= 1) return;
 
-    this.isAiSpeaking = true;
+    this.setAiSpeaking(true);
     this.jitterBuffer.push(buffer);
     this.jitterBufferedSec += buffer.duration;
 
@@ -402,7 +424,7 @@ export class AudioGraphService {
     const ctx = this.audioCtx;
     this.nextPlayTime = ctx.currentTime;
     this.playbackStartCtxTime = null;
-    this.isAiSpeaking = false;
+    this.setAiSpeaking(false);
     this.isJitterBuffering = true;
     this.consecutiveSpeechFrames = 0;
     this.jitterBuffer = [];
@@ -479,6 +501,12 @@ export class AudioGraphService {
         this.preGainNode.disconnect();
       } catch {}
       this.preGainNode = null;
+    }
+    if (this.highpassFilterNode) {
+      try {
+        this.highpassFilterNode.disconnect();
+      } catch {}
+      this.highpassFilterNode = null;
     }
     if (this.sourceNode) {
       try {

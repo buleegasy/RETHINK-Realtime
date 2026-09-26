@@ -42,6 +42,17 @@ class MockAudioContext {
     };
   }
 
+  createBiquadFilter() {
+    return {
+      type: 'highpass',
+      frequency: { setValueAtTime: () => {} },
+      Q: { setValueAtTime: () => {} },
+      gain: { setValueAtTime: () => {} },
+      connect: () => {},
+      disconnect: () => {},
+    };
+  }
+
   createOscillator() {
     return {
       type: 'sine',

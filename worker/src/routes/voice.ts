@@ -66,25 +66,24 @@ voiceRouter.get('/ws', async (c) => {
               if (payload && payload.type === 'session.update' && payload.session) {
                 const incoming = payload.session;
                 const incomingVad = incoming.turn_detection !== undefined ? incoming.turn_detection : incoming.audio?.input?.turn_detection;
-                const turnDetection = incomingVad === null ? null : {
+                const turnDetection = incomingVad === null ? null : (incomingVad !== undefined ? {
                   type: 'server_vad',
-                  threshold: incomingVad?.threshold ?? 0.3,
-                  prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 500,
-                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 600,
+                  threshold: incomingVad?.threshold ?? 0.32,
+                  prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 450,
+                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 850,
                   create_response: true,
-                };
-                const cleanSession: Record<string, unknown> = {
-                  modalities: incoming.modalities || ['text', 'audio'],
-                  instructions: incoming.instructions || '',
-                  voice: incoming.voice || 'maple',
-                  input_audio_format: 'pcm16',
-                  output_audio_format: 'pcm16',
-                  input_audio_transcription: incoming.input_audio_transcription || { model: 'whisper-1', language: 'zh' },
-                  turn_detection: turnDetection,
-                  tools: incoming.tools || [],
-                  tool_choice: 'auto',
-                  temperature: 0.7,
-                };
+                } : undefined);
+                const cleanSession: Record<string, unknown> = {};
+                if (incoming.modalities) cleanSession.modalities = incoming.modalities;
+                if (incoming.instructions !== undefined) cleanSession.instructions = incoming.instructions;
+                if (incoming.voice) cleanSession.voice = incoming.voice;
+                if (incoming.input_audio_format) cleanSession.input_audio_format = incoming.input_audio_format;
+                if (incoming.output_audio_format) cleanSession.output_audio_format = incoming.output_audio_format;
+                if (incoming.input_audio_transcription) cleanSession.input_audio_transcription = incoming.input_audio_transcription;
+                if (turnDetection !== undefined) cleanSession.turn_detection = turnDetection;
+                if (incoming.tools !== undefined) cleanSession.tools = incoming.tools;
+                if (incoming.tool_choice !== undefined) cleanSession.tool_choice = incoming.tool_choice;
+                if (incoming.temperature !== undefined) cleanSession.temperature = incoming.temperature;
                 upstreamWs.send(
                   JSON.stringify({
                     type: 'session.update',
