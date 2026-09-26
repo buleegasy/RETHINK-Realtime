@@ -82,7 +82,7 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     client.disconnect();
   });
 
-  it('interrupt 应正确发送 response.cancel 强打断帧', async () => {
+  it('interrupt 应正确发送 response.cancel 强打断帧并在提供参数时发送 conversation.item.truncate 截断帧', async () => {
     const client = new MiniMaxRealtimeClient({
       relayUrl: 'ws://localhost:8787/api/voice/ws',
     });
@@ -90,12 +90,19 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     client.connect();
     await new Promise((r) => setTimeout(r, 15));
 
-    client.interrupt();
+    client.interrupt({ itemId: 'item_asst_123', audioEndMs: 1450 });
 
     const ws = (client as any).ws as MockWebSocket;
-    const lastMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
+    expect(ws.sentMessages.length).toBeGreaterThanOrEqual(3);
 
-    expect(lastMsg.type).toBe('response.cancel');
+    const cancelMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 2]);
+    expect(cancelMsg.type).toBe('response.cancel');
+
+    const truncateMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
+    expect(truncateMsg.type).toBe('conversation.item.truncate');
+    expect(truncateMsg.item_id).toBe('item_asst_123');
+    expect(truncateMsg.content_index).toBe(0);
+    expect(truncateMsg.audio_end_ms).toBe(1450);
 
     client.disconnect();
   });

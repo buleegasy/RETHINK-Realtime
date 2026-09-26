@@ -149,9 +149,14 @@ export function useVoiceSession() {
           onTranscriptDelta: (transcript) => {
             transcriptionRef.current.feedDelta('user', transcript);
           },
-          onSpeechStarted: () => {
+          onSpeechStarted: (details) => {
+            const playedMs = audioGraph.getPlaybackDurationMs();
             audioGraph.stopPlayback();
-            clientRef.current?.interrupt();
+            const itemId = details?.itemId || clientRef.current?.getCurrentResponseItemId();
+            clientRef.current?.interrupt({
+              itemId: itemId || undefined,
+              audioEndMs: playedMs,
+            });
             setDuplexPhase('listening');
             const asstSeg = transcriptionRef.current.finalizeCurrentTurn('assistant');
             if (asstSeg?.text) {
@@ -292,11 +297,16 @@ export function useVoiceSession() {
   }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport]);
 
   const interrupt = useCallback(() => {
-    if (clientRef.current) {
-      clientRef.current.interrupt();
-    }
+    const playedMs = audioGraphRef.current ? audioGraphRef.current.getPlaybackDurationMs() : 0;
     if (audioGraphRef.current) {
       audioGraphRef.current.stopPlayback();
+    }
+    if (clientRef.current) {
+      const itemId = clientRef.current.getCurrentResponseItemId();
+      clientRef.current.interrupt({
+        itemId: itemId || undefined,
+        audioEndMs: playedMs,
+      });
     }
     setDuplexPhase('listening');
   }, [setDuplexPhase]);

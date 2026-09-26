@@ -11,6 +11,7 @@ export class AudioGraphService {
 
   private nextPlayTime: number = 0;
   private scheduledSources: AudioBufferSourceNode[] = [];
+  private playbackStartCtxTime: number | null = null;
   private isMuted: boolean = false;
 
   public async initAudioContext(): Promise<AudioContext> {
@@ -135,6 +136,14 @@ export class AudioGraphService {
     }
   }
 
+  public getPlaybackDurationMs(): number {
+    if (!this.audioCtx || this.playbackStartCtxTime === null) return 0;
+    const now = this.audioCtx.currentTime;
+    if (now < this.playbackStartCtxTime) return 0;
+    const elapsedSec = now - this.playbackStartCtxTime;
+    return Math.max(0, Math.round(elapsedSec * 1000));
+  }
+
   public enqueueAudioChunk(base64Chunk: string): void {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
@@ -154,6 +163,10 @@ export class AudioGraphService {
       this.nextPlayTime = now + 0.005;
     }
 
+    if (this.playbackStartCtxTime === null || this.scheduledSources.length === 0) {
+      this.playbackStartCtxTime = this.nextPlayTime;
+    }
+
     source.start(this.nextPlayTime);
     this.nextPlayTime += buffer.duration;
 
@@ -163,6 +176,9 @@ export class AudioGraphService {
       if (idx !== -1) {
         this.scheduledSources.splice(idx, 1);
       }
+      if (this.scheduledSources.length === 0) {
+        this.playbackStartCtxTime = null;
+      }
     };
   }
 
@@ -170,6 +186,7 @@ export class AudioGraphService {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
     this.nextPlayTime = ctx.currentTime;
+    this.playbackStartCtxTime = null;
 
     try {
       this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);

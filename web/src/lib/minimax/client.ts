@@ -25,6 +25,7 @@ export class MiniMaxRealtimeClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private messageQueue: Record<string, unknown>[] = [];
+  private currentResponseItemId: string | null = null;
 
   constructor(options?: MiniMaxClientOptions) {
     this.options = options || {};
@@ -33,6 +34,10 @@ export class MiniMaxRealtimeClient {
 
   public get ready(): boolean {
     return this.isConnected && this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  public getCurrentResponseItemId(): string | null {
+    return this.currentResponseItemId;
   }
 
   public connect(): void {
@@ -137,10 +142,24 @@ export class MiniMaxRealtimeClient {
     });
   }
 
-  public interrupt(): void {
+  public truncateItem(itemId: string, audioEndMs: number, contentIndex: number = 0): void {
+    if (!itemId) return;
+    this.send({
+      type: 'conversation.item.truncate',
+      item_id: itemId,
+      content_index: contentIndex,
+      audio_end_ms: Math.max(0, audioEndMs),
+    });
+  }
+
+  public interrupt(options?: { itemId?: string; audioEndMs?: number }): void {
     this.send({
       type: 'response.cancel',
     });
+    const targetItemId = options?.itemId || this.currentResponseItemId;
+    if (targetItemId && typeof options?.audioEndMs === 'number') {
+      this.truncateItem(targetItemId, options.audioEndMs);
+    }
   }
 
   public sendToolOutput(callId: string, output: Record<string, unknown>): void {
@@ -188,6 +207,20 @@ export class MiniMaxRealtimeClient {
       const event = JSON.parse(rawData) as MiniMaxServerEvent;
       const type = event.type;
 
+      if (
+        type === 'response.output_item.added' ||
+        type === 'response.output_audio.delta' ||
+        type === 'response.audio.delta' ||
+        type === 'response.audio_transcript.delta' ||
+        type === 'response.output_audio_transcript.delta'
+      ) {
+        if (event.item_id) {
+          this.currentResponseItemId = event.item_id;
+        } else if (event.item?.id) {
+          this.currentResponseItemId = event.item.id;
+        }
+      }
+
       if (type === 'response.output_audio.delta' || type === 'response.audio.delta') {
         const audio = event.delta || event.audio;
         if (audio) {
@@ -215,7 +248,11 @@ export class MiniMaxRealtimeClient {
       }
 
       if (type === 'input_audio_buffer.speech_started') {
-        this.callbacks.onSpeechStarted?.();
+        const targetItemId = event.item_id || this.currentResponseItemId;
+        this.callbacks.onSpeechStarted?.({
+          audioStartMs: event.audio_start_ms,
+          itemId: targetItemId || undefined,
+        });
       }
 
       if (type === 'response.created') {
@@ -224,6 +261,7 @@ export class MiniMaxRealtimeClient {
 
       if (type === 'response.done') {
         this.callbacks.onTurnEnd?.();
+        this.currentResponseItemId = null;
       }
 
       if (
@@ -246,6 +284,10 @@ export class MiniMaxRealtimeClient {
       }
 
       if (type === 'error') {
+        const errCode = event.error?.code;
+        if (errCode === 'response_cancel_not_allowed') {
+          return;
+        }
         console.error('[MiniMaxClient] 收到服务端错误:', event.error);
         this.callbacks.onError?.(event.error);
       }

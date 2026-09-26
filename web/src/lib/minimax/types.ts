@@ -21,6 +21,8 @@ export interface MiniMaxServerEvent {
   text?: string;
   audio?: string;
   transcript?: string;
+  item_id?: string;
+  audio_start_ms?: number;
   item?: {
     id?: string;
     type?: string;
@@ -55,6 +57,6 @@ export interface MiniMaxClientCallbacks {
   onTranscriptDelta?: (transcript: string) => void;
   onTurnStart?: () => void;
   onTurnEnd?: () => void;
-  onSpeechStarted?: () => void;
+  onSpeechStarted?: (details?: { audioStartMs?: number; itemId?: string }) => void;
   onToolCall?: (toolCall: { name: string; callId: string; args: Record<string, unknown> }) => void;
 }
