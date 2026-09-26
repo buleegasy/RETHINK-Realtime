@@ -95,9 +95,9 @@ voiceRouter.get('/ws', async (c) => {
                 const incomingVad = incoming.turn_detection !== undefined ? incoming.turn_detection : incoming.audio?.input?.turn_detection;
                 const turnDetection = incomingVad === null ? null : (incomingVad !== undefined ? {
                   type: 'server_vad',
-                  threshold: incomingVad?.threshold ?? 0.32,
+                  threshold: incomingVad?.threshold ?? 0.5,
                   prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 300,
-                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 650,
+                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 600,
                   create_response: true,
                 } : undefined);
                 const cleanSession: Record<string, unknown> = {};

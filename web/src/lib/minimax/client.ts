@@ -105,9 +105,9 @@ export class MiniMaxRealtimeClient {
     const config = { ...this.options.sessionConfig, ...customConfig };
     const vadConfig = config.turnDetection !== undefined ? config.turnDetection : {
       type: 'server_vad',
-      threshold: 0.32,
+      threshold: 0.5,
       prefix_padding_ms: 300,
-      silence_duration_ms: 650,
+      silence_duration_ms: 600,
       create_response: true,
     };
 
@@ -143,10 +143,23 @@ export class MiniMaxRealtimeClient {
   public sendGreeting(customGreeting?: string): void {
     const greeting = customGreeting || OPENING_GREETING;
     this.send({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: '（通话已建立，请立刻使用中文向来访者致以开场问候）',
+          },
+        ],
+      },
+    });
+    this.send({
       type: 'response.create',
       response: {
         modalities: ['audio', 'text'],
-        instructions: `请直接输出开场第一句话，字面一字不差地输出：“${greeting}”`,
+        instructions: `你必须全程使用纯中文进行交流，严禁输出任何英文（绝对禁止说“Hi there”等英文单词）。请直接字面一字不差地输出：“${greeting}”`,
       },
     });
   }
@@ -163,9 +176,9 @@ export class MiniMaxRealtimeClient {
         }
       : {
           type: 'server_vad',
-          threshold: 0.32,
+          threshold: 0.5,
           prefix_padding_ms: 300,
-          silence_duration_ms: 650,
+          silence_duration_ms: 600,
           create_response: true,
         };
 

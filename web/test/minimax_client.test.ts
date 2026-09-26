@@ -72,11 +72,14 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     await new Promise((r) => setTimeout(r, 20));
 
     const ws = (client as any).ws as MockWebSocket;
-    expect(ws.sentMessages.length).toBeGreaterThanOrEqual(2);
+    expect(ws.sentMessages.length).toBeGreaterThanOrEqual(3);
 
-    const greetingMsg = JSON.parse(ws.sentMessages[1]);
+    const itemMsg = JSON.parse(ws.sentMessages[1]);
+    expect(itemMsg.type).toBe('conversation.item.create');
+
+    const greetingMsg = JSON.parse(ws.sentMessages[2]);
     expect(greetingMsg.type).toBe('response.create');
-    expect(greetingMsg.response.instructions).toContain('Hi，欢迎来到Rethink');
+    expect(greetingMsg.response.instructions).toContain('你好，欢迎来到Rethink');
 
     client.disconnect();
   });
@@ -265,8 +268,8 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     client.updateTurnDetection('listening');
     const listeningMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
     expect(listeningMsg.type).toBe('session.update');
-    expect(listeningMsg.session.turn_detection.threshold).toBe(0.32);
-    expect(listeningMsg.session.turn_detection.silence_duration_ms).toBe(650);
+    expect(listeningMsg.session.turn_detection.threshold).toBe(0.5);
+    expect(listeningMsg.session.turn_detection.silence_duration_ms).toBe(600);
 
     client.disconnect();
   });

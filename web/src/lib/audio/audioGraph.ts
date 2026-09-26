@@ -9,8 +9,7 @@ export class AudioGraphService {
   private analyserNode: AnalyserNode | null = null;
   private speakerAnalyserNode: AnalyserNode | null = null;
   private outputGainNode: GainNode | null = null;
-  private preGainNode: GainNode | null = null;
-  private compressorNode: DynamicsCompressorNode | null = null;
+  private inputGainNode: GainNode | null = null;
   private highpassFilterNode: BiquadFilterNode | null = null;
   private streamDestination: MediaStreamAudioDestinationNode | null = null;
   private audioElement: HTMLAudioElement | null = null;
@@ -63,11 +62,11 @@ export class AudioGraphService {
       this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
 
       this.outputGainNode.connect(this.speakerAnalyserNode);
-
+      this.speakerAnalyserNode.connect(this.audioCtx.destination);
       if (this.streamDestination) {
-        this.speakerAnalyserNode.connect(this.streamDestination);
-      } else {
-        this.speakerAnalyserNode.connect(this.audioCtx.destination);
+        try {
+          this.speakerAnalyserNode.connect(this.streamDestination);
+        } catch {}
       }
     }
     return this.audioCtx;
@@ -81,17 +80,15 @@ export class AudioGraphService {
     this.onPlaybackStateChange = callback;
   }
 
+  public isPlaybackActive(): boolean {
+    return this.isAiSpeaking || this.scheduledSources.length > 0 || this.jitterBuffer.length > 0;
+  }
+
   public setAiSpeaking(speaking: boolean): void {
     if (this.isAiSpeaking === speaking) return;
     this.isAiSpeaking = speaking;
     if (!speaking) {
       this.consecutiveSpeechFrames = 0;
-    }
-    if (this.preGainNode && this.audioCtx) {
-      try {
-        const targetGain = speaking ? 1.0 : 2.5;
-        this.preGainNode.gain.setValueAtTime(targetGain, this.audioCtx.currentTime);
-      } catch {}
     }
     this.onPlaybackStateChange?.(speaking);
   }
@@ -125,8 +122,8 @@ export class AudioGraphService {
       this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
       if (this.highpassFilterNode) {
         this.sourceNode.connect(this.highpassFilterNode);
-      } else if (this.preGainNode) {
-        this.sourceNode.connect(this.preGainNode);
+      } else if (this.inputGainNode) {
+        this.sourceNode.connect(this.inputGainNode);
       } else if (this.analyserNode) {
         this.sourceNode.connect(this.analyserNode);
       }
@@ -141,18 +138,11 @@ export class AudioGraphService {
 
     this.highpassFilterNode = ctx.createBiquadFilter();
     this.highpassFilterNode.type = 'highpass';
-    this.highpassFilterNode.frequency.setValueAtTime(120, ctx.currentTime);
+    this.highpassFilterNode.frequency.setValueAtTime(100, ctx.currentTime);
     this.highpassFilterNode.Q.setValueAtTime(0.7, ctx.currentTime);
 
-    this.preGainNode = ctx.createGain();
-    this.preGainNode.gain.setValueAtTime(2.5, ctx.currentTime);
-
-    this.compressorNode = ctx.createDynamicsCompressor();
-    this.compressorNode.threshold.setValueAtTime(-40, ctx.currentTime);
-    this.compressorNode.knee.setValueAtTime(20, ctx.currentTime);
-    this.compressorNode.ratio.setValueAtTime(8, ctx.currentTime);
-    this.compressorNode.attack.setValueAtTime(0.003, ctx.currentTime);
-    this.compressorNode.release.setValueAtTime(0.25, ctx.currentTime);
+    this.inputGainNode = ctx.createGain();
+    this.inputGainNode.gain.setValueAtTime(1.0, ctx.currentTime);
 
     this.analyserNode = ctx.createAnalyser();
     this.analyserNode.fftSize = 256;
@@ -179,35 +169,48 @@ export class AudioGraphService {
       }
       const micRms = Math.sqrt(sum / inputBuffer.length);
       const speakerRms = this.getSpeakerRms();
+      const playedMs = this.getPlaybackDurationMs();
 
-      if (this.isAiSpeaking || speakerRms > 0.01) {
-        const dynamicThreshold = Math.max(0.25, speakerRms * 0.95 + 0.12);
-        if (micRms > dynamicThreshold) {
-          this.consecutiveSpeechFrames++;
-          if (this.consecutiveSpeechFrames >= 3) {
-            const playedMs = this.getPlaybackDurationMs();
-            this.stopPlayback();
-            this.consecutiveSpeechFrames = 0;
-            this.onLocalInterruptCallback?.(playedMs);
-          }
-        } else {
+      let shouldStreamChunk = true;
+
+      if (this.isAiSpeaking || this.isPlaybackActive()) {
+        if (playedMs < 600) {
           this.consecutiveSpeechFrames = 0;
+          shouldStreamChunk = false;
+        } else {
+          const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.1);
+          if (micRms > dynamicThreshold) {
+            this.consecutiveSpeechFrames++;
+            if (this.consecutiveSpeechFrames >= 5) {
+              this.stopPlayback();
+              this.consecutiveSpeechFrames = 0;
+              this.onLocalInterruptCallback?.(playedMs);
+              shouldStreamChunk = true;
+            } else {
+              shouldStreamChunk = false;
+            }
+          } else {
+            this.consecutiveSpeechFrames = 0;
+            shouldStreamChunk = false;
+          }
         }
       } else {
         this.consecutiveSpeechFrames = 0;
+        shouldStreamChunk = true;
       }
 
-      const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
-      if (base64) {
-        onAudioChunk(base64);
+      if (shouldStreamChunk) {
+        const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
+        if (base64) {
+          onAudioChunk(base64);
+        }
       }
     };
 
     this.sourceNode.connect(this.highpassFilterNode);
-    this.highpassFilterNode.connect(this.preGainNode);
-    this.preGainNode.connect(this.compressorNode);
-    this.compressorNode.connect(this.analyserNode);
-    this.compressorNode.connect(this.processorNode);
+    this.highpassFilterNode.connect(this.inputGainNode);
+    this.inputGainNode.connect(this.analyserNode);
+    this.inputGainNode.connect(this.processorNode);
     this.processorNode.connect(ctx.destination);
 
     if (!this.outputGainNode) {
@@ -219,11 +222,12 @@ export class AudioGraphService {
       this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
 
       this.outputGainNode.connect(this.speakerAnalyserNode);
+      this.speakerAnalyserNode.connect(ctx.destination);
 
       if (this.streamDestination) {
-        this.speakerAnalyserNode.connect(this.streamDestination);
-      } else {
-        this.speakerAnalyserNode.connect(ctx.destination);
+        try {
+          this.speakerAnalyserNode.connect(this.streamDestination);
+        } catch {}
       }
     }
 
@@ -255,11 +259,12 @@ export class AudioGraphService {
         this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
 
         this.outputGainNode.connect(this.speakerAnalyserNode);
+        this.speakerAnalyserNode.connect(ctx.destination);
 
         if (this.streamDestination) {
-          this.speakerAnalyserNode.connect(this.streamDestination);
-        } else {
-          this.speakerAnalyserNode.connect(ctx.destination);
+          try {
+            this.speakerAnalyserNode.connect(this.streamDestination);
+          } catch {}
         }
       }
 
@@ -315,11 +320,12 @@ export class AudioGraphService {
         this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
 
         this.outputGainNode.connect(this.speakerAnalyserNode);
+        this.speakerAnalyserNode.connect(ctx.destination);
 
         if (this.streamDestination) {
-          this.speakerAnalyserNode.connect(this.streamDestination);
-        } else {
-          this.speakerAnalyserNode.connect(ctx.destination);
+          try {
+            this.speakerAnalyserNode.connect(this.streamDestination);
+          } catch {}
         }
       }
 
@@ -496,17 +502,11 @@ export class AudioGraphService {
       } catch {}
       this.processorNode = null;
     }
-    if (this.compressorNode) {
+    if (this.inputGainNode) {
       try {
-        this.compressorNode.disconnect();
+        this.inputGainNode.disconnect();
       } catch {}
-      this.compressorNode = null;
-    }
-    if (this.preGainNode) {
-      try {
-        this.preGainNode.disconnect();
-      } catch {}
-      this.preGainNode = null;
+      this.inputGainNode = null;
     }
     if (this.highpassFilterNode) {
       try {

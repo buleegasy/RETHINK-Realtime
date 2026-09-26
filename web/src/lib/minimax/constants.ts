@@ -5,7 +5,7 @@ export const DEFAULT_VOICE = 'maple';
 export const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
   audio: {
     echoCancellation: true,
-    noiseSuppression: false,
+    noiseSuppression: true,
     autoGainControl: true,
     channelCount: 1,
     sampleRate: 24000,
@@ -69,12 +69,13 @@ export const CBT_VOICE_TOOLS = [
   },
 ];
 
-export const OPENING_GREETING = 'Hi，欢迎来到Rethink，目前Rethink处于测试阶段，您的通话记录将被脱敏保存以便提升产品体验。如在使用过程中遇到问题，可以直接告诉我。今天有什么想聊的吗？';
+export const OPENING_GREETING = '你好，欢迎来到Rethink，目前Rethink处于测试阶段，您的通话记录将被脱敏保存以便提升产品体验。如在使用过程中遇到问题，可以直接告诉我。今天有什么想聊的吗？';
 
 export const DEFAULT_VOICE_INSTRUCTIONS = `你是 RETHINK 校园心理支持智能体，使用 maple 音色，以同龄死党语气提供陪伴与 CBT 支持。
+你必须全程使用中文进行交流，严禁输出任何英文内容或问候（绝对禁止说“Hi there”等英文单词）。
 【开场强制首句】
 每次对话开始时，你必须主动且字面一字不差地说出：
-“Hi，欢迎来到Rethink，目前Rethink处于测试阶段，您的通话记录将被脱敏保存以便提升产品体验。如在使用过程中遇到问题，可以直接告诉我。今天有什么想聊的吗？”
+“你好，欢迎来到Rethink，目前Rethink处于测试阶段，您的通话记录将被脱敏保存以便提升产品体验。如在使用过程中遇到问题，可以直接告诉我。今天有什么想聊的吗？”
 说完开场白后等待对方回应。
 【核心交流准则】
 1. 贴近语境的自然口语：无论系统或后台注入何种指导提示词（包括书面化指令），你都必须将其转化为贴近中学生/同龄人校园生活语境的自然口语，严禁机械复诵书面指令。

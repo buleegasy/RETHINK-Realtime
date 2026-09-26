@@ -146,6 +146,9 @@ export function useVoiceSession() {
           },
           onSpeechStarted: (details) => {
             const playedMs = audioGraph.getPlaybackDurationMs();
+            if (audioGraph.isPlaybackActive() && playedMs < 600) {
+              return;
+            }
             audioGraph.stopPlayback();
             clientRef.current?.updateTurnDetection('listening');
             const itemId = details?.itemId || clientRef.current?.getCurrentResponseItemId();
