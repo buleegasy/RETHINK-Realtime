@@ -20,11 +20,37 @@ const L1_CRISIS_PATTERNS = [
   /求死|想要解脱|别救我|谁也别救我|不需要抢救|签署放弃抢救|不想再醒来|再也不想睁开眼|永远闭上眼睛|只想永远睡过去|让我安静地走|没有活下去的理由|彻底放弃自己/,
 ];
 
+const NEGATION_PATTERNS = [
+  /不(想|打算|准备|会)?死/g,
+  /没(有)?(想|打算|准备)?死/g,
+  /(没有|并未|绝不|决不|不会|不可能|不曾|未曾|并不是|千万别|千万不要|别)(想|要|会|打算|去|准备)?(想死|去死|自杀|自残|割腕|跳楼|跳河|跳江|轻生|寻死|结束生命)/g,
+  /(打消|放弃|停止|走出|摆脱|克服)(了)?(自杀|自残|轻生|想死|寻死|自虐|绝望).{0,4}(念头|想法|打算)?/g,
+  /(劝|阻止|拉住|救下).{0,6}(自杀|跳楼|跳河|轻生)/g,
+  /(没有|毫无|排除).{0,6}(自杀|自残|轻生|想死).{0,4}(念头|想法|倾向|打算)/g,
+  /(不想|不会|没有|没打算)(去)?(自残|自伤|跳楼|跳河|割腕|吞药|上吊)/g,
+  /不至?于(想不开|去死|自杀|轻生)/g,
+];
+
+export function isNegatedCrisis(text: string): boolean {
+  if (!text) return false;
+  return NEGATION_PATTERNS.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(text);
+  });
+}
+
 export function isL1Crisis(text: string): boolean {
   if (!text) return false;
   const clean = text.trim();
   if (!clean) return false;
-  return L1_CRISIS_PATTERNS.some((pattern) => pattern.test(clean));
+
+  let stripped = clean;
+  for (const pattern of NEGATION_PATTERNS) {
+    pattern.lastIndex = 0;
+    stripped = stripped.replace(pattern, '___');
+  }
+
+  return L1_CRISIS_PATTERNS.some((pattern) => pattern.test(stripped));
 }
 
 export async function checkL2FlashSafety(

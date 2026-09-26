@@ -266,7 +266,7 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     const listeningMsg = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
     expect(listeningMsg.type).toBe('session.update');
     expect(listeningMsg.session.turn_detection.threshold).toBe(0.32);
-    expect(listeningMsg.session.turn_detection.silence_duration_ms).toBe(850);
+    expect(listeningMsg.session.turn_detection.silence_duration_ms).toBe(650);
 
     client.disconnect();
   });

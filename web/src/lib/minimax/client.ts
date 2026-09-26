@@ -106,8 +106,8 @@ export class MiniMaxRealtimeClient {
     const vadConfig = config.turnDetection !== undefined ? config.turnDetection : {
       type: 'server_vad',
       threshold: 0.32,
-      prefix_padding_ms: 450,
-      silence_duration_ms: 850,
+      prefix_padding_ms: 300,
+      silence_duration_ms: 650,
       create_response: true,
     };
 
@@ -164,8 +164,8 @@ export class MiniMaxRealtimeClient {
       : {
           type: 'server_vad',
           threshold: 0.32,
-          prefix_padding_ms: 450,
-          silence_duration_ms: 850,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 650,
           create_response: true,
         };
 

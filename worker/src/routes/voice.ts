@@ -96,8 +96,8 @@ voiceRouter.get('/ws', async (c) => {
                 const turnDetection = incomingVad === null ? null : (incomingVad !== undefined ? {
                   type: 'server_vad',
                   threshold: incomingVad?.threshold ?? 0.32,
-                  prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 450,
-                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 850,
+                  prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 300,
+                  silence_duration_ms: incomingVad?.silence_duration_ms ?? 650,
                   create_response: true,
                 } : undefined);
                 const cleanSession: Record<string, unknown> = {};
@@ -268,7 +268,7 @@ voiceRouter.get('/ws', async (c) => {
                           content: [
                             {
                               type: 'input_text',
-                              text: `【后台影子认知推导与CBT策略指导】：${reasoning.cognitiveHint}`,
+                              text: `【指令】：${reasoning.cognitiveHint}`,
                             },
                           ],
                         },

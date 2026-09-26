@@ -30,6 +30,16 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
       expect(isL1Crisis('')).toBe(false);
     });
 
+    it('L1 本地过滤在识别到否定词与劝阻语境时应精准放行避免误杀', () => {
+      expect(isL1Crisis('我不想死，我还想好好活着呢')).toBe(false);
+      expect(isL1Crisis('我绝对不会去自杀的')).toBe(false);
+      expect(isL1Crisis('我没有要自杀，只是有点心烦')).toBe(false);
+      expect(isL1Crisis('我已经彻底打消了轻生的念头')).toBe(false);
+      expect(isL1Crisis('班长及时拉住并劝阻了要跳楼的同学')).toBe(false);
+      expect(isL1Crisis('我不会去自残的，放心吧')).toBe(false);
+      expect(isL1Crisis('我虽然不想死，但我买了百草枯准备喝')).toBe(true);
+    });
+
     it('L2 DeepSeek V4 Flash 语义旁路熔断应基于单字符枚举精准断言', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -99,7 +109,7 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
             {
               message: {
                 content: JSON.stringify({
-                  cognitiveHint: '来访者存在灾难化认知，建议引导其列举最坏情况发生的客观概率。',
+                  cognitiveHint: '你应该引导其列举最坏情况发生的客观概率。',
                   extractedName: '小宇',
                   coreConcern: '高考模考失利与亲子冲突',
                 }),
@@ -123,7 +133,7 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
       );
 
       expect(result).not.toBeNull();
-      expect(result?.cognitiveHint).toContain('灾难化认知');
+      expect(result?.cognitiveHint).toMatch(/^你应该/);
       expect(result?.extractedName).toBe('小宇');
       expect(result?.coreConcern).toContain('模考失利');
     });
@@ -141,6 +151,7 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
       );
 
       expect(result).not.toBeNull();
+      expect(result?.cognitiveHint).toMatch(/^你应该/);
       expect(result?.cognitiveHint).toContain('苏格拉底提问');
     });
   });

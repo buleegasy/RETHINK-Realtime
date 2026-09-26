@@ -38,8 +38,10 @@ export async function performShadowReasoning(
   const apiKey = options?.apiKey;
   if (!apiKey) {
     if (context.cbtHints && context.cbtHints.length > 0) {
+      const hint = context.cbtHints[0].trim();
+      const formatted = hint.startsWith('你应该') ? hint : `你应该${hint.replace(/^(请|建议|需|需要)/, '')}`;
       return {
-        cognitiveHint: context.cbtHints[0],
+        cognitiveHint: formatted,
       };
     }
     return null;
@@ -59,7 +61,7 @@ export async function performShadowReasoning(
     ? `既往个人情景: ${context.situationalMemory.summaryParagraph}`
     : '';
 
-  const systemPrompt = `你是校园心理支持后台影子认知大脑。结合学生最新发言、过往个人情景、对话历史与CBT检索结果，在后台异步完成深度思考，输出极简、直接的认知引导微提示（40字以内），指导前端语音助手在下一轮对话中自然引导学生。若识别到学生自我介绍的姓名或昵称，提取出来。严格以JSON格式返回：{"cognitiveHint": "引导微提示", "extractedName": "姓名或空", "coreConcern": "核心议题"}`;
+  const systemPrompt = `你是校园心理支持后台影子认知大脑。结合学生最新发言与过往情境，在后台异步完成深度思考。必须以最简洁且中立的第二人称指令输出回复指导，固定以“你应该……”开头（例如“你应该肯定其情绪，引导其评估最坏结果的发生概率”），字数严格控制在30字以内，严禁口语化废话与冗余修饰，口语化完全交由语音模型渲染。严格以JSON格式返回：{"cognitiveHint": "你应该……", "extractedName": "姓名或空", "coreConcern": "核心议题"}`;
 
   const userContent = `学生最新表述: """${clean}"""
 对话背景:
@@ -92,7 +94,9 @@ ${cbtStr || '（通用倾听与共情）'}
 
     if (!res.ok) {
       if (context.cbtHints && context.cbtHints.length > 0) {
-        return { cognitiveHint: context.cbtHints[0] };
+        const hint = context.cbtHints[0].trim();
+        const formatted = hint.startsWith('你应该') ? hint : `你应该${hint.replace(/^(请|建议|需|需要)/, '')}`;
+        return { cognitiveHint: formatted };
       }
       return null;
     }
@@ -101,14 +105,24 @@ ${cbtStr || '（通用倾听与共情）'}
     const rawContent = data?.choices?.[0]?.message?.content || '{}';
     const parsed = JSON.parse(rawContent);
 
+    let cognitiveHint = typeof parsed.cognitiveHint === 'string' ? parsed.cognitiveHint.trim() : '';
+    if (!cognitiveHint && context.cbtHints?.[0]) {
+      cognitiveHint = context.cbtHints[0].trim();
+    }
+    if (cognitiveHint && !cognitiveHint.startsWith('你应该')) {
+      cognitiveHint = `你应该${cognitiveHint.replace(/^(请|建议|需|需要)/, '')}`;
+    }
+
     return {
-      cognitiveHint: typeof parsed.cognitiveHint === 'string' ? parsed.cognitiveHint : (context.cbtHints?.[0] || ''),
+      cognitiveHint,
       extractedName: typeof parsed.extractedName === 'string' && parsed.extractedName ? parsed.extractedName : undefined,
       coreConcern: typeof parsed.coreConcern === 'string' && parsed.coreConcern ? parsed.coreConcern : undefined,
     };
   } catch {
     if (context.cbtHints && context.cbtHints.length > 0) {
-      return { cognitiveHint: context.cbtHints[0] };
+      const hint = context.cbtHints[0].trim();
+      const formatted = hint.startsWith('你应该') ? hint : `你应该${hint.replace(/^(请|建议|需|需要)/, '')}`;
+      return { cognitiveHint: formatted };
     }
     return null;
   }

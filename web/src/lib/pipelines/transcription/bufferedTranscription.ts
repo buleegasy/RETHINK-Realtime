@@ -10,7 +10,7 @@ export class BufferedTranscriptionPipeline implements ITranscriptionPipeline {
   private assistantBuffer: string = '';
   private currentTurnId: { user?: string; assistant?: string } = {};
 
-  private readonly fillerWordRegex = /^(?:[呃啊嗯]|那个|就是说|然后呢|[.\s…，。、])+/g;
+  private readonly fillerWordRegex = /^(?:[呃啊嗯哦喔哎呀]|那个|就是说|然后呢|这个|就是|[.\s…，。、])+/g;
 
   public feedDelta(speaker: 'user' | 'assistant', delta: string): void {
     if (!delta) return;
