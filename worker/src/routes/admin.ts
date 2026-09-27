@@ -487,7 +487,7 @@ adminRouter.post('/crisis/disposition', async (c) => {
     return c.json({ success: false, error: '缺少会话标识或处置状态' }, 400);
   }
 
-  const target = memorySessions.find((s) => s.session_id === session_id);
+  const target = memorySessions.find((s) => s.session_id === session_id || s.id === session_id);
   if (target) {
     target.disposition_status = status;
     if (note !== undefined) target.disposition_note = note;
@@ -499,7 +499,17 @@ adminRouter.post('/crisis/disposition', async (c) => {
       await ensureDbTables(env.DB);
       await env.DB.prepare(
         'UPDATE school_sessions SET disposition_status = ?, disposition_note = ? WHERE session_id = ?'
-      ).bind(status, note || '', session_id).run();
+      ).bind(status, note !== undefined ? note : (target?.disposition_note || ''), session_id).run();
+      if (!target) {
+        const row = await env.DB.prepare('SELECT * FROM school_sessions WHERE session_id = ?')
+          .bind(session_id)
+          .first<SessionRecord>();
+        if (row) {
+          row.disposition_status = status;
+          if (note !== undefined) row.disposition_note = note;
+          memorySessions.unshift(row);
+        }
+      }
     } catch (e) {
       console.warn('[D1 Disposition Update Error]:', e);
     }
@@ -509,7 +519,7 @@ adminRouter.post('/crisis/disposition', async (c) => {
     success: true,
     session_id,
     status,
-    note: note || '',
+    note: note !== undefined ? note : (target?.disposition_note || ''),
   });
 });
 

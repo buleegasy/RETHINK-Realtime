@@ -16,23 +16,54 @@ import { CrisisUnmaskModal } from './CrisisUnmaskModal';
 import { SessionDeleteModal } from './SessionDeleteModal';
 
 export const CrisisResponseCenter: React.FC = () => {
-  const { crises, unmaskedMap, updateDisposition, fetchCrises } = useAdminStore();
+  const { crises, unmaskedMap, updateDisposition, fetchCrises, fetchStats } = useAdminStore();
   const [selectedCrisis, setSelectedCrisis] = useState<AdminCrisisItem | null>(null);
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
   const [savingMap, setSavingMap] = useState<Record<string, boolean>>({});
+  const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({});
+  const [savedFeedback, setSavedFeedback] = useState<Record<string, string>>({});
   const [deletingCrisis, setDeletingCrisis] = useState<AdminSessionItem | null>(null);
 
   const handleStatusChange = async (sessionId: string, status: DispositionStatus) => {
+    setStatusUpdating((prev) => ({ ...prev, [sessionId]: true }));
     const note = editingNotes[sessionId];
-    await updateDisposition(sessionId, status, note);
-    await fetchCrises();
+    const ok = await updateDisposition(sessionId, status, note);
+    setStatusUpdating((prev) => ({ ...prev, [sessionId]: false }));
+    if (ok) {
+      const labels: Record<DispositionStatus, string> = {
+        pending_contact: '已恢复为待跟进状态',
+        intervened: '已介入并保存',
+        closed: '已结案并保存',
+      };
+      setSavedFeedback((prev) => ({ ...prev, [sessionId]: labels[status] || '已保存' }));
+      setTimeout(() => {
+        setSavedFeedback((prev) => {
+          const next = { ...prev };
+          delete next[sessionId];
+          return next;
+        });
+      }, 2500);
+      fetchStats();
+      fetchCrises();
+    }
   };
 
   const handleSaveNote = async (sessionId: string, currentStatus: DispositionStatus) => {
     setSavingMap((prev) => ({ ...prev, [sessionId]: true }));
     const note = editingNotes[sessionId];
-    await updateDisposition(sessionId, currentStatus, note);
+    const ok = await updateDisposition(sessionId, currentStatus, note);
     setSavingMap((prev) => ({ ...prev, [sessionId]: false }));
+    if (ok) {
+      setSavedFeedback((prev) => ({ ...prev, [sessionId]: '说明记录已保存' }));
+      setTimeout(() => {
+        setSavedFeedback((prev) => {
+          const next = { ...prev };
+          delete next[sessionId];
+          return next;
+        });
+      }, 2500);
+      fetchStats();
+    }
   };
 
   return (
@@ -129,31 +160,34 @@ export const CrisisResponseCenter: React.FC = () => {
                     <div className="flex bg-[#f0f4f9] p-1 rounded-full text-xs font-medium border border-[#c4c7c5]">
                       <button
                         onClick={() => handleStatusChange(item.sessionId, 'pending_contact')}
-                        className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                        disabled={statusUpdating[item.sessionId]}
+                        className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
                           item.dispositionStatus === 'pending_contact'
-                            ? 'bg-[#ba1a1a] text-white font-semibold'
+                            ? 'bg-[#ba1a1a] text-white font-semibold shadow-sm'
                             : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
-                        }`}
+                        } disabled:opacity-50`}
                       >
                         待跟进
                       </button>
                       <button
                         onClick={() => handleStatusChange(item.sessionId, 'intervened')}
-                        className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                        disabled={statusUpdating[item.sessionId]}
+                        className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
                           item.dispositionStatus === 'intervened'
-                            ? 'bg-[#004a77] text-white font-semibold'
+                            ? 'bg-[#004a77] text-white font-semibold shadow-sm'
                             : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
-                        }`}
+                        } disabled:opacity-50`}
                       >
                         已介入
                       </button>
                       <button
                         onClick={() => handleStatusChange(item.sessionId, 'closed')}
-                        className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                        disabled={statusUpdating[item.sessionId]}
+                        className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
                           item.dispositionStatus === 'closed'
-                            ? 'bg-[#146c2e] text-white font-semibold'
+                            ? 'bg-[#146c2e] text-white font-semibold shadow-sm'
                             : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
-                        }`}
+                        } disabled:opacity-50`}
                       >
                         已结案
                       </button>
@@ -267,8 +301,19 @@ export const CrisisResponseCenter: React.FC = () => {
                       className="px-4 py-2 rounded-xl text-xs font-medium bg-[#004a77] text-white hover:bg-[#003355] transition-colors flex items-center gap-1.5 disabled:opacity-50 shrink-0 cursor-pointer"
                     >
                       <Save className="w-3.5 h-3.5" />
-                      {savingMap[item.sessionId] ? '保存中...' : '保存'}
+                      {savingMap[item.sessionId] ? '保存中...' : '保存说明'}
                     </button>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] min-h-[1.25rem]">
+                    {savedFeedback[item.sessionId] ? (
+                      <span className="text-[#15803d] font-semibold flex items-center gap-1.5 bg-[#f0fdf4] px-2.5 py-0.5 rounded-full border border-[#bbf7d0] animate-in fade-in duration-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#16a34a]" />
+                        {savedFeedback[item.sessionId]}
+                      </span>
+                    ) : (
+                      <span className="text-[#747775]">点击状态或保存说明将即时持久化同步</span>
+                    )}
                   </div>
                 </div>
               </div>

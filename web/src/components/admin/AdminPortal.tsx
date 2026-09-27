@@ -40,7 +40,7 @@ export const AdminPortal: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
+      <div className="h-full w-full overflow-y-auto bg-[#f8f9fa] flex items-center justify-center p-4">
         <div className="bg-[#ffffff] w-full max-w-sm rounded-3xl border border-[#c4c7c5] shadow-sm p-8 space-y-6">
           <div className="text-center space-y-1">
             <h1
@@ -105,10 +105,10 @@ export const AdminPortal: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] flex flex-col text-[#1f1f1f]">
+    <div className="h-full w-full overflow-y-auto bg-[#f8f9fa] flex flex-col text-[#1f1f1f] scroll-smooth">
       <AdminNavbar onOpenSettings={() => setIsSettingsOpen(true)} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8 pb-16">
         {activeTab === 'pulse' && <CampusPulseDashboard />}
         {activeTab === 'crises' && <CrisisResponseCenter />}
         {activeTab === 'sessions' && <SessionArchiveDrawer />}

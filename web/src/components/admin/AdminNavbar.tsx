@@ -49,29 +49,29 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({ onOpenSettings }) => {
             </span>
           </div>
 
-          <nav className="hidden md:flex items-center bg-[#f0f4f9] p-1 rounded-full gap-1">
+          <nav className="flex items-center bg-[#f0f4f9] p-1 rounded-full gap-0.5 sm:gap-1 overflow-x-auto">
             <button
               onClick={() => setActiveTab('pulse')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 cursor-pointer ${
                 activeTab === 'pulse'
                   ? 'bg-[#ffffff] text-[#004a77] shadow-sm'
                   : 'text-[#444746] hover:bg-[#e1e3e1]'
               }`}
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
-              情绪大盘
+              <span>情绪大盘</span>
             </button>
 
             <button
               onClick={() => setActiveTab('crises')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium transition-colors relative ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs font-medium transition-colors relative shrink-0 cursor-pointer ${
                 activeTab === 'crises'
                   ? 'bg-[#ffffff] text-[#ba1a1a] shadow-sm font-semibold'
                   : 'text-[#444746] hover:bg-[#e1e3e1]'
               }`}
             >
               <ShieldAlert className="w-3.5 h-3.5" />
-              危机中心
+              <span>危机中心</span>
               {activeCrisisCount > 0 && (
                 <span className="bg-[#ba1a1a] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
                   {activeCrisisCount}
@@ -81,14 +81,14 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({ onOpenSettings }) => {
 
             <button
               onClick={() => setActiveTab('sessions')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 cursor-pointer ${
                 activeTab === 'sessions'
                   ? 'bg-[#ffffff] text-[#004a77] shadow-sm'
                   : 'text-[#444746] hover:bg-[#e1e3e1]'
               }`}
             >
               <Archive className="w-3.5 h-3.5" />
-              个案档案
+              <span>个案档案</span>
             </button>
           </nav>
         </div>

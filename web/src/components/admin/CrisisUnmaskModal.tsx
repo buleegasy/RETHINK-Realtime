@@ -58,8 +58,8 @@ export const CrisisUnmaskModal: React.FC<CrisisUnmaskModalProps> = ({ crisis, on
 
   return (
     <div className="fixed inset-0 z-50 bg-[#000000]/60 flex items-center justify-center p-4">
-      <div className="bg-[#ffffff] w-full max-w-lg rounded-3xl border border-[#c4c7c5] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="bg-[#fce8e6] px-6 py-4 border-b border-[#f2b8b5] flex items-center justify-between">
+      <div className="bg-[#ffffff] w-full max-w-lg max-h-[90vh] rounded-3xl border border-[#c4c7c5] shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-[#fce8e6] px-6 py-4 border-b border-[#f2b8b5] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <ShieldAlert className="w-5 h-5 text-[#ba1a1a]" />
             <h3 className="text-sm font-semibold text-[#410e0b]">
@@ -74,7 +74,7 @@ export const CrisisUnmaskModal: React.FC<CrisisUnmaskModalProps> = ({ crisis, on
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto min-h-0 flex-1">
           {!currentUnmasked ? (
             <form onSubmit={handleVerify} className="space-y-4">
               <div>

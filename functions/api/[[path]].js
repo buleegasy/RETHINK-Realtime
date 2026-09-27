@@ -280,8 +280,18 @@ export async function onRequest(context) {
         if (Array.isArray(data.crises)) {
           for (const c of data.crises) {
             const cid = c.sessionId || c.id;
-            if (cid && !cid.startsWith('sess_sample_') && !cid.startsWith('mock_') && !sessionMap.has(cid)) {
-              sessionMap.set(cid, c);
+            if (cid && !cid.startsWith('sess_sample_') && !cid.startsWith('mock_')) {
+              if (!sessionMap.has(cid)) {
+                sessionMap.set(cid, c);
+              } else {
+                const local = sessionMap.get(cid);
+                sessionMap.set(cid, {
+                  ...c,
+                  ...local,
+                  dispositionStatus: local.dispositionStatus || c.dispositionStatus,
+                  dispositionNote: local.dispositionNote !== undefined ? local.dispositionNote : c.dispositionNote,
+                });
+              }
             }
           }
         }
@@ -378,7 +388,40 @@ export async function onRequest(context) {
     });
   }
 
-  // 6. 安全归档与恢复操作
+  // 6. 危机处置状态更新与保存（待跟进 / 已介入 / 已结案）
+  if (url.pathname === '/api/admin/crisis/disposition' && context.request.method === 'POST') {
+    const payload = bodyJson || {};
+    const { session_id, status, note } = payload;
+    if (!session_id || !status) {
+      return jsonResponse({ success: false, error: '缺少会话标识或处置状态' }, 400);
+    }
+
+    const target = edgeSessions.find((s) => s.sessionId === session_id || s.id === session_id);
+    if (target) {
+      target.dispositionStatus = status;
+      if (note !== undefined) {
+        target.dispositionNote = note;
+      }
+    }
+
+    // 异步同步到上游 Worker
+    try {
+      fetch(`${WORKER_ORIGIN}/api/admin/crisis/disposition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    } catch {}
+
+    return jsonResponse({
+      success: true,
+      session_id,
+      status,
+      note: note !== undefined ? note : (target?.dispositionNote || ''),
+    });
+  }
+
+  // 7. 安全归档与恢复操作
   if (url.pathname === '/api/admin/sessions/delete' && context.request.method === 'POST') {
     const payload = bodyJson || {};
     const { session_id, secondary_passcode, reason, operator_name } = payload;
@@ -427,7 +470,7 @@ export async function onRequest(context) {
     return jsonResponse({ success: true });
   }
 
-  // 7. 教师后台一键使用 DeepSeek V4 Flash 重新提炼真实简报
+  // 8. 教师后台一键使用 DeepSeek V4 Flash 重新提炼真实简报
   if (url.pathname === '/api/admin/sessions/re-evaluate' && context.request.method === 'POST') {
     const payload = bodyJson || {};
     const { session_id } = payload;
@@ -474,7 +517,7 @@ export async function onRequest(context) {
     return jsonResponse({ success: Boolean(target), report: target?.deidentifiedReport });
   }
 
-  // 8. 其余请求默认转发上游 Worker
+  // 9. 其余请求默认转发上游 Worker
   try {
     const targetUrl = new URL(url.pathname + url.search, WORKER_ORIGIN);
     const response = await fetch(targetUrl.toString(), {

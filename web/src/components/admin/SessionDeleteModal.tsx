@@ -61,8 +61,8 @@ export const SessionDeleteModal: React.FC<SessionDeleteModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-[#ffffff] w-full max-w-lg rounded-3xl border border-[#f2b8b5] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="bg-[#fce8e6] px-6 py-4 border-b border-[#f2b8b5] flex items-center justify-between">
+      <div className="bg-[#ffffff] w-full max-w-lg max-h-[90vh] rounded-3xl border border-[#f2b8b5] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-[#fce8e6] px-6 py-4 border-b border-[#f2b8b5] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-[#ba1a1a]">
             <ShieldAlert className="w-5 h-5 shrink-0" />
             <h3 className="text-sm font-bold tracking-tight">
@@ -77,7 +77,7 @@ export const SessionDeleteModal: React.FC<SessionDeleteModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs overflow-y-auto min-h-0 flex-1">
           <div className="bg-[#f8f9fa] border border-[#e1e3e1] rounded-2xl p-4 space-y-2">
             <div className="flex items-center gap-2 text-[#1f1f1f] font-semibold text-xs">
               <AlertTriangle className="w-4 h-4 text-[#b45309]" />

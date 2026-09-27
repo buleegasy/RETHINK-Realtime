@@ -75,7 +75,25 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
     expect(mapped.realName).toBe('真实来访学生');
   });
 
-  it('更新危机处置状态与老师批注，同步更新状态树', async () => {
+  it('更新危机处置状态与老师批注，同步更新状态树与本地持久化缓存', async () => {
+    localStorage.setItem(
+      'rethink_real_sessions',
+      JSON.stringify([
+        {
+          sessionId: 'sess_999',
+          duration: 300,
+          crisisLevel: 3,
+          crisisSummary: '高危预警',
+          coreConcerns: ['人际冲突'],
+          emotionalValence: -0.8,
+          dispositionStatus: 'pending_contact',
+          dispositionNote: '',
+          createdAt: 1000,
+          hasEncryptedIdentity: true,
+        },
+      ])
+    );
+
     useAdminStore.setState({
       crises: [
         {
@@ -107,6 +125,72 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
     const updated = useAdminStore.getState().crises.find((c) => c.sessionId === 'sess_999');
     expect(updated?.dispositionStatus).toBe('intervened');
     expect(updated?.dispositionNote).toBe('已在咨询室开展线下危机评估');
+
+    // 验证本地存储已被持久化更新
+    const localRaw = localStorage.getItem('rethink_real_sessions');
+    expect(localRaw).toBeDefined();
+    const localParsed = JSON.parse(localRaw!);
+    expect(localParsed[0].dispositionStatus).toBe('intervened');
+    expect(localParsed[0].dispositionNote).toBe('已在咨询室开展线下危机评估');
+  });
+
+  it('危机处置结案后刷新页面，通过 fetchCrises 重新加载仍能保持结案状态不回退', async () => {
+    // 模拟本地已有结案记录
+    localStorage.setItem(
+      'rethink_real_sessions',
+      JSON.stringify([
+        {
+          sessionId: 'sess_crisis_closed',
+          duration: 250,
+          isCrisis: true,
+          crisisLevel: 3,
+          crisisSummary: '已脱离危机危险',
+          coreConcerns: ['学业焦虑'],
+          emotionalValence: 0.1,
+          dispositionStatus: 'closed',
+          dispositionNote: '经心理老师与家长线下介入，危机已解除并结案',
+          createdAt: 2000,
+          hasEncryptedIdentity: true,
+        },
+      ])
+    );
+
+    // 模拟后端网关尚未同步（返回旧的 pending_contact 状态）
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/admin/crises')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              crises: [
+                {
+                  sessionId: 'sess_crisis_closed',
+                  duration: 250,
+                  crisisLevel: 3,
+                  crisisSummary: '已脱离危机危险',
+                  coreConcerns: ['学业焦虑'],
+                  emotionalValence: 0.1,
+                  dispositionStatus: 'pending_contact',
+                  dispositionNote: '',
+                  createdAt: 2000,
+                  hasEncryptedIdentity: true,
+                },
+              ],
+            }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+    });
+
+    await useAdminStore.getState().fetchCrises();
+    const crisis = useAdminStore.getState().crises.find((c) => c.sessionId === 'sess_crisis_closed');
+    // 必须保留结案状态，杜绝刷新回退
+    expect(crisis?.dispositionStatus).toBe('closed');
+    expect(crisis?.dispositionNote).toBe('经心理老师与家长线下介入，危机已解除并结案');
   });
 
   function mockPasscodeFetch(endpointSubstr: string) {

@@ -133,12 +133,56 @@ export const useAdminStore = create<AdminState>((set, get) => {
       try {
         const res = await apiFetch('/api/admin/crises');
         const data = await res.json();
-        if (data.success && Array.isArray(data.crises)) {
-          const currentCount = get().crises.length;
-          set({ crises: data.crises });
-          if (data.crises.length > currentCount && get().buzzerEnabled) {
-            get().playBuzzer();
+        const backendCrises: AdminCrisisItem[] = (data.success && Array.isArray(data.crises)) ? data.crises : [];
+
+        let localSessions: AdminSessionItem[] = [];
+        try {
+          const raw = localStorage.getItem('rethink_real_sessions');
+          if (raw) {
+            localSessions = JSON.parse(raw);
           }
+        } catch {}
+
+        const crisisMap = new Map<string, AdminCrisisItem>();
+        for (const c of backendCrises) {
+          if (!c.sessionId?.startsWith('sess_sample_') && !c.sessionId?.startsWith('mock_')) {
+            crisisMap.set(c.sessionId, c);
+          }
+        }
+
+        for (const s of localSessions) {
+          if ((s.isCrisis || s.crisisLevel >= 3) && !s.isDeleted && !s.sessionId?.startsWith('sess_sample_') && !s.sessionId?.startsWith('mock_')) {
+            if (!crisisMap.has(s.sessionId)) {
+              crisisMap.set(s.sessionId, {
+                sessionId: s.sessionId,
+                duration: s.duration,
+                crisisLevel: s.crisisLevel,
+                crisisSummary: s.crisisSummary,
+                coreConcerns: s.coreConcerns,
+                emotionalValence: s.emotionalValence,
+                dispositionStatus: s.dispositionStatus || 'pending_contact',
+                dispositionNote: s.dispositionNote || '',
+                createdAt: s.createdAt,
+                hasEncryptedIdentity: s.hasEncryptedIdentity,
+              });
+            } else {
+              const remote = crisisMap.get(s.sessionId)!;
+              if (s.dispositionStatus && s.dispositionStatus !== 'pending_contact' && remote.dispositionStatus === 'pending_contact') {
+                crisisMap.set(s.sessionId, {
+                  ...remote,
+                  dispositionStatus: s.dispositionStatus,
+                  dispositionNote: s.dispositionNote || remote.dispositionNote,
+                });
+              }
+            }
+          }
+        }
+
+        const combinedCrises = Array.from(crisisMap.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        const currentCount = get().crises.length;
+        set({ crises: combinedCrises });
+        if (combinedCrises.length > currentCount && get().buzzerEnabled) {
+          get().playBuzzer();
         }
       } catch {}
     },
@@ -169,6 +213,15 @@ export const useAdminStore = create<AdminState>((set, get) => {
           if (!s.sessionId?.startsWith('sess_sample_') && !s.sessionId?.startsWith('mock_')) {
             if (!sessionMap.has(s.sessionId)) {
               sessionMap.set(s.sessionId, s);
+            } else {
+              const remote = sessionMap.get(s.sessionId)!;
+              if (s.dispositionStatus && s.dispositionStatus !== 'pending_contact' && remote.dispositionStatus === 'pending_contact') {
+                sessionMap.set(s.sessionId, {
+                  ...remote,
+                  dispositionStatus: s.dispositionStatus,
+                  dispositionNote: s.dispositionNote || remote.dispositionNote,
+                });
+              }
             }
           }
         }
@@ -229,6 +282,36 @@ export const useAdminStore = create<AdminState>((set, get) => {
     },
 
     updateDisposition: async (sessionId: string, status: DispositionStatus, note?: string) => {
+      const currentCrisis = get().crises.find((c) => c.sessionId === sessionId);
+      const currentSession = get().sessions.find((s) => s.sessionId === sessionId);
+      const finalNote = note !== undefined ? note : (currentCrisis?.dispositionNote || currentSession?.dispositionNote || '');
+
+      set((state) => ({
+        crises: state.crises.map((c) =>
+          c.sessionId === sessionId
+            ? { ...c, dispositionStatus: status, dispositionNote: finalNote }
+            : c
+        ),
+        sessions: state.sessions.map((s) =>
+          s.sessionId === sessionId
+            ? { ...s, dispositionStatus: status, dispositionNote: finalNote }
+            : s
+        ),
+      }));
+
+      try {
+        const raw = localStorage.getItem('rethink_real_sessions');
+        if (raw) {
+          const list: AdminSessionItem[] = JSON.parse(raw);
+          const updated = list.map((s) =>
+            s.sessionId === sessionId
+              ? { ...s, dispositionStatus: status, dispositionNote: finalNote }
+              : s
+          );
+          localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
+        }
+      } catch {}
+
       try {
         const res = await apiFetch('/api/admin/crisis/disposition', {
           method: 'POST',
@@ -236,26 +319,11 @@ export const useAdminStore = create<AdminState>((set, get) => {
           body: JSON.stringify({
             session_id: sessionId,
             status,
-            note: note || '',
+            note: finalNote,
           }),
         });
         const data = await res.json();
-        if (data.success) {
-          set((state) => ({
-            crises: state.crises.map((c) =>
-              c.sessionId === sessionId
-                ? { ...c, dispositionStatus: status, dispositionNote: note || c.dispositionNote }
-                : c
-            ),
-            sessions: state.sessions.map((s) =>
-              s.sessionId === sessionId
-                ? { ...s, dispositionStatus: status, dispositionNote: note || s.dispositionNote }
-                : s
-            ),
-          }));
-          return true;
-        }
-        return false;
+        return Boolean(data.success);
       } catch {
         return false;
       }

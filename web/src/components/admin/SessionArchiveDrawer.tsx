@@ -259,7 +259,7 @@ export const SessionArchiveDrawer: React.FC = () => {
       {activeSession && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-[#ffffff] w-full max-w-xl max-h-[90vh] rounded-3xl border border-[#c4c7c5] shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-[#f0f4f9] px-6 py-4 border-b border-[#e1e3e1] flex items-center justify-between">
+            <div className="bg-[#f0f4f9] px-6 py-4 border-b border-[#e1e3e1] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <Sparkles className="w-4 h-4 text-[#004a77]" />
                 <h3 className="text-sm font-bold text-[#1f1f1f]">
@@ -277,7 +277,7 @@ export const SessionArchiveDrawer: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto text-xs">
+            <div className="p-6 space-y-4 overflow-y-auto text-xs min-h-0 flex-1">
               <div className="space-y-1.5">
                 <span className="font-semibold text-[#1f1f1f] block">
                   核心议题
@@ -347,7 +347,7 @@ export const SessionArchiveDrawer: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-[#f8f9fa] px-6 py-3 border-t border-[#e1e3e1] flex items-center justify-between">
+            <div className="bg-[#f8f9fa] px-6 py-3 border-t border-[#e1e3e1] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 {!activeSession.isDeleted ? (
                   <button
