@@ -273,4 +273,64 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
 
     client.disconnect();
   });
+
+  it('打断后到达的同一 item_id 幽灵音频分片应被丢弃，不触发 onAudioDelta 回调', async () => {
+    const onAudioDelta = vi.fn();
+    const onTextDelta = vi.fn();
+    const client = new MiniMaxRealtimeClient({
+      relayUrl: 'ws://localhost:8787/api/voice/ws',
+      callbacks: { onAudioDelta, onTextDelta },
+    });
+
+    client.connect();
+    await new Promise((r) => setTimeout(r, 15));
+    const ws = (client as any).ws as MockWebSocket;
+
+    // 1. 模拟收到当前正常播报帧
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'response.output_audio.delta',
+        item_id: 'item_target_turn_1',
+        delta: 'AUDIO_CHUNK_1',
+      }),
+    });
+    expect(onAudioDelta).toHaveBeenCalledWith('AUDIO_CHUNK_1');
+    expect(client.getCurrentResponseItemId()).toBe('item_target_turn_1');
+
+    // 2. 用户打断
+    const initialEpoch = client.getPlaybackEpoch();
+    client.interrupt({ itemId: 'item_target_turn_1' });
+    expect(client.getPlaybackEpoch()).toBe(initialEpoch + 1);
+    expect(client.getCanceledResponseItemIds().has('item_target_turn_1')).toBe(true);
+
+    // 3. 网络滞后到达的在途残片 (Ghost Audio Chunk)
+    onAudioDelta.mockClear();
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'response.output_audio.delta',
+        item_id: 'item_target_turn_1',
+        delta: 'GHOST_CHUNK_LATE',
+      }),
+    });
+    // 必须被物理拦截，不可推入 audioGraph！
+    expect(onAudioDelta).not.toHaveBeenCalled();
+
+    // 4. 新一轮正常音频分片应正常放行
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'response.created',
+        response: { id: 'resp_new_turn_2' },
+      }),
+    });
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'response.output_audio.delta',
+        item_id: 'item_target_turn_2',
+        delta: 'NEW_TURN_AUDIO',
+      }),
+    });
+    expect(onAudioDelta).toHaveBeenCalledWith('NEW_TURN_AUDIO');
+
+    client.disconnect();
+  });
 });

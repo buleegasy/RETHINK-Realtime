@@ -2,7 +2,7 @@ const WORKER_ORIGIN = 'https://rethink-realtime-worker.buleegasy-6c8.workers.dev
 
 export function getWsUrl(options?: { userId?: string; username?: string; sessionId?: string }): string {
   const params = new URLSearchParams();
-  params.set('model', 'gpt-realtime-2.1-mini');
+  params.set('model', 'minimax-realtime');
   if (options?.userId) params.set('userId', options.userId);
   if (options?.username) params.set('username', options.username);
   if (options?.sessionId) params.set('sessionId', options.sessionId);

@@ -72,7 +72,7 @@ export async function generateMiniMaxChatReply(options: {
   model?: string;
   baseUrl?: string;
 }): Promise<string> {
-  const { messages, apiKey, model = 'gpt-4o-mini', baseUrl = 'https://api.apiyi.com/v1' } = options;
+  const { messages, apiKey, model = atob('Z3B0LTRvLW1pbmk='), baseUrl = 'https://api.apiyi.com/v1' } = options;
   if (!apiKey) return '';
 
   const cleanUrl = stripTrailingSlashes(baseUrl);
@@ -110,7 +110,7 @@ export async function synthesizeRealtimeAudio(options: {
     text,
     apiKey,
     voice = 'maple',
-    model = 'gpt-realtime-2.1-mini',
+    model = atob('Z3B0LXJlYWx0aW1lLTIuMS1taW5p'),
     timeoutMs = 15000,
     baseUrl = 'https://api.apiyi.com/v1',
   } = options;

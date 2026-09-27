@@ -1,8 +1,10 @@
 import type { IRagProvider } from '../pipelines/rag/types';
 import type { CBTStage } from '../../types';
+import { CbtStateMachine } from '../cbt/cbtStateMachine';
 
 export interface ToolDispatcherOptions {
   ragProvider: IRagProvider;
+  fsm?: CbtStateMachine;
   onStageChange?: (stage: CBTStage, reason?: string) => void;
   onCrisisEscalate?: (severity: string, triggerText: string) => void;
   onSaveUserInfo?: (userName: string) => void;
@@ -10,15 +12,21 @@ export interface ToolDispatcherOptions {
 
 export class RealtimeToolDispatcher {
   private readonly ragProvider: IRagProvider;
+  private readonly fsm: CbtStateMachine;
   private readonly onStageChange?: (stage: CBTStage, reason?: string) => void;
   private readonly onCrisisEscalate?: (severity: string, triggerText: string) => void;
   private readonly onSaveUserInfo?: (userName: string) => void;
 
   constructor(options: ToolDispatcherOptions) {
     this.ragProvider = options.ragProvider;
+    this.fsm = options.fsm || new CbtStateMachine();
     this.onStageChange = options.onStageChange;
     this.onCrisisEscalate = options.onCrisisEscalate;
     this.onSaveUserInfo = options.onSaveUserInfo;
+  }
+
+  public getFsm(): CbtStateMachine {
+    return this.fsm;
   }
 
   public async handleToolCall(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -38,16 +46,29 @@ export class RealtimeToolDispatcher {
         const stage = args.stage as CBTStage;
         const reason = typeof args.reason === 'string' ? args.reason : '';
         if (stage) {
-          this.onStageChange?.(stage, reason);
+          const res = this.fsm.transition(stage, reason);
+          if (res.success) {
+            this.onStageChange?.(res.stage, res.reason);
+            return { status: 'success', current_stage: res.stage, previous_stage: res.previousStage };
+          } else {
+            console.warn(`[ToolDispatcher] 状态机拦截转移: ${stage}, 原因: ${res.reason}`);
+            return {
+              status: 'rejected',
+              current_stage: this.fsm.getStage(),
+              reason: res.reason,
+              is_oscillation_blocked: Boolean(res.isOscillationBlocked),
+            };
+          }
         }
-        return { status: 'success', current_stage: stage };
+        return { status: 'invalid_stage', current_stage: this.fsm.getStage() };
       }
 
       case 'escalate_crisis': {
         const severity = (args.severity as string) || 'high';
         const triggerText = (args.trigger_text as string) || '';
+        this.fsm.escalateCrisis(triggerText || severity);
         this.onCrisisEscalate?.(severity, triggerText);
-        return { status: 'acknowledged', action: 'crisis_intervention_triggered' };
+        return { status: 'acknowledged', action: 'crisis_intervention_triggered', current_stage: 'Crisis_Escalation' };
       }
 
       case 'save_user_info': {

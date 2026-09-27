@@ -201,13 +201,20 @@ export function useVoiceSession() {
             }
             const userSeg = transcriptionRef.current.finalizeCurrentTurn('user');
             if (userSeg?.text) {
+              const currentStage = useBoothStore.getState().cbtStage;
               addDialogueTurn({
                 id: userSeg.id,
                 role: 'user',
                 content: userSeg.text,
                 timestamp: userSeg.timestamp,
-                stage: useBoothStore.getState().cbtStage,
+                stage: currentStage,
               });
+              if (toolDispatcherRef.current) {
+                const pacing = toolDispatcherRef.current.getFsm().recordTurn('user');
+                if (pacing.autoPromotedStage) {
+                  setCBTStage(pacing.autoPromotedStage);
+                }
+              }
             }
           },
           onToolCall: async (toolCall) => {
@@ -217,6 +224,7 @@ export function useVoiceSession() {
           },
           onCrisisInterception: (details) => {
             audioGraph.stopPlayback(50);
+            toolDispatcherRef.current?.getFsm().escalateCrisis(details.message);
             setCBTStage('Crisis_Escalation');
             setCrisisOverlayOpen(true);
             addDialogueTurn({

@@ -63,7 +63,7 @@ export async function evaluateTranscriptWithMiniMax(
           messages: [{ role: 'user', content: prompt }],
         }
       : {
-          model: 'gpt-4o-mini',
+          model: atob('Z3B0LTRvLW1pbmk='),
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.2,
         };

@@ -61,6 +61,31 @@ describe('AudioGraphService 打断音量渐弱与状态管理验证', () => {
     expect((service as any).preRollChunks).toEqual([]);
   });
 
+  it('新音频到达时若处于渐弱定时器激活态，应立刻取消定时器并恢复增益至 0.85', async () => {
+    await service.initAudioContext();
+    const outputGain = (service as any).outputGainNode;
+
+    service.setAiSpeaking(true);
+    service.stopPlayback(150);
+
+    expect((service as any).stopPlaybackTimer).not.toBeNull();
+
+    // 模拟新音频到达 (空 base64 或 1 字节)
+    // 构造一个最小的有效 PCM16 base64 (2 个采样点 4 字节)
+    const pcmSamples = new Int16Array([1000, -1000, 2000, -2000]);
+    const bytes = new Uint8Array(pcmSamples.buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const validBase64 = btoa(binary);
+
+    const setValueSpy = vi.spyOn(outputGain.gain, 'setValueAtTime');
+    service.enqueueAudioChunk(validBase64);
+
+    // 确认停播定时器已被强行取消
+    expect((service as any).stopPlaybackTimer).toBeNull();
+    expect(setValueSpy).toHaveBeenCalledWith(0.85, expect.any(Number));
+  });
+
   it('cleanup 应安全释放所有节点与上下文', async () => {
     await service.initAudioContext();
     expect(() => service.cleanup()).not.toThrow();

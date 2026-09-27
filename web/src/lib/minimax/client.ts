@@ -32,6 +32,8 @@ export class MiniMaxRealtimeClient {
   private messageQueue: Record<string, unknown>[] = [];
   private currentResponseItemId: string | null = null;
   private currentToolCallItemId: string | null = null;
+  private playbackEpoch: number = 0;
+  private readonly canceledResponseItemIds: Set<string> = new Set();
 
   constructor(options?: MiniMaxClientOptions) {
     this.options = options || {};
@@ -44,6 +46,14 @@ export class MiniMaxRealtimeClient {
 
   public getCurrentResponseItemId(): string | null {
     return this.currentResponseItemId;
+  }
+
+  public getPlaybackEpoch(): number {
+    return this.playbackEpoch;
+  }
+
+  public getCanceledResponseItemIds(): ReadonlySet<string> {
+    return this.canceledResponseItemIds;
   }
 
   public connect(): void {
@@ -222,6 +232,7 @@ export class MiniMaxRealtimeClient {
   }
 
   public interrupt(options?: { itemId?: string; audioEndMs?: number }): void {
+    this.playbackEpoch++;
     if (this.currentToolCallItemId) {
       this.send({
         type: 'conversation.item.delete',
@@ -233,9 +244,17 @@ export class MiniMaxRealtimeClient {
       type: 'response.cancel',
     });
     const targetItemId = options?.itemId || this.currentResponseItemId;
-    if (targetItemId && typeof options?.audioEndMs === 'number') {
-      this.truncateItem(targetItemId, options.audioEndMs);
+    if (targetItemId) {
+      this.canceledResponseItemIds.add(targetItemId);
+      if (this.canceledResponseItemIds.size > 20) {
+        const oldest = this.canceledResponseItemIds.values().next().value;
+        if (oldest) this.canceledResponseItemIds.delete(oldest);
+      }
+      if (typeof options?.audioEndMs === 'number') {
+        this.truncateItem(targetItemId, options.audioEndMs);
+      }
     }
+    this.currentResponseItemId = null;
   }
 
   public sendToolOutput(callId: string, output: Record<string, unknown>): void {
@@ -298,6 +317,11 @@ export class MiniMaxRealtimeClient {
       }
 
       if (type === 'response.output_audio.delta' || type === 'response.audio.delta') {
+        const itemId = event.item_id || event.item?.id || this.currentResponseItemId;
+        if (itemId && this.canceledResponseItemIds.has(itemId)) {
+          // 物理丢弃在途到达的幽灵音频分片，杜绝打断后多说半句
+          return;
+        }
         const audio = event.delta || event.audio;
         if (audio) {
           this.callbacks.onAudioDelta?.(audio);
@@ -310,6 +334,10 @@ export class MiniMaxRealtimeClient {
         type === 'response.output_audio_transcript.delta' ||
         type === 'response.audio_transcript.delta'
       ) {
+        const itemId = event.item_id || event.item?.id || this.currentResponseItemId;
+        if (itemId && this.canceledResponseItemIds.has(itemId)) {
+          return;
+        }
         const text = event.delta || event.text || event.transcript || (event as any).transcript;
         if (text) {
           this.callbacks.onTextDelta?.(text);
@@ -332,6 +360,7 @@ export class MiniMaxRealtimeClient {
       }
 
       if (type === 'response.created') {
+        this.playbackEpoch++;
         this.callbacks.onTurnStart?.();
       }
 

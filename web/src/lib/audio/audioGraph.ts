@@ -1,16 +1,19 @@
 import { resampleAndEncodePCM, base64PCMToAudioBuffer } from './audioResampler';
 import { AUDIO_CONSTRAINTS } from '../minimax/constants';
+import { AUDIO_WORKLET_PROCESSOR_CODE, WORKLET_PROCESSOR_NAME } from './workletProcessor';
 
 export class AudioGraphService {
   private audioCtx: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
   private processorNode: ScriptProcessorNode | null = null;
   private analyserNode: AnalyserNode | null = null;
   private speakerAnalyserNode: AnalyserNode | null = null;
   private outputGainNode: GainNode | null = null;
   private inputGainNode: GainNode | null = null;
   private highpassFilterNode: BiquadFilterNode | null = null;
+  private warmUpFrames: number = 4;
 
   private nextPlayTime: number = 0;
   private scheduledSources: AudioBufferSourceNode[] = [];
@@ -28,6 +31,7 @@ export class AudioGraphService {
   private isJitterBuffering: boolean = true;
   private readonly JITTER_TARGET_SEC: number = 0.12;
   private readonly JITTER_REBUFFER_SEC: number = 0.05;
+  private stopPlaybackTimer: ReturnType<typeof setTimeout> | null = null;
 
   public async initAudioContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
@@ -128,81 +132,42 @@ export class AudioGraphService {
     this.analyserNode.fftSize = 256;
     this.analyserNode.smoothingTimeConstant = 0.5;
 
-    let warmUpFrames = 4;
-    this.processorNode = ctx.createScriptProcessor(2048, 1, 1);
-    this.processorNode.onaudioprocess = (e) => {
-      const out = e.outputBuffer.getChannelData(0);
-      out.fill(0);
-      if (this.isMuted) return;
-
-      if (warmUpFrames > 0) {
-        warmUpFrames--;
-        return;
-      }
-
-      const inputBuffer = e.inputBuffer.getChannelData(0);
-
-      let sum = 0;
-      for (const v of inputBuffer) {
-        sum += v * v;
-      }
-      const micRms = Math.sqrt(sum / inputBuffer.length);
-      const speakerRms = this.getSpeakerRms();
-      const playedMs = this.getPlaybackDurationMs();
-
-      let shouldStreamChunk = true;
-
-      if (this.isAiSpeaking || this.isPlaybackActive()) {
-        // AI 刚开始播报的 250ms 内为扬声器初始瞬态抑制窗（对齐官方 App 瞬态保护）
-        if (playedMs < 250) {
-          this.consecutiveSpeechFrames = 0;
-          this.preRollChunks = [];
-          return;
-        }
-
-        const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.1);
-        if (micRms > dynamicThreshold) {
-          this.consecutiveSpeechFrames++;
-          const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
-          if (base64) {
-            this.preRollChunks.push(base64);
-            if (this.preRollChunks.length > 6) {
-              this.preRollChunks.shift();
-            }
-          }
-
-          if (this.consecutiveSpeechFrames >= 4) {
-            // 打断判定达标（连续 4 帧约 170ms）：执行平滑渐弱与前置缓冲回溯补发
-            const bufferedChunks = [...this.preRollChunks];
-            this.stopPlayback(150);
-            this.consecutiveSpeechFrames = 0;
-            this.preRollChunks = [];
-
-            // 零字头丢失补偿：将插话判定期间暂存的前置音频块完整补发给服务端
-            for (const chunk of bufferedChunks) {
-              onAudioChunk(chunk);
-            }
-            this.onLocalInterruptCallback?.(playedMs);
-          }
-        } else {
-          this.consecutiveSpeechFrames = 0;
-          this.preRollChunks = [];
-        }
-      } else {
-        this.consecutiveSpeechFrames = 0;
-        this.preRollChunks = [];
-        const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
-        if (base64) {
-          onAudioChunk(base64);
-        }
-      }
-    };
-
+    this.warmUpFrames = 4;
     this.sourceNode.connect(this.highpassFilterNode);
     this.highpassFilterNode.connect(this.inputGainNode);
     this.inputGainNode.connect(this.analyserNode);
-    this.inputGainNode.connect(this.processorNode);
-    this.processorNode.connect(ctx.destination);
+
+    let useWorklet = false;
+    if (
+      typeof window !== 'undefined' &&
+      ctx.audioWorklet &&
+      typeof ctx.audioWorklet.addModule === 'function' &&
+      typeof AudioWorkletNode !== 'undefined'
+    ) {
+      try {
+        const blob = new Blob([AUDIO_WORKLET_PROCESSOR_CODE], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+        await ctx.audioWorklet.addModule(blobUrl);
+        URL.revokeObjectURL(blobUrl);
+
+        this.workletNode = new AudioWorkletNode(ctx, WORKLET_PROCESSOR_NAME);
+        this.workletNode.port.onmessage = (event: MessageEvent) => {
+          if (event.data?.eventType === 'audio_chunk' && event.data.buffer) {
+            this.handleInputChunk(event.data.buffer, ctx, onAudioChunk);
+          }
+        };
+
+        this.inputGainNode.connect(this.workletNode);
+        this.workletNode.connect(ctx.destination);
+        useWorklet = true;
+      } catch {
+        useWorklet = false;
+      }
+    }
+
+    if (!useWorklet) {
+      this.setupScriptProcessorFallback(ctx, onAudioChunk);
+    }
 
     this.ensureOutputGraph(ctx);
 
@@ -216,6 +181,87 @@ export class AudioGraphService {
     }
 
     this.nextPlayTime = ctx.currentTime;
+  }
+
+  private handleInputChunk(
+    inputBuffer: Float32Array,
+    ctx: AudioContext,
+    onAudioChunk: (pcm16Base64: string) => void
+  ): void {
+    if (this.isMuted) return;
+
+    if (this.warmUpFrames > 0) {
+      this.warmUpFrames--;
+      return;
+    }
+
+    let sum = 0;
+    for (const v of inputBuffer) {
+      sum += v * v;
+    }
+    const micRms = Math.sqrt(sum / inputBuffer.length);
+    const speakerRms = this.getSpeakerRms();
+    const playedMs = this.getPlaybackDurationMs();
+
+    if (this.isAiSpeaking || this.isPlaybackActive()) {
+      // AI 刚开始播报的 250ms 内为扬声器初始瞬态抑制窗（对齐官方 App 瞬态保护）
+      if (playedMs < 250) {
+        this.consecutiveSpeechFrames = 0;
+        this.preRollChunks = [];
+        return;
+      }
+
+      const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.1);
+      if (micRms > dynamicThreshold) {
+        this.consecutiveSpeechFrames++;
+        const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
+        if (base64) {
+          this.preRollChunks.push(base64);
+          if (this.preRollChunks.length > 6) {
+            this.preRollChunks.shift();
+          }
+        }
+
+        if (this.consecutiveSpeechFrames >= 4) {
+          // 打断判定达标（连续 4 帧约 170ms）：执行平滑渐弱与前置缓冲回溯补发
+          const bufferedChunks = [...this.preRollChunks];
+          this.stopPlayback(150);
+          this.consecutiveSpeechFrames = 0;
+          this.preRollChunks = [];
+
+          // 零字头丢失补偿：将插话判定期间暂存的前置音频块完整补发给服务端
+          for (const chunk of bufferedChunks) {
+            onAudioChunk(chunk);
+          }
+          this.onLocalInterruptCallback?.(playedMs);
+        }
+      } else {
+        this.consecutiveSpeechFrames = 0;
+        this.preRollChunks = [];
+      }
+    } else {
+      this.consecutiveSpeechFrames = 0;
+      this.preRollChunks = [];
+      const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
+      if (base64) {
+        onAudioChunk(base64);
+      }
+    }
+  }
+
+  private setupScriptProcessorFallback(ctx: AudioContext, onAudioChunk: (pcm16Base64: string) => void): void {
+    this.processorNode = ctx.createScriptProcessor(2048, 1, 1);
+    this.processorNode.onaudioprocess = (e) => {
+      const out = e.outputBuffer.getChannelData(0);
+      out.fill(0);
+      const inputBuffer = e.inputBuffer.getChannelData(0);
+      this.handleInputChunk(inputBuffer, ctx, onAudioChunk);
+    };
+
+    if (this.inputGainNode) {
+      this.inputGainNode.connect(this.processorNode);
+    }
+    this.processorNode.connect(ctx.destination);
   }
 
   private ensureOutputGraph(ctx: AudioContext): GainNode {
@@ -356,6 +402,17 @@ export class AudioGraphService {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
 
+    // 若当前仍有未决的渐弱停播定时器，立即取消并瞬间拉平音量，杜绝新语音吞音
+    if (this.stopPlaybackTimer) {
+      clearTimeout(this.stopPlaybackTimer);
+      this.stopPlaybackTimer = null;
+      try {
+        this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
+        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+      } catch {}
+      this.nextPlayTime = Math.max(ctx.currentTime + 0.025, this.nextPlayTime);
+    }
+
     const buffer = base64PCMToAudioBuffer(base64Chunk, ctx, 24000);
     if (buffer.length <= 1) return;
 
@@ -378,6 +435,12 @@ export class AudioGraphService {
     if (!this.audioCtx || !this.outputGainNode) return;
     const ctx = this.audioCtx;
     const wasSpeaking = this.isAiSpeaking;
+
+    if (this.stopPlaybackTimer) {
+      clearTimeout(this.stopPlaybackTimer);
+      this.stopPlaybackTimer = null;
+    }
+
     this.playbackStartCtxTime = null;
     this.setAiSpeaking(false);
     this.isJitterBuffering = true;
@@ -424,7 +487,8 @@ export class AudioGraphService {
       }
     }
 
-    setTimeout(() => {
+    this.stopPlaybackTimer = setTimeout(() => {
+      this.stopPlaybackTimer = null;
       for (const s of sourcesToStop) {
         try {
           s.disconnect();
@@ -469,11 +533,21 @@ export class AudioGraphService {
       } catch {}
       this.boundDeviceChangeListener = null;
     }
+    if (this.workletNode) {
+      try {
+        this.workletNode.disconnect();
+      } catch {}
+      this.workletNode = null;
+    }
     if (this.processorNode) {
       try {
         this.processorNode.disconnect();
       } catch {}
       this.processorNode = null;
+    }
+    if (this.stopPlaybackTimer) {
+      clearTimeout(this.stopPlaybackTimer);
+      this.stopPlaybackTimer = null;
     }
     if (this.inputGainNode) {
       try {

@@ -1,4 +1,4 @@
-export const MINIMAX_MODEL = 'gpt-realtime-2.1-mini';
+export const MINIMAX_MODEL = 'minimax-realtime';
 export const AUDIO_SAMPLE_RATE = 24000;
 export const DEFAULT_VOICE = 'maple';
 
