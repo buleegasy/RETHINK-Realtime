@@ -53,7 +53,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-6">
+      <main className="flex-1 min-h-0 flex flex-col items-center justify-center p-3 sm:p-6 overflow-visible">
         <VoiceOrb
           status={sessionStatus}
           duplexPhase={duplexPhase}
@@ -62,18 +62,18 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           onClick={isActive ? onEndCall : onStartCall}
         />
         {isActive && duplexPhase === 'listening' && (
-          <p className="mt-8 text-xs font-mono text-black/40 tracking-wider">
+          <p className="mt-4 sm:mt-8 text-xs font-mono text-black/40 tracking-wider text-center">
             请随时开口说话，我在听...
           </p>
         )}
         {isActive && duplexPhase === 'thinking' && (
-          <p className="mt-8 text-xs font-mono text-black/40 tracking-wider animate-pulse">
+          <p className="mt-4 sm:mt-8 text-xs font-mono text-black/40 tracking-wider animate-pulse text-center">
             正在思考中...
           </p>
         )}
       </main>
 
-      <footer className="w-full flex items-center justify-center pb-12 pt-4 px-6">
+      <footer className="w-full flex items-center justify-center pb-6 sm:pb-12 pt-2 sm:pt-4 px-4 sm:px-6 shrink-0">
         {!isActive ? (
           <button
             type="button"

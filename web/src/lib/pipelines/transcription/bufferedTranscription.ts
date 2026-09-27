@@ -1,4 +1,5 @@
 import type { ITranscriptionPipeline, TranscriptSegment, TranscriptSubscriber } from './types';
+import { safeRandomId } from '../../utils';
 
 export class BufferedTranscriptionPipeline implements ITranscriptionPipeline {
   public readonly name = 'BufferedTranscriptionPipeline';
@@ -17,7 +18,7 @@ export class BufferedTranscriptionPipeline implements ITranscriptionPipeline {
 
     if (speaker === 'user') {
       if (!this.currentTurnId.user) {
-        this.currentTurnId.user = `user_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+        this.currentTurnId.user = safeRandomId('user');
       }
       this.userBuffer += delta;
       this.notifySubscribers({
@@ -29,7 +30,7 @@ export class BufferedTranscriptionPipeline implements ITranscriptionPipeline {
       });
     } else {
       if (!this.currentTurnId.assistant) {
-        this.currentTurnId.assistant = `assistant_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+        this.currentTurnId.assistant = safeRandomId('assistant');
       }
       this.assistantBuffer += delta;
       this.notifySubscribers({

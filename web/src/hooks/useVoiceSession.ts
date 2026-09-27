@@ -9,6 +9,7 @@ import { SlidingWindowCompressor } from '../lib/pipelines/context/slidingWindowC
 import { WebCryptoAesGcm } from '../lib/pipelines/security/webCryptoAesGcm';
 import { BufferedTranscriptionPipeline } from '../lib/pipelines/transcription/bufferedTranscription';
 import { DeidentifiedCbtReportGenerator } from '../lib/pipelines/reporting/deidentifiedReportGenerator';
+import { safeRandomId } from '../lib/utils';
 import { apiFetch } from '../lib/api';
 import type { CBTStage, DialogueTurn } from '../types';
 
@@ -86,7 +87,7 @@ export function useVoiceSession() {
     setSessionStatus('connecting');
     setDuplexPhase('thinking');
 
-    sessionIdRef.current = `kiosk_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+    sessionIdRef.current = safeRandomId('kiosk');
     transcriptionRef.current.reset();
 
     try {
@@ -338,7 +339,7 @@ export function useVoiceSession() {
     const turns = useBoothStore.getState().dialogueHistory;
     const duration = useBoothStore.getState().callDuration;
     const stageReached = useBoothStore.getState().cbtStage;
-    const currentSessionId = sessionIdRef.current || `kiosk_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+    const currentSessionId = sessionIdRef.current || safeRandomId('kiosk');
 
     if (turns.length > 0 || duration > 0) {
       try {
