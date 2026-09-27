@@ -161,24 +161,29 @@ export async function generateStructuredReportWithFlash(
   const model = options?.model || DEEPSEEK_V4_FLASH_MODEL;
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
-  const prompt = `你是中学校园心理危机干预与脱敏评估专家。请针对以下学生的实际倾诉对话文本进行严谨的心理学评估与个案建档，所有字段必须严格结合对话具体内容真实提取，严禁生成任何脱离对话的假数据或泛化套话。
-【特别原则】：
-1. 若本次通话仅为日常闲聊、测试打招呼、设备尝试，核心议题输出 ["日常交流"]，认知特点必须输出 ["表达自然，未见负向认知偏差"]，严禁使用“属于阶段性现实困扰”或强加心理困扰！
-2. 微行动练习（homeworkAction）：若学生无实质困扰或对话中未达成具体微行动，必须直接输出空字符串 ""！没有微行动练习就绝对不要写，严禁捏造“写下感受”、“深呼吸”等模板化小练习！
+  const prompt = `你是经验丰富的校园心理专职督导老师。请针对以下学生实际倾诉对话文本，为学校心理专职教师撰写一份自然、客观、求实的“来访情绪评估简报”。
+
+【去格式化与求实要求（极其重要，严格遵守）】：
+1. 坚决杜绝八股文与机械填表感！语言必须像一位资深心理老师亲笔书写的个案会谈纪要，富有教育温度、专业敏锐度与求实态度，直接讲述学生的真实状态与来访事实。
+2. 普通闲聊与初次体验绝不能生搬硬套心理问题：若学生只是打招呼、试探、好奇或日常闲聊，如实记录为日常探索与放松交流，严禁生造焦虑或挫折。
+3. 叙述要连贯自然：
+   - deltaNotes（会谈观察与心境演进）：写一段50-90字的连贯纪要，真实概括学生在电话里说了什么核心事情，进线时是怎样的心境，交谈中如何反应，离开时状态如何，读起来是一篇自然流畅的会谈纪要。
+   - cognitiveDistortions（思维与表达观察）：结合学生对话真实表现，给出一句自然的专业观察评述（如“表达自然坦诚，思维清晰，未见负向认知偏差”；若确实存在特定思维局限，如考前灾难化，请用具体语言温和点明）。
+   - homeworkAction（微行动建议）：仅当学生主动探讨了具体困扰且对话中自然形成了切实可行的微行动时才写；若为普通闲聊、试探或未达成共识，必须直接输出 ""（空字符串），严禁捏造任何假练习！
 
 严格返回 JSON 格式结果：
 {
-  "crisisLevel": 0到3的整数(0正常稳定，1轻度人际学业压力，2中度焦虑抑郁崩溃，3自杀自残极高危),
+  "crisisLevel": 0到3的整数(0正常稳定，1轻度压力，2中度焦虑，3自杀自残极高危),
   "isCrisis": 布尔值(crisisLevel>=3为true),
-  "crisisSummary": "紧密结合学生真实话语的一句话危机与议题判定说明",
-  "coreConcerns": ["从实际对话中真实识别出的核心议题；若为纯打招呼或闲聊测试，必须输出['日常交流']，严禁捏造虚假困扰"],
-  "emotionalValence": -1.0到1.0的浮点数(-1极其消极，0中立，1积极),
-  "cognitiveDistortions": ["从学生话语中真实识别出的认知偏差；若未发现明显负向偏差或为普通交流，填写['表达自然，未见负向认知偏差']，严禁使用'属于阶段性现实困扰'等套话"],
-  "initialEmotion": "进线时学生的初始情绪状态（根据对话前半段真实表现提取）",
-  "finalEmotion": "挂机时学生的情绪状态变化（根据对话结尾真实表现提取）",
-  "deltaNotes": "情绪轨迹简述（结合学生在对话中的具体转化事实）",
-  "homeworkAction": "若学生明确提及具体问题且达成行动方案，总结1项切实微行动；若为普通闲聊或无明确微行动，必须直接输出空字符串\"\"",
-  "keyTakeaways": ["根据本次对话核心议题沉淀的1-2条关键认知启发，闲聊可为空数组[]"],
+  "crisisSummary": "一句话客观判定说明",
+  "coreConcerns": ["从实际对话中真实识别出的1-2个核心议题，普通闲聊填日常交流"],
+  "emotionalValence": -1.0到1.0的浮点数,
+  "cognitiveDistortions": ["结合对话的自然思维观察评述，闲聊填表达自然流畅未见负向认知偏差"],
+  "initialEmotion": "进线时真实心境，如好奇、焦虑、平静",
+  "finalEmotion": "挂机时真实状态，如轻松、释怀、平稳",
+  "deltaNotes": "50-90字的连贯会谈纪要与心境演进叙述",
+  "homeworkAction": "若有切实微行动则填写，普通闲聊或无明确微行动必须输出\"\"",
+  "keyTakeaways": ["根据本次交流提炼的1条启发或空"],
   "deidentifiedTranscript": "对原对话彻底脱敏后的文本(自动隐去学生姓名、班级、电话等隐私)",
   "actionItems": ["后续跟进事项清单1", "后续跟进事项清单2"]
 }
@@ -272,17 +277,18 @@ export async function generateWeeklySummaryDeepSeekV4Flash(
 ): Promise<string> {
   const { totalSessions, crisisCount, avgValence, topConcerns } = stats;
   if (totalSessions === 0) {
-    return '本周暂无学生进线倾诉，校园情绪状态整体平稳，各终端正常待命。';
+    return '当前暂无足够的学生来访数据，各电话亭终端正常就绪待命。';
   }
 
   const concernNames = (topConcerns || []).map((c) => c.name).filter(Boolean);
   const concernStr = concernNames.length > 0 ? concernNames.join('、') : '日常闲聊与尝试';
 
+  // 客观真实的专业观察兜底（彻底去格式化，严格 20-50 字）
   const fallback = crisisCount > 0
-    ? `本周记录${totalSessions}次倾诉，监测到${crisisCount}起需关注预警，议题多集中于${concernStr.slice(0, 15)}，请老师重点跟进。`
+    ? `近期校园监测到个别情绪高压个案，主要涉及${concernStr.slice(0, 12)}等生活事件，建议专职老师重点跟进，常规学生心境整体受控。`
     : (concernNames.length === 0 || concernStr.includes('闲聊') || concernStr.includes('日常'))
-      ? `本周学生通话以日常闲聊与设备体验为主，整体情绪平稳自然，未监测到群体性心理压力。`
-      : `本周倾诉主要围绕${concernStr.slice(0, 16)}展开，平均情绪效价为${avgValence > 0 ? '+' + avgValence : avgValence}，整体处于常规调节状态。`;
+      ? `本周学生多以电话亭功能探索与轻量寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。`
+      : `本周来访焦点主要聚焦于${concernStr.slice(0, 12)}，学生在倾诉后情绪多能得到自然舒缓与理清，校园心境总体平稳。`;
 
   if (!options?.apiKey) {
     return fallback;
@@ -292,17 +298,17 @@ export async function generateWeeklySummaryDeepSeekV4Flash(
   const model = options?.model || DEEPSEEK_V4_FLASH_MODEL;
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
-  const prompt = `你是学校心理健康管理专家。请根据以下本周脱敏统计事实，生成一段20-50字的“本周情绪摘要”，供学校心理老师大屏参阅。
-【严格要求】：
-1. 保持绝对客观中立、求实的语言，绝对不允许捏造任何未发生的困扰或模板套话。
-2. 若以日常闲聊、问候为主，如实指出整体平稳自然，绝不能无中生有夸大困扰。
-3. 字数严格控制在20至50字之间，简洁精炼，直接输出一段话，不要带任何标题、前缀、引号或编号。
+  const prompt = `你是经验丰富的校园心理专职督导老师。请结合本周校园倾诉的整体情况，撰写一段20-50字的大屏“本周心境与趋势观察”。
 
-【统计事实】：
-- 累计通话：${totalSessions}次
-- 需关注危机预警：${crisisCount}起
-- 平均情绪效价：${avgValence > 0 ? '+' + avgValence : avgValence} (-1至+1区间)
-- 主要议题分布：${concernStr}
+【核心要求（坚决去格式化、去八股文）】：
+1. 绝对严禁写成机械汇报或数据填空！（大屏上方已有数字卡片，绝对不要出现“本周记录X次倾诉”、“监测到Y起危机”、“平均情绪效价为Z”等机械复读数字的套话）。
+2. 请用富有教育温度与专业敏锐度的连贯叙述，提炼本周学生群体的真实心境氛围与情绪动态（例如：若以体验闲聊为主，说明氛围轻松自然、未现压力聚积；若涉及学业或同伴，说明具体心理关切与调节状态）。
+3. 语言绝对客观求实，不夸大、不臆测、不打官腔，一气呵成，字数严格在20至50字之间。直接输出纯文本，不要任何标题、引号或分点。
+
+【本周倾诉背景参考】：
+- 主要涉及主题：${concernStr}
+- 情绪总体基调：${crisisCount > 0 ? '存在个别需线下重点关怀的突发高压事件' : (avgValence >= 0.2 ? '整体积极轻松' : (avgValence <= -0.3 ? '普遍承载一定现实压力与负重感' : '整体处于常态平稳交流状态'))}
+- 倾诉样本活跃度：${totalSessions <= 3 ? '少量探索性进线' : '常态多频进线'}
 `;
 
   try {

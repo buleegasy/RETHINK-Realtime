@@ -13,6 +13,7 @@ import {
   RotateCcw,
   ShieldAlert,
   RefreshCw,
+  Activity,
 } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
 import type { AdminSessionItem } from '../../types';
@@ -277,19 +278,33 @@ export const SessionArchiveDrawer: React.FC = () => {
               </button>
             </div>
 
+            {/* Modal Body: 自然叙事式个案纪要（去表单化、去机械八股感） */}
             <div className="p-6 space-y-4 overflow-y-auto text-xs min-h-0 flex-1">
-              <div className="space-y-1.5">
-                <span className="font-semibold text-[#1f1f1f] block">
-                  核心议题
-                </span>
-                <div className="flex flex-wrap gap-2">
+              {/* 1. 会谈基本背景与主题标签 */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f8f9fa] border border-[#e1e3e1] p-3.5 rounded-2xl">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#e8f0fe] text-[#004a77] flex items-center justify-center font-bold text-xs shrink-0">
+                    {activeSession.deidentifiedReport?.userDisplayName?.[0] || '访'}
+                  </div>
+                  <div>
+                    <span className="font-bold text-[#1f1f1f] text-sm block">
+                      {activeSession.deidentifiedReport?.userDisplayName || `来访者 #S${activeSession.sessionId.slice(-4)}`}
+                    </span>
+                    <span className="text-[11px] text-[#747775]">
+                      通话时长 {Math.floor(activeSession.duration / 60)}分{activeSession.duration % 60}秒 · {new Date(activeSession.createdAt * 1000).toLocaleString('zh-CN')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 涉及议题标签 */}
+                <div className="flex flex-wrap gap-1.5">
                   {(activeSession.coreConcerns && activeSession.coreConcerns.length > 0
                     ? activeSession.coreConcerns
-                    : ['日常交流与倾诉']
+                    : ['日常交流']
                   ).map((item: string, i: number) => (
                     <span
                       key={i}
-                      className="px-3 py-1 bg-[#f0f4f9] text-[#004a77] rounded-full font-medium"
+                      className="px-2.5 py-1 bg-[#ffffff] border border-[#d2e3fc] text-[#004a77] rounded-full text-[11px] font-medium shadow-2xs"
                     >
                       {item}
                     </span>
@@ -297,11 +312,40 @@ export const SessionArchiveDrawer: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <span className="font-semibold text-[#1f1f1f] block">
-                  认知特点
+              {/* 2. 心境演进与倾诉纪要 (自然叙事，不再是僵硬框框) */}
+              <div className="bg-[#ffffff] border border-[#e1e3e1] rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-[#f0f0f0] pb-2.5">
+                  <span className="font-semibold text-[#1f1f1f] text-xs flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-[#004a77]" />
+                    心境演进与倾诉纪要
+                  </span>
+
+                  {/* 自然的心境流转胶囊 */}
+                  <div className="flex items-center gap-1.5 text-[11px] bg-[#f0fdf4] text-[#166534] px-2.5 py-1 rounded-full border border-[#bbf7d0]">
+                    <span className="text-[#5e5e5e]">进线:</span>
+                    <span className="font-medium text-[#1f1f1f]">
+                      {activeSession.deidentifiedReport?.emotionalTrajectory?.initial || '情绪倾诉'}
+                    </span>
+                    <ArrowRight className="w-3 h-3 text-[#166534] mx-0.5" />
+                    <span className="text-[#5e5e5e]">离开:</span>
+                    <span className="font-medium text-[#166534]">
+                      {activeSession.deidentifiedReport?.emotionalTrajectory?.final || (activeSession.isCrisis ? '危机干预' : '平和放松')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 纪要正文（自然段落叙述，富有温度） */}
+                <p className="text-xs text-[#333a40] leading-relaxed bg-[#f8f9fa] p-3.5 rounded-xl border border-[#f0f2f5]">
+                  {activeSession.deidentifiedReport?.emotionalTrajectory?.deltaNotes || activeSession.crisisSummary || '学生完成了实时语音交流，整体情绪平稳自然。'}
+                </p>
+              </div>
+
+              {/* 3. 思维与沟通观察 (去清单化，去生硬圆点，自然评述) */}
+              <div className="bg-[#ffffff] border border-[#e1e3e1] rounded-2xl p-4 space-y-2">
+                <span className="font-semibold text-[#1f1f1f] text-xs block">
+                  思维特点与沟通表现
                 </span>
-                <div className="bg-[#f8f9fa] border border-[#e1e3e1] rounded-2xl p-3.5 space-y-1.5">
+                <div className="text-xs text-[#444746] leading-relaxed bg-[#f8f9fa] p-3.5 rounded-xl border border-[#f0f2f5]">
                   {(() => {
                     const rawDistortions = activeSession.deidentifiedReport?.cognitiveDistortions || [];
                     const filtered = rawDistortions
@@ -313,44 +357,15 @@ export const SessionArchiveDrawer: React.FC = () => {
                       )
                       .map((d: string) => d.trim())
                       .filter(Boolean);
-                    const list = filtered.length > 0 ? filtered : ['表达自然流畅，未见负向认知偏差'];
-                    return list.map((d: string, i: number) => (
-                      <div key={i} className="flex items-center gap-2 text-[#444746]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#004a77]" />
-                        <span>{d}</span>
-                      </div>
-                    ));
+                    if (filtered.length === 0) {
+                      return '学生在交流中表达流畅自然，情绪体验与叙述事实契合，未见负向思维固化或偏执倾向。';
+                    }
+                    return filtered.join('；') + '。';
                   })()}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <span className="font-semibold text-[#1f1f1f] block">
-                  情绪轨迹
-                </span>
-                <div className="bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[#166534] block font-medium">进线</span>
-                      <span className="font-bold text-[#1f1f1f]">
-                        {activeSession.deidentifiedReport?.emotionalTrajectory?.initial || '情绪倾诉'}
-                      </span>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-[#166534]" />
-                    <div>
-                      <span className="text-[#166534] block font-medium">挂机</span>
-                      <span className="font-bold text-[#1f1f1f]">
-                        {activeSession.deidentifiedReport?.emotionalTrajectory?.final || (activeSession.isCrisis ? '危机干预' : '完成梳理')}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-[#444746] pt-2 border-t border-[#bbf7d0] leading-relaxed">
-                    {activeSession.deidentifiedReport?.emotionalTrajectory?.deltaNotes || activeSession.crisisSummary || '已梳理事实与情绪边界。'}
-                  </p>
-                </div>
-              </div>
-
-              {/* 微行动练习：仅在有实质内容且非套话时渲染，普通闲聊直接不渲染 */}
+              {/* 4. 针对性支持与微行动建议 (仅在非空且非套话时柔和呈现) */}
               {(() => {
                 const action = activeSession.deidentifiedReport?.homeworkAction?.trim() || '';
                 const isBoilerplate =
@@ -360,13 +375,13 @@ export const SessionArchiveDrawer: React.FC = () => {
                   action.includes('深呼吸');
                 if (isBoilerplate) return null;
                 return (
-                  <div className="space-y-1.5">
-                    <span className="font-semibold text-[#1f1f1f] block">
-                      微行动练习
+                  <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-2xl p-4 space-y-1.5 text-xs text-[#92400e]">
+                    <span className="font-semibold block text-[#b45309]">
+                      课后微行动与协同关怀建议
                     </span>
-                    <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-2xl p-3.5 text-[#92400e] leading-relaxed">
+                    <p className="leading-relaxed">
                       {action}
-                    </div>
+                    </p>
                   </div>
                 );
               })()}
