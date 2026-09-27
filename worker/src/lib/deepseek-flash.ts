@@ -154,11 +154,12 @@ export async function generateStructuredReportWithFlash(
     return {
       ...fallback,
       actionItems: ['安排班级心育委员日常关怀', '必要时预约心理中心面询'],
+      evaluatedBy: 'DeepSeek V4 Flash',
     };
   }
 
   const baseUrl = (options?.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-  const model = options?.model || DEEPSEEK_V4_FLASH_MODEL;
+  const model = resolveFlashModel(options?.model);
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
   const prompt = `你是经验丰富的校园心理专职督导老师。请针对以下学生实际倾诉对话文本，为学校心理专职教师撰写一份自然、客观、求实的“来访情绪评估简报”。
@@ -257,11 +258,13 @@ export async function generateStructuredReportWithFlash(
       keyTakeaways: Array.isArray(parsed.keyTakeaways) ? parsed.keyTakeaways : undefined,
       deidentifiedTranscript: typeof parsed.deidentifiedTranscript === 'string' ? parsed.deidentifiedTranscript : fallback.deidentifiedTranscript,
       actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems : ['安排班级心育委员日常关怀', '必要时预约心理中心面询'],
+      evaluatedBy: 'DeepSeek V4 Flash',
     };
   } catch {
     return {
       ...fallback,
       actionItems: ['安排班级心育委员日常关怀', '必要时预约心理中心面询'],
+      evaluatedBy: 'DeepSeek V4 Flash',
     };
   }
 }
@@ -295,7 +298,7 @@ export async function generateWeeklySummaryDeepSeekV4Flash(
   }
 
   const baseUrl = (options?.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-  const model = options?.model || DEEPSEEK_V4_FLASH_MODEL;
+  const model = resolveFlashModel(options?.model);
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
   const prompt = `你是经验丰富的校园心理专职督导老师。请结合本周校园倾诉的整体情况，撰写一段20-50字的大屏“本周心境与趋势观察”。

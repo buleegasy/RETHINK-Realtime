@@ -1,9 +1,27 @@
 import type { Env, SituationalMemory } from '../types';
 
 const memoryCache = new Map<string, SituationalMemory>();
+let memoryTableReady = false;
 
 export function clearMemoryCache(): void {
   memoryCache.clear();
+}
+
+async function ensureMemoryTable(env: Env): Promise<void> {
+  if (!env?.DB || memoryTableReady) return;
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS user_situational_memories (
+        user_id TEXT PRIMARY KEY,
+        user_name TEXT,
+        memory_json TEXT,
+        updated_at INTEGER
+      )
+    `).run();
+    memoryTableReady = true;
+  } catch (err) {
+    console.warn('[MemoryStore] 校验情景记忆表结构跳过:', err);
+  }
 }
 
 export async function getSituationalMemory(env: Env, userId: string): Promise<SituationalMemory | null> {
@@ -16,14 +34,7 @@ export async function getSituationalMemory(env: Env, userId: string): Promise<Si
 
   if (env?.DB) {
     try {
-      await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS user_situational_memories (
-          user_id TEXT PRIMARY KEY,
-          user_name TEXT,
-          memory_json TEXT,
-          updated_at INTEGER
-        )
-      `).run();
+      await ensureMemoryTable(env);
 
       const row = await env.DB.prepare(
         'SELECT memory_json FROM user_situational_memories WHERE user_id = ? OR user_name = ?'
@@ -36,7 +47,9 @@ export async function getSituationalMemory(env: Env, userId: string): Promise<Si
         memoryCache.set(cleanId, parsed);
         return parsed;
       }
-    } catch {}
+    } catch (err) {
+      console.warn('[MemoryStore] D1 情景记忆读取异常:', err);
+    }
   }
 
   return null;
@@ -55,14 +68,7 @@ export async function saveSituationalMemory(env: Env, memory: SituationalMemory)
 
   if (env?.DB) {
     try {
-      await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS user_situational_memories (
-          user_id TEXT PRIMARY KEY,
-          user_name TEXT,
-          memory_json TEXT,
-          updated_at INTEGER
-        )
-      `).run();
+      await ensureMemoryTable(env);
 
       const memoryJson = JSON.stringify(memory);
       await env.DB.prepare(`
@@ -73,8 +79,10 @@ export async function saveSituationalMemory(env: Env, memory: SituationalMemory)
           memory_json = excluded.memory_json,
           updated_at = excluded.updated_at
       `)
-        .bind(cleanId, memory.userName || cleanId, memoryJson, memory.lastUpdated)
+        .bind(cleanId, memory.userName || cleanId, memoryJson, memory.lastUpdated || Date.now())
         .run();
-    } catch {}
+    } catch (err) {
+      console.warn('[MemoryStore] D1 情景记忆持久化异常:', err);
+    }
   }
 }

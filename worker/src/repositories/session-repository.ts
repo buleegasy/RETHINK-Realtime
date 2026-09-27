@@ -29,7 +29,8 @@ export async function ensureSchemaOnce(db?: D1Database): Promise<void> {
       )
     `).run();
     isSchemaInitialized = true;
-  } catch {
+  } catch (e) {
+    console.warn('[SessionRepository ensureSchemaOnce error]:', e);
     isSchemaInitialized = true;
   }
 }
@@ -84,7 +85,7 @@ export class SessionRepository {
       try {
         await ensureSchemaOnce(env.DB);
         const { results } = await env.DB.prepare(
-          "SELECT * FROM school_sessions WHERE is_deleted = 0 AND session_id NOT LIKE 'sess_sample_%' AND session_id NOT LIKE 'mock_%' ORDER BY created_at DESC LIMIT ?"
+          'SELECT * FROM school_sessions WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT ?'
         ).bind(limit).all<SessionRecord>();
         if (results && results.length >= 0) {
           return results;
@@ -94,9 +95,7 @@ export class SessionRepository {
       }
     }
 
-    return memorySessions.filter(
-      (s) => !s.is_deleted && !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
-    ).slice(0, limit);
+    return memorySessions.filter((s) => !s.is_deleted).slice(0, limit);
   }
 
   public static async findArchived(env: Env, limit: number = 500): Promise<SessionRecord[]> {

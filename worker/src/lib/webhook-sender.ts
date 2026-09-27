@@ -5,16 +5,19 @@ export interface CrisisAlertPayload {
   occurredAt: string;
   boothLocation?: string;
   coreConcerns: string[];
+  adminConsoleUrl?: string;
 }
 
 export async function sendCrisisWebhook(
   webhookUrl?: string,
-  alert?: CrisisAlertPayload
+  alert?: CrisisAlertPayload,
+  defaultAdminUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   if (!webhookUrl || !alert) {
     return { success: false, error: 'Webhook URL or alert payload missing' };
   }
 
+  const adminUrl = alert.adminConsoleUrl || defaultAdminUrl || 'https://campus.rethink.internal/admin';
   const title = `⚠️ 校园心理终端 [自杀/自残极高危预警]`;
   const textContent = `${title}\n- 会话编号: ${alert.sessionId}\n- 预警等级: 极高危 (Level ${alert.crisisLevel})\n- 发生时间: ${alert.occurredAt}\n- 终端位置: ${alert.boothLocation || '校园心理驿站#01'}\n- 议题标签: ${alert.coreConcerns.join(', ')}\n- 危机判定: ${alert.crisisSummary}\n\n请心理危机干预组老师即刻登录管理后台，输入二次安全口令解除脱敏并实施线下保护！`;
 
@@ -39,7 +42,7 @@ export async function sendCrisisWebhook(
                 tag: 'button',
                 text: { tag: 'plain_text', content: '登入后台介入处理' },
                 type: 'danger',
-                url: 'https://rethink.campus/admin',
+                url: adminUrl,
               },
             ],
           },

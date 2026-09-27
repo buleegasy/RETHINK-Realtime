@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@rethink/shared": "*",
     "hono": "^4.6.3"
   },
   "devDependencies": {

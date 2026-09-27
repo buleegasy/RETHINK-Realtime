@@ -1,4 +1,6 @@
-const WORKER_ORIGIN = 'https://rethink-realtime-worker.buleegasy-6c8.workers.dev';
+const WORKER_ORIGIN =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_WORKER_ORIGIN) ||
+  (typeof window !== 'undefined' ? window.location.origin : '');
 
 export function getWsUrl(options?: { userId?: string; username?: string; sessionId?: string }): string {
   const params = new URLSearchParams();
@@ -12,14 +14,43 @@ export function getWsUrl(options?: { userId?: string; username?: string; session
     const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${loc.host}/api/voice/ws?${params.toString()}`;
   }
-  return `wss://rethink-realtime-worker.buleegasy-6c8.workers.dev/api/voice/ws?${params.toString()}`;
+  return `ws://localhost:8787/api/voice/ws?${params.toString()}`;
+}
+
+function resolveStoredAuthToken(targetPath: string): string | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    if (targetPath.includes('/api/admin')) {
+      const rawTeacher = localStorage.getItem('rethink_teacher_auth');
+      if (rawTeacher) {
+        const parsed = JSON.parse(rawTeacher);
+        if (parsed?.token) return parsed.token;
+      }
+    }
+    const rawAuth = localStorage.getItem('rethink_auth');
+    if (rawAuth) {
+      const parsed = JSON.parse(rawAuth);
+      if (parsed?.token) return parsed.token;
+    }
+  } catch (err) {
+    console.warn('[ApiFetch] 读取本地凭证异常:', err);
+  }
+  return null;
 }
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const targetPath = path.startsWith('/') ? path : `/${path}`;
   const headers = new Headers(init?.headers);
+
   if (!headers.has('Content-Type') && init?.method && init.method !== 'GET' && init.method !== 'HEAD') {
     headers.set('Content-Type', 'application/json');
+  }
+
+  if (!headers.has('Authorization')) {
+    const token = resolveStoredAuthToken(targetPath);
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
   }
 
   const options: RequestInit = {
@@ -33,15 +64,19 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 
   try {
     const res = await fetch(targetPath, options);
-    if (!res.ok && res.status >= 500) {
+    if (!res.ok && res.status >= 500 && WORKER_ORIGIN && !targetPath.startsWith('http')) {
       return await fetch(`${WORKER_ORIGIN}${targetPath}`, options);
     }
     return res;
   } catch (err) {
-    try {
-      return await fetch(`${WORKER_ORIGIN}${targetPath}`, options);
-    } catch {
-      throw err;
+    if (WORKER_ORIGIN && !targetPath.startsWith('http')) {
+      try {
+        return await fetch(`${WORKER_ORIGIN}${targetPath}`, options);
+      } catch (fallbackErr) {
+        console.warn('[ApiFetch] Worker 备用端点请求失败:', fallbackErr);
+        throw err;
+      }
     }
+    throw err;
   }
 }

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
+    "packages/*",
     "web",
     "worker"
   ],
@@ -11,7 +12,7 @@
     "dev:worker": "npm run dev --workspace=worker",
     "build": "npm run build --workspace=web && rm -rf dist && cp -r web/dist dist",
     "build:worker": "npm run build --workspace=worker",
-    "test": "npm run test --workspace=web"
+    "test": "npm run test --workspace=web && npm run test --workspace=worker"
   }
 }
 

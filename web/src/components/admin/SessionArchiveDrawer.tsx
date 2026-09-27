@@ -121,10 +121,10 @@ export const SessionArchiveDrawer: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#ffffff] border border-[#e1e3e1] p-6 rounded-3xl">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-[#ffffff] border border-[#e1e3e1] p-4 sm:p-6 rounded-2xl sm:rounded-3xl">
         <div className="space-y-1">
-          <h2 className="text-xl font-bold text-[#1f1f1f] tracking-tight">
+          <h2 className="text-lg sm:text-xl font-bold text-[#1f1f1f] tracking-tight">
             个案档案
           </h2>
           <p className="text-xs text-[#747775]">
@@ -132,67 +132,69 @@ export const SessionArchiveDrawer: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex bg-[#f0f4f9] p-1 rounded-full text-xs font-medium border border-[#c4c7c5]">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex bg-[#f0f4f9] p-0.5 sm:p-1 rounded-full text-xs font-medium border border-[#c4c7c5]">
+              <button
+                onClick={() => setShowArchived(false)}
+                className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                  !showArchived
+                    ? 'bg-[#ffffff] text-[#004a77] shadow-sm font-semibold'
+                    : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
+                }`}
+              >
+                活跃个案
+              </button>
+              <button
+                onClick={() => setShowArchived(true)}
+                className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                  showArchived
+                    ? 'bg-[#004a77] text-white shadow-sm font-semibold'
+                    : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
+                }`}
+              >
+                安全归档库
+              </button>
+            </div>
+
             <button
-              onClick={() => setShowArchived(false)}
-              className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
-                !showArchived
-                  ? 'bg-[#ffffff] text-[#004a77] shadow-sm font-semibold'
-                  : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
+              onClick={() => setFilterCrisisOnly(!filterCrisisOnly)}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-medium transition-colors border cursor-pointer shrink-0 ${
+                filterCrisisOnly
+                  ? 'bg-[#ba1a1a] text-white border-[#ba1a1a]'
+                  : 'bg-[#ffffff] text-[#444746] border-[#c4c7c5] hover:bg-[#f0f4f9]'
               }`}
             >
-              活跃个案
-            </button>
-            <button
-              onClick={() => setShowArchived(true)}
-              className={`px-3 py-1 rounded-full transition-colors cursor-pointer ${
-                showArchived
-                  ? 'bg-[#004a77] text-white shadow-sm font-semibold'
-                  : 'text-[#5e5e5e] hover:text-[#1f1f1f]'
-              }`}
-            >
-              安全归档库
+              仅看危机
             </button>
           </div>
 
-          <div className="relative">
+          <div className="relative w-full sm:w-56">
             <Search className="w-4 h-4 text-[#747775] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="搜索编号或议题..."
-              className="pl-9 pr-4 py-2 text-xs rounded-full border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77] w-48 sm:w-56"
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-full border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77]"
             />
           </div>
-
-          <button
-            onClick={() => setFilterCrisisOnly(!filterCrisisOnly)}
-            className={`px-4 py-2 rounded-full text-xs font-medium transition-colors border cursor-pointer ${
-              filterCrisisOnly
-                ? 'bg-[#ba1a1a] text-white border-[#ba1a1a]'
-                : 'bg-[#ffffff] text-[#444746] border-[#c4c7c5] hover:bg-[#f0f4f9]'
-            }`}
-          >
-            仅看危机
-          </button>
         </div>
       </div>
 
       {isLoading && (
-        <div className="bg-white rounded-3xl p-12 text-center border border-[#e1e3e1]">
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center border border-[#e1e3e1]">
           <div className="text-xs text-[#5e5e5e]">正在加载真实个案档案...</div>
         </div>
       )}
 
       {!isLoading && filteredSessions.length === 0 && (
-        <div className="bg-white rounded-3xl p-12 text-center border border-[#e1e3e1] space-y-2">
-          <Archive className="w-10 h-10 text-[#c4c7c5] mx-auto mb-2" />
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center border border-[#e1e3e1] space-y-2">
+          <Archive className="w-9 h-9 sm:w-10 sm:h-10 text-[#c4c7c5] mx-auto mb-2" />
           <h4 className="text-sm font-semibold text-[#1f1f1f]">
             {showArchived ? '暂无安全归档记录' : '暂无真实个案记录'}
           </h4>
-          <p className="text-xs text-[#747775]">
+          <p className="text-xs text-[#747775] max-w-md mx-auto">
             {showArchived
               ? '当前无被安全归档的会话记录。'
               : '管理后台已严格剔除假数据，当学生通过终端完成咨询倾诉后将在此实时建档。'}
@@ -201,11 +203,11 @@ export const SessionArchiveDrawer: React.FC = () => {
       )}
 
       {!isLoading && filteredSessions.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
           {filteredSessions.map((s) => (
             <div
               key={s.sessionId}
-              className={`bg-[#ffffff] border p-5 rounded-3xl transition-all hover:shadow-sm space-y-3 group ${
+              className={`bg-[#ffffff] border p-4 sm:p-5 rounded-2xl sm:rounded-3xl transition-all hover:shadow-sm space-y-3 group ${
                 s.isDeleted
                   ? 'border-[#f2b8b5] bg-[#fffbfb]'
                   : 'border-[#e1e3e1] hover:border-[#004a77]'
@@ -237,7 +239,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                 {(s.coreConcerns && s.coreConcerns.length > 0 ? s.coreConcerns : ['日常交流']).map((c: string, idx: number) => (
                   <span
                     key={idx}
-                    className="bg-[#f0f4f9] text-[#004a77] text-[11px] px-2.5 py-0.5 rounded-full font-medium"
+                    className="bg-[#f0f4f9] text-[#004a77] text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-medium"
                   >
                     {c}
                   </span>
@@ -249,9 +251,9 @@ export const SessionArchiveDrawer: React.FC = () => {
               </p>
 
               <div className="flex items-center justify-between text-[11px] text-[#747775] pt-1 border-t border-[#f0f0f0]">
-                <span>{new Date(s.createdAt * 1000).toLocaleString('zh-CN')}</span>
+                <span className="truncate mr-2">{new Date(s.createdAt * 1000).toLocaleString('zh-CN')}</span>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setActiveSession(s)}
                     className="text-[#004a77] font-medium hover:underline flex items-center gap-0.5 cursor-pointer"
@@ -285,15 +287,15 @@ export const SessionArchiveDrawer: React.FC = () => {
       )}
 
       {activeSession && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-[#ffffff] w-full max-w-xl max-h-[90vh] rounded-3xl border border-[#c4c7c5] shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-[#f0f4f9] px-6 py-4 border-b border-[#e1e3e1] flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-[#ffffff] w-full max-w-xl max-h-[92dvh] sm:max-h-[90vh] rounded-2xl sm:rounded-3xl border border-[#c4c7c5] shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-[#f0f4f9] px-4 sm:px-6 py-3 sm:py-4 border-b border-[#e1e3e1] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
                 <Sparkles className="w-4 h-4 text-[#004a77]" />
-                <h3 className="text-sm font-bold text-[#1f1f1f]">
+                <h3 className="text-xs sm:text-sm font-bold text-[#1f1f1f]">
                   来访情绪简报 · {activeSession.sessionId}
                 </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e8f0fe] text-[#004a77] border border-[#d2e3fc]">
+                <span className="px-2 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-[#e8f0fe] text-[#004a77] border border-[#d2e3fc]">
                   DeepSeek V4 Flash 智能建档
                 </span>
               </div>
@@ -305,10 +307,10 @@ export const SessionArchiveDrawer: React.FC = () => {
               </button>
             </div>
 
-            {/* Modal Body: 自然叙事式个案纪要（去表单化、去机械八股感） */}
-            <div className="p-6 space-y-4 overflow-y-auto text-xs min-h-0 flex-1">
+            {/* Modal Body: 自然叙事式个案纪要 */}
+            <div className="p-3.5 sm:p-6 space-y-3 sm:space-y-4 overflow-y-auto text-xs min-h-0 flex-1">
               {/* 1. 会谈基本背景与主题标签 */}
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f8f9fa] border border-[#e1e3e1] p-3.5 rounded-2xl">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f8f9fa] border border-[#e1e3e1] p-3 sm:p-3.5 rounded-xl sm:rounded-2xl">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-[#e8f0fe] text-[#004a77] flex items-center justify-center font-bold text-xs shrink-0">
                     {activeSession.deidentifiedReport?.userDisplayName?.[0] || '访'}
@@ -317,8 +319,8 @@ export const SessionArchiveDrawer: React.FC = () => {
                     <span className="font-bold text-[#1f1f1f] text-sm block">
                       {activeSession.deidentifiedReport?.userDisplayName || `来访者 #S${activeSession.sessionId.slice(-4)}`}
                     </span>
-                    <span className="text-[11px] text-[#747775]">
-                      通话时长 {Math.floor(activeSession.duration / 60)}分{activeSession.duration % 60}秒 · {new Date(activeSession.createdAt * 1000).toLocaleString('zh-CN')}
+                    <span className="text-[10px] sm:text-[11px] text-[#747775]">
+                      时长 {Math.floor(activeSession.duration / 60)}分{activeSession.duration % 60}秒 · {new Date(activeSession.createdAt * 1000).toLocaleString('zh-CN')}
                     </span>
                   </div>
                 </div>
@@ -331,7 +333,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                   ).map((item: string, i: number) => (
                     <span
                       key={i}
-                      className="px-2.5 py-1 bg-[#ffffff] border border-[#d2e3fc] text-[#004a77] rounded-full text-[11px] font-medium shadow-2xs"
+                      className="px-2.5 py-0.5 sm:py-1 bg-[#ffffff] border border-[#d2e3fc] text-[#004a77] rounded-full text-[10px] sm:text-[11px] font-medium shadow-2xs"
                     >
                       {item}
                     </span>
@@ -339,23 +341,23 @@ export const SessionArchiveDrawer: React.FC = () => {
                 </div>
               </div>
 
-              {/* 2. 心境演进与倾诉纪要 (自然叙事，不再是僵硬框框) */}
-              <div className="bg-[#ffffff] border border-[#e1e3e1] rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-[#f0f0f0] pb-2.5">
+              {/* 2. 心境演进与倾诉纪要 */}
+              <div className="bg-[#ffffff] border border-[#e1e3e1] rounded-xl sm:rounded-2xl p-3.5 sm:p-4 space-y-2.5 sm:space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#f0f0f0] pb-2.5">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-[#1f1f1f] text-xs flex items-center gap-1.5">
                       <Activity className="w-3.5 h-3.5 text-[#004a77]" />
                       心境演进与倾诉纪要
                     </span>
                     {activeSession.deidentifiedReport?.evaluatedBy && (
-                      <span className="text-[10px] text-[#004a77] bg-[#e8f0fe] px-2 py-0.5 rounded-full font-medium">
+                      <span className="text-[9px] sm:text-[10px] text-[#004a77] bg-[#e8f0fe] px-2 py-0.5 rounded-full font-medium">
                         {activeSession.deidentifiedReport.evaluatedBy}
                       </span>
                     )}
                   </div>
 
                   {/* 自然的心境流转胶囊 */}
-                  <div className="flex items-center gap-1.5 text-[11px] bg-[#f0fdf4] text-[#166534] px-2.5 py-1 rounded-full border border-[#bbf7d0]">
+                  <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] bg-[#f0fdf4] text-[#166534] px-2.5 py-1 rounded-full border border-[#bbf7d0] self-start sm:self-auto">
                     <span className="text-[#5e5e5e]">进线:</span>
                     <span className="font-medium text-[#1f1f1f]">
                       {activeSession.deidentifiedReport?.emotionalTrajectory?.initial || '情绪倾诉'}
@@ -368,18 +370,18 @@ export const SessionArchiveDrawer: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 纪要正文（自然段落叙述，富有温度） */}
-                <p className="text-xs text-[#333a40] leading-relaxed bg-[#f8f9fa] p-3.5 rounded-xl border border-[#f0f2f5]">
+                {/* 纪要正文 */}
+                <p className="text-xs text-[#333a40] leading-relaxed bg-[#f8f9fa] p-3 sm:p-3.5 rounded-xl border border-[#f0f2f5]">
                   {activeSession.deidentifiedReport?.emotionalTrajectory?.deltaNotes || activeSession.crisisSummary || '学生完成了实时语音交流，整体情绪平稳自然。'}
                 </p>
               </div>
 
-              {/* 3. 思维与沟通观察 (去清单化，去生硬圆点，自然评述) */}
-              <div className="bg-[#ffffff] border border-[#e1e3e1] rounded-2xl p-4 space-y-2">
+              {/* 3. 思维与沟通观察 */}
+              <div className="bg-[#ffffff] border border-[#e1e3e1] rounded-xl sm:rounded-2xl p-3.5 sm:p-4 space-y-2">
                 <span className="font-semibold text-[#1f1f1f] text-xs block">
                   思维特点与沟通表现
                 </span>
-                <div className="text-xs text-[#444746] leading-relaxed bg-[#f8f9fa] p-3.5 rounded-xl border border-[#f0f2f5]">
+                <div className="text-xs text-[#444746] leading-relaxed bg-[#f8f9fa] p-3 sm:p-3.5 rounded-xl border border-[#f0f2f5]">
                   {(() => {
                     const rawDistortions = activeSession.deidentifiedReport?.cognitiveDistortions || [];
                     const filtered = rawDistortions
@@ -399,7 +401,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                 </div>
               </div>
 
-              {/* 4. 针对性支持与微行动建议 (仅在非空且非套话时柔和呈现) */}
+              {/* 4. 针对性支持与微行动建议 */}
               {(() => {
                 const action = activeSession.deidentifiedReport?.homeworkAction?.trim() || '';
                 const isBoilerplate =
@@ -409,7 +411,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                   action.includes('深呼吸');
                 if (isBoilerplate) return null;
                 return (
-                  <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-2xl p-4 space-y-1.5 text-xs text-[#92400e]">
+                  <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-xl sm:rounded-2xl p-3.5 sm:p-4 space-y-1.5 text-xs text-[#92400e]">
                     <span className="font-semibold block text-[#b45309]">
                       课后微行动与协同关怀建议
                     </span>
@@ -421,8 +423,8 @@ export const SessionArchiveDrawer: React.FC = () => {
               })()}
             </div>
 
-            <div className="bg-[#f8f9fa] px-6 py-3 border-t border-[#e1e3e1] flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
+            <div className="bg-[#f8f9fa] px-4 sm:px-6 py-2.5 sm:py-3 border-t border-[#e1e3e1] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 {!activeSession.isDeleted ? (
                   <button
                     onClick={() => {
@@ -430,7 +432,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                       setActiveSession(null);
                       setDeletingSession(sess);
                     }}
-                    className="px-3 py-1.5 rounded-xl text-xs font-medium text-[#ba1a1a] hover:bg-[#fce8e6] transition-colors flex items-center gap-1 cursor-pointer"
+                    className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium text-[#ba1a1a] hover:bg-[#fce8e6] transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>安全归档</span>
@@ -442,7 +444,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                       setActiveSession(null);
                       setRestoringSession(sess);
                     }}
-                    className="px-3 py-1.5 rounded-xl text-xs font-medium text-[#166534] hover:bg-[#dcfce7] transition-colors flex items-center gap-1 cursor-pointer"
+                    className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium text-[#166534] hover:bg-[#dcfce7] transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>恢复此档案</span>
@@ -452,16 +454,16 @@ export const SessionArchiveDrawer: React.FC = () => {
                 <button
                   onClick={handleReEvaluate}
                   disabled={isReEvaluating}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-[#004a77] bg-[#ffffff] border border-[#c4c7c5] hover:bg-[#f0f4f9] transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium text-[#004a77] bg-[#ffffff] border border-[#c4c7c5] hover:bg-[#f0f4f9] transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   title="调用 DeepSeek V4 Flash 重新提炼本次会话的情绪评估简报"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
-                  <span>{isReEvaluating ? '提炼中...' : '重新提炼简报'}</span>
+                  <span>{isReEvaluating ? '提炼中...' : '重新提炼'}</span>
                 </button>
 
                 {reEvaluateStatus && (
                   <span
-                    className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-all ${
+                    className={`text-[10px] sm:text-[11px] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full font-medium transition-all ${
                       reEvaluateStatus.type === 'success'
                         ? 'text-[#166534] bg-[#dcfce7] border border-[#bbf7d0]'
                         : 'text-[#ba1a1a] bg-[#fee2e2] border border-[#fecaca]'
@@ -475,7 +477,7 @@ export const SessionArchiveDrawer: React.FC = () => {
 
               <button
                 onClick={() => setActiveSession(null)}
-                className="px-5 py-2 rounded-xl text-xs font-medium bg-[#004a77] text-white hover:bg-[#003355] transition-colors cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2 rounded-xl text-xs font-medium bg-[#004a77] text-white hover:bg-[#003355] transition-colors cursor-pointer text-center"
               >
                 关闭
               </button>

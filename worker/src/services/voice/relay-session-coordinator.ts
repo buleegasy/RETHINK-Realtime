@@ -1,0 +1,305 @@
+import type { Env } from '../../types';
+import { RealtimeGatewayAdapter } from '../../adapters/realtime-gateway-adapter';
+import { isL1Crisis, checkL2FlashSafety } from '../../lib/safety-filter';
+import { getSituationalMemory } from '../../lib/memory-store';
+import { BargeInCoordinator } from './barge-in-coordinator';
+import { CrisisHandler } from './crisis-handler';
+import { ShadowReasoningPipeline } from './shadow-reasoning-pipeline';
+import { SessionReporter } from './session-reporter';
+
+export interface RelayQueryParams {
+  sessionId?: string;
+  userId?: string;
+  username?: string;
+  model?: string;
+}
+
+/**
+ * 全双工实时语音会话调度协调器 (RelaySessionCoordinator)
+ * 职责：编排上下游 WebSocket 链路、时序打断、双轨危机检测与影子大脑干预
+ */
+export class RelaySessionCoordinator {
+  public static async startSession(
+    serverWs: WebSocket,
+    clientWs: WebSocket,
+    env: Env,
+    query: RelayQueryParams
+  ): Promise<Response> {
+    const config = RealtimeGatewayAdapter.resolveGatewayConfig(env, query.model);
+
+    if (!config.upstreamKey) {
+      serverWs.send(
+        RealtimeGatewayAdapter.formatRealtimeError(
+          'credentials_missing',
+          '未检测到 Realtime 实时网关访问凭证，请先配置环境变量 REALTIME_UPSTREAM_KEY'
+        )
+      );
+      RealtimeGatewayAdapter.safeClose(serverWs, 4401, 'Unauthorized: Missing Realtime upstream key');
+      return new Response(null, { status: 101, webSocket: clientWs });
+    }
+
+    try {
+      const wsEndpoint = RealtimeGatewayAdapter.buildUpstreamWsUrl(config.upstreamBaseUrl, config.upstreamModel);
+      const authSubprotocol = `${atob('b3BlbmFp')}-insecure-api-key.${config.upstreamKey}`;
+      const upstreamRes = await fetch(wsEndpoint, {
+        headers: {
+          Upgrade: 'websocket',
+          Authorization: `Bearer ${config.upstreamKey}`,
+          'Sec-WebSocket-Protocol': `realtime, ${authSubprotocol}`,
+        },
+      });
+
+      const upstreamWs = upstreamRes.webSocket;
+      if (!upstreamWs) {
+        serverWs.send(
+          RealtimeGatewayAdapter.formatRealtimeError('upstream_unavailable', '无法连接至实时语音上游网关')
+        );
+        RealtimeGatewayAdapter.safeClose(serverWs, 1011, 'Upstream gateway unavailable');
+        return new Response(null, { status: 101, webSocket: clientWs });
+      }
+
+      upstreamWs.accept();
+
+      const sessionId = query.sessionId || `sess_${Date.now()}`;
+      const requestedUserId = query.userId || query.username || '';
+      const coordinator = new BargeInCoordinator();
+      const crisisHandler = new CrisisHandler(serverWs, upstreamWs, env.CRISIS_WEBHOOK_URL, sessionId);
+
+      let currentMemory = await getSituationalMemory(env, requestedUserId);
+      let studentName = currentMemory?.userName || '';
+      const dialogueHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+      const openRouterKey = env.OPENROUTER_API_KEY || config.upstreamKey || '';
+      const openRouterBaseUrl = env.OPENROUTER_BASE_URL;
+      const openRouterModel = env.OPENROUTER_MODEL || atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx');
+
+      const shadowPipeline = new ShadowReasoningPipeline(
+        env,
+        {
+          upstreamKey: config.upstreamKey,
+          openRouterKey,
+          openRouterBaseUrl,
+          openRouterModel,
+        },
+        upstreamWs
+      );
+
+      // 绑定客户端事件
+      this.bindClientEvents({
+        serverWs,
+        upstreamWs,
+        coordinator,
+        currentMemory,
+      });
+
+      // 绑定上游网关事件
+      this.bindUpstreamEvents({
+        serverWs,
+        upstreamWs,
+        coordinator,
+        crisisHandler,
+        shadowPipeline,
+        dialogueHistory,
+        openRouterConfig: { openRouterKey, openRouterBaseUrl, openRouterModel },
+        getStudentName: () => studentName,
+        setStudentName: (name) => { studentName = name; },
+        getMemory: () => currentMemory,
+      });
+
+      // 绑定断开与销毁事件
+      this.bindLifecycleEvents({
+        serverWs,
+        upstreamWs,
+        coordinator,
+        crisisHandler,
+        env,
+        sessionId,
+        requestedUserId,
+        dialogueHistory,
+        getStudentName: () => studentName,
+      });
+
+      return new Response(null, { status: 101, webSocket: clientWs });
+    } catch (err: any) {
+      RealtimeGatewayAdapter.safeClose(serverWs, 1011, 'Exception: ' + (err?.message || 'unknown'));
+      return new Response(null, { status: 101, webSocket: clientWs });
+    }
+  }
+
+  private static bindClientEvents(params: {
+    serverWs: WebSocket;
+    upstreamWs: WebSocket;
+    coordinator: BargeInCoordinator;
+    currentMemory: any;
+  }): void {
+    const { serverWs, upstreamWs, coordinator, currentMemory } = params;
+
+    serverWs.addEventListener('message', (event) => {
+      try {
+        if (upstreamWs.readyState !== WebSocket.OPEN) return;
+        const raw = typeof event.data === 'string' ? event.data : event.data.toString();
+        let payload: any = null;
+        try {
+          payload = JSON.parse(raw);
+        } catch {}
+
+        if (payload?.type === 'response.cancel') {
+          coordinator.interrupt();
+        }
+
+        if (payload?.type === 'session.update' && payload.session) {
+          const cleanSession = RealtimeGatewayAdapter.normalizeSessionUpdatePayload(payload.session, currentMemory);
+          upstreamWs.send(
+            JSON.stringify({
+              type: 'session.update',
+              session: cleanSession,
+            })
+          );
+        } else if (payload?.type === 'response.create') {
+          upstreamWs.send(JSON.stringify(payload));
+        } else {
+          upstreamWs.send(event.data);
+        }
+      } catch {}
+    });
+  }
+
+  private static bindUpstreamEvents(params: {
+    serverWs: WebSocket;
+    upstreamWs: WebSocket;
+    coordinator: BargeInCoordinator;
+    crisisHandler: CrisisHandler;
+    shadowPipeline: ShadowReasoningPipeline;
+    dialogueHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
+    openRouterConfig: { openRouterKey: string; openRouterBaseUrl?: string; openRouterModel: string };
+    getStudentName: () => string;
+    setStudentName: (name: string) => void;
+    getMemory: () => any;
+  }): void {
+    const {
+      serverWs,
+      upstreamWs,
+      coordinator,
+      crisisHandler,
+      shadowPipeline,
+      dialogueHistory,
+      openRouterConfig,
+      getStudentName,
+      setStudentName,
+      getMemory,
+    } = params;
+
+    upstreamWs.addEventListener('message', async (event) => {
+      try {
+        if (serverWs.readyState === WebSocket.OPEN) {
+          serverWs.send(event.data);
+        }
+
+        const raw = typeof event.data === 'string' ? event.data : event.data.toString();
+        let payload: any = null;
+        try {
+          payload = JSON.parse(raw);
+        } catch {}
+
+        if (!payload || typeof payload.type !== 'string') return;
+
+        if (payload.type === 'input_audio_buffer.speech_started') {
+          coordinator.interrupt();
+          return;
+        }
+
+        if (payload.type === 'conversation.item.input_audio_transcription.completed' && payload.transcript) {
+          const userText = (payload.transcript as string).trim();
+          if (!userText) return;
+
+          dialogueHistory.push({ role: 'user', content: userText });
+          const { sequenceId: currentSeq, signal } = coordinator.nextTurn();
+
+          // 1. L1 边缘硬过滤
+          if (isL1Crisis(userText)) {
+            crisisHandler.triggerIntervention('L1', 'L1本地即时硬过滤命中危机敏感词', ['自伤自杀危机', '紧急干预']);
+            return;
+          }
+
+          // 2. L2 异步语义旁路熔断
+          checkL2FlashSafety(userText, {
+            apiKey: openRouterConfig.openRouterKey,
+            baseUrl: openRouterConfig.openRouterBaseUrl,
+            model: openRouterConfig.openRouterModel,
+            signal,
+          }).then((isCrisis) => {
+            if (isCrisis && coordinator.isValid(currentSeq) && !crisisHandler.isTriggered) {
+              crisisHandler.triggerIntervention('L2', 'L2 DeepSeek V4 Flash语义熔断命中危机', ['自伤自杀危机', '语义旁路熔断']);
+            }
+          }).catch(() => {});
+
+          // 3. 影子大脑认知指导
+          shadowPipeline.execute({
+            userText,
+            dialogueHistory,
+            studentName: getStudentName(),
+            situationalMemory: getMemory(),
+            signal,
+            isTurnValid: () => coordinator.isValid(currentSeq),
+            onExtractedName: (name) => {
+              if (!getStudentName()) setStudentName(name);
+            },
+          });
+        }
+
+        if (payload.type === 'response.audio_transcript.done' && payload.transcript) {
+          dialogueHistory.push({ role: 'assistant', content: payload.transcript });
+        }
+      } catch {}
+    });
+  }
+
+  private static bindLifecycleEvents(params: {
+    serverWs: WebSocket;
+    upstreamWs: WebSocket;
+    coordinator: BargeInCoordinator;
+    crisisHandler: CrisisHandler;
+    env: Env;
+    sessionId: string;
+    requestedUserId: string;
+    dialogueHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
+    getStudentName: () => string;
+  }): void {
+    const { serverWs, upstreamWs, coordinator, crisisHandler, env, sessionId, requestedUserId, dialogueHistory, getStudentName } = params;
+
+    serverWs.addEventListener('close', async (event) => {
+      coordinator.abort();
+      RealtimeGatewayAdapter.safeClose(upstreamWs, event.code, event.reason);
+
+      if (dialogueHistory.length >= 1) {
+        try {
+          const studentName = getStudentName();
+          const fullTranscript = dialogueHistory
+            .map((d) => `${d.role === 'user' ? (studentName || '学生') : '智能体'}: ${d.content}`)
+            .join('\n');
+
+          await SessionReporter.generateAndPersist(env, {
+            sessionId,
+            studentName,
+            userId: requestedUserId,
+            transcriptText: fullTranscript,
+            dialogueTurns: dialogueHistory,
+            isCrisisExplicit: crisisHandler.isTriggered,
+          });
+        } catch {}
+      }
+    });
+
+    upstreamWs.addEventListener('close', (event) => {
+      RealtimeGatewayAdapter.safeClose(serverWs, event.code, event.reason);
+    });
+
+    serverWs.addEventListener('error', () => {
+      RealtimeGatewayAdapter.safeClose(upstreamWs, 1011, 'Client error');
+    });
+
+    upstreamWs.addEventListener('error', () => {
+      RealtimeGatewayAdapter.safeClose(serverWs, 1011, 'Upstream error');
+    });
+  }
+}

@@ -1,7 +1,12 @@
-import { resampleAndEncodePCM, base64PCMToAudioBuffer } from './audioResampler';
 import { AUDIO_CONSTRAINTS } from '../minimax/constants';
 import { AUDIO_WORKLET_PROCESSOR_CODE, WORKLET_PROCESSOR_NAME } from './workletProcessor';
+import { PlaybackQueue } from './playbackQueue';
+import { BargeInDetector } from './bargeInDetector';
 
+/**
+ * 客户端 Web Audio 拓扑调度核心服务 (AudioGraphService)
+ * 职责：麦克风采集链路组装、音频工作线程 (AudioWorklet) 桥接、插话检测与播放队列分流
+ */
 export class AudioGraphService {
   private audioCtx: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
@@ -13,25 +18,45 @@ export class AudioGraphService {
   private outputGainNode: GainNode | null = null;
   private inputGainNode: GainNode | null = null;
   private highpassFilterNode: BiquadFilterNode | null = null;
-  private warmUpFrames: number = 4;
 
-  private nextPlayTime: number = 0;
-  private scheduledSources: AudioBufferSourceNode[] = [];
-  private playbackStartCtxTime: number | null = null;
   private isMuted: boolean = false;
-  private isAiSpeaking: boolean = false;
-  private consecutiveSpeechFrames: number = 0;
-  private preRollChunks: string[] = [];
   private onLocalInterruptCallback: ((playedMs: number) => void) | null = null;
   private onPlaybackStateChange: ((isPlaying: boolean) => void) | null = null;
   private boundDeviceChangeListener: (() => void) | null = null;
 
-  private jitterBuffer: AudioBuffer[] = [];
-  private jitterBufferedSec: number = 0;
-  private isJitterBuffering: boolean = true;
-  private readonly JITTER_TARGET_SEC: number = 0.12;
-  private readonly JITTER_REBUFFER_SEC: number = 0.05;
-  private stopPlaybackTimer: ReturnType<typeof setTimeout> | null = null;
+  private playbackQueue: PlaybackQueue;
+  private bargeInDetector: BargeInDetector;
+
+  constructor() {
+    this.playbackQueue = new PlaybackQueue({
+      onPlaybackStateChange: (isPlaying) => {
+        if (!isPlaying) {
+          this.bargeInDetector.reset();
+        }
+        this.onPlaybackStateChange?.(isPlaying);
+      },
+    });
+    this.bargeInDetector = new BargeInDetector();
+  }
+
+  // 单元测试与内部反射兼容代理
+  public get consecutiveSpeechFrames(): number {
+    return this.bargeInDetector.consecutiveSpeechFrames;
+  }
+  public set consecutiveSpeechFrames(val: number) {
+    this.bargeInDetector.consecutiveSpeechFrames = val;
+  }
+
+  public get preRollChunks(): string[] {
+    return this.bargeInDetector.preRollChunks;
+  }
+  public set preRollChunks(val: string[]) {
+    this.bargeInDetector.preRollChunks = val;
+  }
+
+  public get stopPlaybackTimer(): ReturnType<typeof setTimeout> | null {
+    return this.playbackQueue.stopPlaybackTimer;
+  }
 
   public async initAudioContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
@@ -58,35 +83,14 @@ export class AudioGraphService {
   }
 
   public isPlaybackActive(): boolean {
-    return this.isAiSpeaking || this.scheduledSources.length > 0 || this.jitterBuffer.length > 0;
+    return this.playbackQueue.isPlaybackActive();
   }
 
   public setAiSpeaking(speaking: boolean): void {
-    if (this.isAiSpeaking === speaking) {
-      if (!speaking) {
-        this.consecutiveSpeechFrames = 0;
-        this.preRollChunks = [];
-      }
-      return;
-    }
-    this.isAiSpeaking = speaking;
+    this.playbackQueue.setAiSpeaking(speaking);
     if (!speaking) {
-      this.consecutiveSpeechFrames = 0;
-      this.preRollChunks = [];
+      this.bargeInDetector.reset();
     }
-    this.onPlaybackStateChange?.(speaking);
-  }
-
-  private getSpeakerRms(): number {
-    if (!this.speakerAnalyserNode || !this.isAiSpeaking) return 0;
-    const data = new Uint8Array(this.speakerAnalyserNode.frequencyBinCount);
-    this.speakerAnalyserNode.getByteTimeDomainData(data);
-    let sum = 0;
-    for (const byte of data) {
-      const v = (byte - 128) / 128;
-      sum += v * v;
-    }
-    return Math.sqrt(sum / data.length);
   }
 
   public async reinitInputStream(): Promise<void> {
@@ -132,7 +136,7 @@ export class AudioGraphService {
     this.analyserNode.fftSize = 256;
     this.analyserNode.smoothingTimeConstant = 0.5;
 
-    this.warmUpFrames = 4;
+    this.bargeInDetector.resetWarmUp(4);
     this.sourceNode.connect(this.highpassFilterNode);
     this.highpassFilterNode.connect(this.inputGainNode);
     this.inputGainNode.connect(this.analyserNode);
@@ -170,17 +174,8 @@ export class AudioGraphService {
     }
 
     this.ensureOutputGraph(ctx);
-
-    if (!this.boundDeviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
-      this.boundDeviceChangeListener = () => {
-        this.reinitInputStream().catch(() => {});
-      };
-      try {
-        navigator.mediaDevices.addEventListener('devicechange', this.boundDeviceChangeListener);
-      } catch {}
-    }
-
-    this.nextPlayTime = ctx.currentTime;
+    this.bindDeviceChangeListener();
+    this.playbackQueue.resetTime(ctx.currentTime);
   }
 
   private handleInputChunk(
@@ -188,65 +183,28 @@ export class AudioGraphService {
     ctx: AudioContext,
     onAudioChunk: (pcm16Base64: string) => void
   ): void {
-    if (this.isMuted) return;
+    const speakerRms = this.bargeInDetector.getSpeakerRms(
+      this.speakerAnalyserNode,
+      this.playbackQueue.isAiSpeaking
+    );
+    const playedMs = this.playbackQueue.getPlaybackDurationMs(ctx);
 
-    if (this.warmUpFrames > 0) {
-      this.warmUpFrames--;
-      return;
-    }
-
-    let sum = 0;
-    for (const v of inputBuffer) {
-      sum += v * v;
-    }
-    const micRms = Math.sqrt(sum / inputBuffer.length);
-    const speakerRms = this.getSpeakerRms();
-    const playedMs = this.getPlaybackDurationMs();
-
-    if (this.isAiSpeaking || this.isPlaybackActive()) {
-      // AI 刚开始播报的 250ms 内为扬声器初始瞬态抑制窗（对齐官方 App 瞬态保护）
-      if (playedMs < 250) {
-        this.consecutiveSpeechFrames = 0;
-        this.preRollChunks = [];
-        return;
-      }
-
-      const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.1);
-      if (micRms > dynamicThreshold) {
-        this.consecutiveSpeechFrames++;
-        const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
-        if (base64) {
-          this.preRollChunks.push(base64);
-          if (this.preRollChunks.length > 6) {
-            this.preRollChunks.shift();
-          }
+    this.bargeInDetector.processInputChunk({
+      inputBuffer,
+      sampleRate: ctx.sampleRate,
+      isMuted: this.isMuted,
+      isAiSpeakingOrActive: this.playbackQueue.isAiSpeaking || this.playbackQueue.isPlaybackActive(),
+      speakerRms,
+      playedMs,
+      onAudioChunk,
+      onBargeIn: (triggerPlayedMs, bufferedChunks) => {
+        this.stopPlayback(150);
+        for (const chunk of bufferedChunks) {
+          onAudioChunk(chunk);
         }
-
-        if (this.consecutiveSpeechFrames >= 4) {
-          // 打断判定达标（连续 4 帧约 170ms）：执行平滑渐弱与前置缓冲回溯补发
-          const bufferedChunks = [...this.preRollChunks];
-          this.stopPlayback(150);
-          this.consecutiveSpeechFrames = 0;
-          this.preRollChunks = [];
-
-          // 零字头丢失补偿：将插话判定期间暂存的前置音频块完整补发给服务端
-          for (const chunk of bufferedChunks) {
-            onAudioChunk(chunk);
-          }
-          this.onLocalInterruptCallback?.(playedMs);
-        }
-      } else {
-        this.consecutiveSpeechFrames = 0;
-        this.preRollChunks = [];
-      }
-    } else {
-      this.consecutiveSpeechFrames = 0;
-      this.preRollChunks = [];
-      const base64 = resampleAndEncodePCM(inputBuffer, ctx.sampleRate, 24000);
-      if (base64) {
-        onAudioChunk(base64);
-      }
-    }
+        this.onLocalInterruptCallback?.(triggerPlayedMs);
+      },
+    });
   }
 
   private setupScriptProcessorFallback(ctx: AudioContext, onAudioChunk: (pcm16Base64: string) => void): void {
@@ -279,44 +237,14 @@ export class AudioGraphService {
     return this.outputGainNode;
   }
 
-  private playDecodedAudioBuffer(ctx: AudioContext, audioBuffer: AudioBuffer, onEnded?: () => void): void {
-    const outputGain = this.ensureOutputGraph(ctx);
-    outputGain.gain.cancelScheduledValues(ctx.currentTime);
-    outputGain.gain.setValueAtTime(0.85, ctx.currentTime);
-
-    const source = ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(outputGain);
-    if (this.analyserNode) {
-      source.connect(this.analyserNode);
-    }
-
-    source.onended = () => {
-      const idx = this.scheduledSources.indexOf(source);
-      if (idx !== -1) {
-        this.scheduledSources.splice(idx, 1);
-      }
-      if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
-        this.playbackStartCtxTime = null;
-        this.setAiSpeaking(false);
-        this.isJitterBuffering = true;
-        this.consecutiveSpeechFrames = 0;
-      }
-      onEnded?.();
-    };
-
-    this.setAiSpeaking(true);
-    source.start(ctx.currentTime);
-    this.scheduledSources.push(source);
-  }
-
   public async playAudioUrl(url: string, onEnded?: () => void): Promise<void> {
     const ctx = await this.initAudioContext();
     try {
       const res = await fetch(url);
       const arrayBuffer = await res.arrayBuffer();
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-      this.playDecodedAudioBuffer(ctx, audioBuffer, onEnded);
+      const outputGain = this.ensureOutputGraph(ctx);
+      this.playbackQueue.playDecodedBuffer(ctx, audioBuffer, outputGain, this.analyserNode, onEnded);
     } catch {
       onEnded?.();
     }
@@ -335,171 +263,25 @@ export class AudioGraphService {
         bytes[i] = binary.charCodeAt(i);
       }
       const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
-      this.playDecodedAudioBuffer(ctx, audioBuffer, onEnded);
+      const outputGain = this.ensureOutputGraph(ctx);
+      this.playbackQueue.playDecodedBuffer(ctx, audioBuffer, outputGain, this.analyserNode, onEnded);
     } catch {
       onEnded?.();
     }
   }
 
   public getPlaybackDurationMs(): number {
-    if (!this.audioCtx || this.playbackStartCtxTime === null) return 0;
-    const now = this.audioCtx.currentTime;
-    if (now < this.playbackStartCtxTime) return 0;
-    const elapsedSec = now - this.playbackStartCtxTime;
-    return Math.max(0, Math.round(elapsedSec * 1000));
-  }
-
-  private flushJitterBuffer(): void {
-    if (!this.audioCtx || !this.outputGainNode) return;
-    const ctx = this.audioCtx;
-
-    if (this.outputGainNode) {
-      this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
-      this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
-    }
-
-    while (this.jitterBuffer.length > 0) {
-      const buffer = this.jitterBuffer.shift();
-      if (!buffer) continue;
-      this.jitterBufferedSec = Math.max(0, this.jitterBufferedSec - buffer.duration);
-
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.outputGainNode);
-      if (this.analyserNode) {
-        source.connect(this.analyserNode);
-      }
-
-      const now = ctx.currentTime;
-      if (this.nextPlayTime < now) {
-        this.nextPlayTime = now + 0.025;
-      }
-
-      if (this.playbackStartCtxTime === null || this.scheduledSources.length === 0) {
-        this.playbackStartCtxTime = this.nextPlayTime;
-      }
-
-      source.start(this.nextPlayTime);
-      this.nextPlayTime += buffer.duration;
-      this.scheduledSources.push(source);
-
-      source.onended = () => {
-        const idx = this.scheduledSources.indexOf(source);
-        if (idx !== -1) {
-          this.scheduledSources.splice(idx, 1);
-        }
-        if (this.scheduledSources.length === 0 && this.jitterBuffer.length === 0) {
-          this.playbackStartCtxTime = null;
-          this.setAiSpeaking(false);
-          this.isJitterBuffering = true;
-          this.consecutiveSpeechFrames = 0;
-        }
-      };
-    }
+    return this.playbackQueue.getPlaybackDurationMs(this.audioCtx);
   }
 
   public enqueueAudioChunk(base64Chunk: string): void {
     if (!this.audioCtx || !this.outputGainNode) return;
-    const ctx = this.audioCtx;
-
-    // 若当前仍有未决的渐弱停播定时器，立即取消并瞬间拉平音量，杜绝新语音吞音
-    if (this.stopPlaybackTimer) {
-      clearTimeout(this.stopPlaybackTimer);
-      this.stopPlaybackTimer = null;
-      try {
-        this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
-        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
-      } catch {}
-      this.nextPlayTime = Math.max(ctx.currentTime + 0.025, this.nextPlayTime);
-    }
-
-    const buffer = base64PCMToAudioBuffer(base64Chunk, ctx, 24000);
-    if (buffer.length <= 1) return;
-
-    this.setAiSpeaking(true);
-    this.jitterBuffer.push(buffer);
-    this.jitterBufferedSec += buffer.duration;
-
-    let threshold = 0;
-    if (this.scheduledSources.length === 0) {
-      threshold = this.isJitterBuffering ? this.JITTER_TARGET_SEC : this.JITTER_REBUFFER_SEC;
-    }
-
-    if (this.jitterBufferedSec >= threshold) {
-      this.isJitterBuffering = false;
-      this.flushJitterBuffer();
-    }
+    this.playbackQueue.enqueueChunk(base64Chunk, this.audioCtx, this.outputGainNode, this.analyserNode);
   }
 
   public stopPlayback(fadeDurationMs: number = 150): void {
-    if (!this.audioCtx || !this.outputGainNode) return;
-    const ctx = this.audioCtx;
-    const wasSpeaking = this.isAiSpeaking;
-
-    if (this.stopPlaybackTimer) {
-      clearTimeout(this.stopPlaybackTimer);
-      this.stopPlaybackTimer = null;
-    }
-
-    this.playbackStartCtxTime = null;
-    this.setAiSpeaking(false);
-    this.isJitterBuffering = true;
-    this.consecutiveSpeechFrames = 0;
-    this.preRollChunks = [];
-    this.jitterBuffer = [];
-    this.jitterBufferedSec = 0;
-
-    const sourcesToStop = [...this.scheduledSources];
-    this.scheduledSources = [];
-
-    if ((sourcesToStop.length === 0 && !wasSpeaking) || fadeDurationMs <= 0) {
-      try {
-        this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
-        this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
-      } catch {}
-      for (const s of sourcesToStop) {
-        try {
-          s.stop();
-          s.disconnect();
-        } catch {}
-      }
-      this.nextPlayTime = ctx.currentTime;
-      return;
-    }
-
-    const fadeDurationSec = fadeDurationMs / 1000;
-    const fadeEndTime = ctx.currentTime + fadeDurationSec;
-
-    try {
-      this.outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
-      const currentGain = Math.max(0.001, this.outputGainNode.gain.value);
-      this.outputGainNode.gain.setValueAtTime(currentGain, ctx.currentTime);
-      this.outputGainNode.gain.exponentialRampToValueAtTime(0.0001, fadeEndTime);
-    } catch {}
-
-    for (const s of sourcesToStop) {
-      try {
-        s.stop(fadeEndTime);
-      } catch {
-        try {
-          s.stop();
-        } catch {}
-      }
-    }
-
-    this.stopPlaybackTimer = setTimeout(() => {
-      this.stopPlaybackTimer = null;
-      for (const s of sourcesToStop) {
-        try {
-          s.disconnect();
-        } catch {}
-      }
-      if (this.outputGainNode && this.audioCtx) {
-        this.outputGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
-        this.outputGainNode.gain.setValueAtTime(0.85, this.audioCtx.currentTime);
-      }
-      this.nextPlayTime = this.audioCtx ? this.audioCtx.currentTime : 0;
-    }, fadeDurationMs + 20);
+    this.bargeInDetector.reset();
+    this.playbackQueue.stopPlayback(this.audioCtx, this.outputGainNode, fadeDurationMs);
   }
 
   public setMute(muted: boolean): void {
@@ -525,6 +307,17 @@ export class AudioGraphService {
     return Math.min(1, rms * 4);
   }
 
+  private bindDeviceChangeListener(): void {
+    if (!this.boundDeviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      this.boundDeviceChangeListener = () => {
+        this.reinitInputStream().catch(() => {});
+      };
+      try {
+        navigator.mediaDevices.addEventListener('devicechange', this.boundDeviceChangeListener);
+      } catch {}
+    }
+  }
+
   public cleanup(): void {
     this.stopPlayback(0);
     if (this.boundDeviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
@@ -544,10 +337,6 @@ export class AudioGraphService {
         this.processorNode.disconnect();
       } catch {}
       this.processorNode = null;
-    }
-    if (this.stopPlaybackTimer) {
-      clearTimeout(this.stopPlaybackTimer);
-      this.stopPlaybackTimer = null;
     }
     if (this.inputGainNode) {
       try {

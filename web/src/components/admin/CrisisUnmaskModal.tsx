@@ -57,24 +57,24 @@ export const CrisisUnmaskModal: React.FC<CrisisUnmaskModalProps> = ({ crisis, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#000000]/60 flex items-center justify-center p-4">
-      <div className="bg-[#ffffff] w-full max-w-lg max-h-[90vh] rounded-3xl border border-[#c4c7c5] shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="bg-[#fce8e6] px-6 py-4 border-b border-[#f2b8b5] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <ShieldAlert className="w-5 h-5 text-[#ba1a1a]" />
-            <h3 className="text-sm font-semibold text-[#410e0b]">
+    <div className="fixed inset-0 z-50 bg-[#000000]/60 flex items-center justify-center p-2.5 sm:p-4">
+      <div className="bg-[#ffffff] w-full max-w-lg max-h-[92dvh] sm:max-h-[90vh] rounded-2xl sm:rounded-3xl border border-[#c4c7c5] shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-[#fce8e6] px-4 sm:px-6 py-3 sm:py-4 border-b border-[#f2b8b5] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5 text-[#ba1a1a]" />
+            <h3 className="text-xs sm:text-sm font-semibold text-[#410e0b]">
               身份查验 · {crisis.sessionId}
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-[#f9dedc] text-[#601410] transition-colors"
+            className="p-1.5 rounded-full hover:bg-[#f9dedc] text-[#601410] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto min-h-0 flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto min-h-0 flex-1">
           {!currentUnmasked ? (
             <form onSubmit={handleVerify} className="space-y-4">
               <div>
@@ -87,7 +87,7 @@ export const CrisisUnmaskModal: React.FC<CrisisUnmaskModalProps> = ({ crisis, on
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value)}
                   placeholder="teacher-safe-2026"
-                  className="w-full px-4 py-2.5 text-sm rounded-xl border border-[#c4c7c5] focus:outline-none focus:border-[#004a77] bg-[#ffffff]"
+                  className="w-full px-4 py-2.5 text-base sm:text-sm rounded-xl border border-[#c4c7c5] focus:outline-none focus:border-[#004a77] bg-[#ffffff]"
                   autoFocus
                 />
                 {errorMessage && (

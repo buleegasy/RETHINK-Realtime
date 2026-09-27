@@ -1,10 +1,34 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import app from '../src/index';
 
 describe('心理教师管理后台接口与危机穿透测试', () => {
   const testSessionId = `test_sess_${Date.now()}`;
+  let teacherToken = '';
 
-  it('POST /api/admin/login 校验有效教师账号并返回管理凭证', async () => {
+  it('未提供鉴权凭证直接访问管理接口返回 401 阻断', async () => {
+    const res = await app.request('/api/admin/stats');
+    expect(res.status).toBe(401);
+    const data: any = await res.json();
+    expect(data.success).toBe(false);
+    expect(data.error).toContain('未提供有效鉴权凭证');
+  });
+
+  it('POST /api/admin/login 密码错误返回 401 拦截', async () => {
+    const res = await app.request('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'teacher',
+        password: 'wrong_password_2026',
+      }),
+    });
+
+    expect(res.status).toBe(401);
+    const data: any = await res.json();
+    expect(data.success).toBe(false);
+  });
+
+  it('POST /api/admin/login 校验有效教师账号并返回签名 Token', async () => {
     const res = await app.request('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -18,11 +42,15 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
     const data: any = await res.json();
     expect(data.success).toBe(true);
     expect(data.token).toBeDefined();
+    expect(data.token.split('.')).toHaveLength(3); // 标准 JWT 格式
     expect(data.user.role).toBe('teacher');
+    teacherToken = data.token;
   });
 
-  it('初始状态 GET /api/admin/stats 返回真实指标无虚假数据', async () => {
-    const res = await app.request('/api/admin/stats');
+  it('初始状态持 Token 访问 GET /api/admin/stats 返回真实指标无虚假数据', async () => {
+    const res = await app.request('/api/admin/stats', {
+      headers: { Authorization: `Bearer ${teacherToken}` },
+    });
     expect(res.status).toBe(200);
     const data: any = await res.json();
     expect(data.success).toBe(true);
@@ -55,7 +83,9 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
   });
 
   it('真实数据写入后，GET /api/admin/stats 统计准确无伪造回落', async () => {
-    const res = await app.request('/api/admin/stats');
+    const res = await app.request('/api/admin/stats', {
+      headers: { Authorization: `Bearer ${teacherToken}` },
+    });
     expect(res.status).toBe(200);
     const data: any = await res.json();
     expect(data.success).toBe(true);
@@ -65,7 +95,9 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
   });
 
   it('GET /api/admin/sessions 返回脱敏通话记录，不泄露未授权真实身份', async () => {
-    const res = await app.request('/api/admin/sessions');
+    const res = await app.request('/api/admin/sessions', {
+      headers: { Authorization: `Bearer ${teacherToken}` },
+    });
     expect(res.status).toBe(200);
     const data: any = await res.json();
     expect(data.success).toBe(true);
@@ -78,7 +110,10 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
   it('POST /api/admin/crisis/unmask 错误口令返回 403，正确口令解密出真实用户名与学号并留痕', async () => {
     const failRes = await app.request('/api/admin/crisis/unmask', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`,
+      },
       body: JSON.stringify({
         session_id: testSessionId,
         secondary_passcode: 'wrong-passcode',
@@ -90,7 +125,10 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
 
     const successRes = await app.request('/api/admin/crisis/unmask', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`,
+      },
       body: JSON.stringify({
         session_id: testSessionId,
         secondary_passcode: 'teacher-safe-2026',
@@ -108,7 +146,10 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
   it('POST /api/admin/crisis/disposition 能够更新处置跟进状态', async () => {
     const res = await app.request('/api/admin/crisis/disposition', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`,
+      },
       body: JSON.stringify({
         session_id: testSessionId,
         status: 'intervened',
@@ -124,7 +165,10 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
   it('POST /api/admin/sessions/delete 口令错误拦截、事由不足拦截、验证通过软删除且数据留存', async () => {
     const failPasscode = await app.request('/api/admin/sessions/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`,
+      },
       body: JSON.stringify({
         session_id: testSessionId,
         secondary_passcode: 'bad-code',
@@ -135,7 +179,10 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
 
     const failReason = await app.request('/api/admin/sessions/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`,
+      },
       body: JSON.stringify({
         session_id: testSessionId,
         secondary_passcode: 'teacher-safe-2026',
@@ -146,7 +193,10 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
 
     const successDelete = await app.request('/api/admin/sessions/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`,
+      },
       body: JSON.stringify({
         session_id: testSessionId,
         secondary_passcode: 'teacher-safe-2026',
@@ -156,17 +206,23 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
     });
     expect(successDelete.status).toBe(200);
 
-    const normalSessionsRes = await app.request('/api/admin/sessions');
+    const normalSessionsRes = await app.request('/api/admin/sessions', {
+      headers: { Authorization: `Bearer ${teacherToken}` },
+    });
     const normalSessionsData: any = await normalSessionsRes.json();
     expect(normalSessionsData.sessions.length).toBe(0);
 
-    const allSessionsRes = await app.request('/api/admin/sessions?includeDeleted=true');
+    const allSessionsRes = await app.request('/api/admin/sessions?includeDeleted=true', {
+      headers: { Authorization: `Bearer ${teacherToken}` },
+    });
     const allSessionsData: any = await allSessionsRes.json();
     expect(allSessionsData.sessions.length).toBe(1);
     expect(allSessionsData.sessions[0].isDeleted).toBe(true);
     expect(allSessionsData.sessions[0].deleteReason).toBe('学生演练已结束归档保存');
 
-    const auditRes = await app.request('/api/admin/audit-logs');
+    const auditRes = await app.request('/api/admin/audit-logs', {
+      headers: { Authorization: `Bearer ${teacherToken}` },
+    });
     const auditData: any = await auditRes.json();
     const delLog = auditData.logs.find((l: any) => l.session_id === testSessionId && l.reason.includes('学生演练已结束归档保存'));
     expect(delLog).toBeDefined();
@@ -175,7 +231,10 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
   it('POST /api/admin/sessions/restore 能够验证口令并恢复已归档记录', async () => {
     const res = await app.request('/api/admin/sessions/restore', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`,
+      },
       body: JSON.stringify({
         session_id: testSessionId,
         secondary_passcode: 'teacher-safe-2026',
@@ -184,7 +243,9 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
     });
     expect(res.status).toBe(200);
 
-    const restoredSessionsRes = await app.request('/api/admin/sessions');
+    const restoredSessionsRes = await app.request('/api/admin/sessions', {
+      headers: { Authorization: `Bearer ${teacherToken}` },
+    });
     const restoredSessionsData: any = await restoredSessionsRes.json();
     expect(restoredSessionsData.sessions.length).toBe(1);
     expect(restoredSessionsData.sessions[0].isDeleted).toBe(false);
@@ -193,7 +254,10 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
   it('POST /api/admin/sessions/re-evaluate 能够重新提炼个案简报并更新', async () => {
     const res = await app.request('/api/admin/sessions/re-evaluate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`,
+      },
       body: JSON.stringify({
         session_id: testSessionId,
         transcript: '学生：老师，我最近数学考试很焦虑。\n智能体：别担心，我们一步一步来。',
@@ -206,4 +270,3 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
     expect(data.report.evaluatedBy).toBe('DeepSeek V4 Flash');
   });
 });
-

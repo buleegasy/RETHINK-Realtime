@@ -46,29 +46,29 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-[#ffffff] w-full max-w-md max-h-[90vh] rounded-3xl border border-[#bbf7d0] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="bg-[#f0fdf4] px-6 py-4 border-b border-[#bbf7d0] flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-2.5 sm:p-4">
+      <div className="bg-[#ffffff] w-full max-w-md max-h-[92dvh] sm:max-h-[90vh] rounded-2xl sm:rounded-3xl border border-[#bbf7d0] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-[#f0fdf4] px-4 sm:px-6 py-3 sm:py-4 border-b border-[#bbf7d0] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-[#166534]">
-            <ShieldCheck className="w-5 h-5 shrink-0" />
-            <h3 className="text-sm font-bold tracking-tight">
+            <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+            <h3 className="text-xs sm:text-sm font-bold tracking-tight">
               恢复个案档案
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-[#dcfce7] text-[#166534] transition-colors"
+            className="p-1 rounded-full hover:bg-[#dcfce7] text-[#166534] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs overflow-y-auto min-h-0 flex-1">
-          <p className="text-[#5e5e5e] leading-relaxed">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3.5 sm:space-y-4 text-xs overflow-y-auto min-h-0 flex-1">
+          <p className="text-[#5e5e5e] leading-relaxed text-[11px] sm:text-xs">
             该档案此前已被安全归档保护。请输入教师二次安全口令，将其恢复至常规活跃个案库中。
           </p>
 
-          <div className="bg-[#f8f9fa] rounded-2xl p-3 border border-[#e1e3e1] space-y-1">
+          <div className="bg-[#f8f9fa] rounded-xl sm:rounded-2xl p-3 border border-[#e1e3e1] space-y-1">
             <div className="flex justify-between">
               <span className="text-[#747775]">个案编号</span>
               <span className="font-mono font-bold text-[#004a77]">{session.sessionId}</span>
@@ -98,23 +98,23 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
               placeholder="请输入心理教师二级授权口令"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#146c2e]"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#146c2e] text-base sm:text-sm"
               required
             />
           </div>
 
-          <div className="bg-[#f8f9fa] pt-3 -mx-6 -mb-6 px-6 pb-4 border-t border-[#e1e3e1] flex items-center justify-end gap-2">
+          <div className="bg-[#f8f9fa] pt-3 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pb-4 border-t border-[#e1e3e1] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium bg-[#ffffff] border border-[#c4c7c5] text-[#444746] hover:bg-[#f0f4f9] transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-medium bg-[#ffffff] border border-[#c4c7c5] text-[#444746] hover:bg-[#f0f4f9] transition-colors cursor-pointer text-center"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !passcode}
-              className="px-5 py-2 rounded-xl text-xs font-medium bg-[#146c2e] text-white hover:bg-[#0f5323] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm cursor-pointer"
+              className="w-full sm:w-auto justify-center px-5 py-2 rounded-xl text-xs font-medium bg-[#146c2e] text-white hover:bg-[#0f5323] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>{isSubmitting ? '核验恢复中...' : '确认恢复档案'}</span>

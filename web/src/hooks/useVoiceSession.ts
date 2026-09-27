@@ -10,7 +10,7 @@ import { WebCryptoAesGcm } from '../lib/pipelines/security/webCryptoAesGcm';
 import { BufferedTranscriptionPipeline } from '../lib/pipelines/transcription/bufferedTranscription';
 import { DeidentifiedCbtReportGenerator } from '../lib/pipelines/reporting/deidentifiedReportGenerator';
 import { apiFetch } from '../lib/api';
-import type { CBTStage, DialogueTurn, AdminSessionItem } from '../types';
+import type { CBTStage, DialogueTurn } from '../types';
 
 export function useVoiceSession() {
   const {
@@ -51,6 +51,7 @@ export function useVoiceSession() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const rafVisualizerRef = useRef<number>(0);
   const sessionIdRef = useRef<string>('');
+  const endCallRef = useRef<(() => Promise<void>) | null>(null);
 
   const getAudioGraph = useCallback(() => {
     if (!audioGraphRef.current) {
@@ -143,7 +144,11 @@ export function useVoiceSession() {
             setHookState('connected');
             setDuplexPhase('listening');
           },
-          onClose: () => {},
+          onClose: () => {
+            if (useBoothStore.getState().sessionStatus === 'connected') {
+              endCallRef.current?.();
+            }
+          },
           onError: (err: any) => {
             console.warn('[VoiceSession] 中继网络通知:', err);
           },
@@ -316,84 +321,61 @@ export function useVoiceSession() {
     const turns = useBoothStore.getState().dialogueHistory;
     const duration = useBoothStore.getState().callDuration;
     const stageReached = useBoothStore.getState().cbtStage;
+    const currentSessionId = sessionIdRef.current || `kiosk_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 
-    if (turns.length > 0 || duration > 3) {
+    if (turns.length > 0 || duration > 0) {
       try {
         const report = await reportGeneratorRef.current.generate({
-          sessionId: sessionIdRef.current,
+          sessionId: currentSessionId,
           durationSeconds: duration,
           stageReached,
           rawUserName: user?.userName,
           turns,
         });
 
+        // 存储本次个案脱敏评估报告供管理后台调阅，来访学生端不弹窗
         setLatestReport(report);
 
         const plainJson = JSON.stringify({ turns, report });
-        const encryptedBundle = await cryptoRef.current.encrypt(plainJson);
+        let encryptedBundle = '';
+        try {
+          encryptedBundle = await cryptoRef.current.encrypt(plainJson);
+        } catch {}
 
+        // 异步同步至云端 Worker 深度建档（DeepSeek V4 Flash 结构化简报与情景记忆更新）
         const transcriptText = turns
           .map((t) => `${t.role === 'user' ? (user?.displayName || user?.userName || '学生') : '智能体'}: ${t.content}`)
           .join('\n');
 
-        const res = await apiFetch('/api/voice/session/persist', {
+        apiFetch('/api/voice/session/persist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            session_id: sessionIdRef.current,
+            session_id: currentSessionId,
             duration,
             encrypted_payload: encryptedBundle,
             stage: stageReached,
             username: user?.userName || user?.displayName || 'student_user',
             transcript_text: transcriptText,
           }),
-        }).catch((e) => {
-          console.warn('[VoiceSession] 后台持久化静默跳过:', e);
-          return null;
-        });
-
-        let finalReport = report;
-        if (res && res.ok) {
-          try {
-            const data: any = await res.json();
-            if (data?.report) {
-              finalReport = data.report;
-              setLatestReport(data.report);
+        })
+          .then(async (res) => {
+            if (res && res.ok) {
+              const data: any = await res.json();
+              if (data?.report) {
+                setLatestReport(data.report);
+              }
             }
-          } catch {}
-        }
-
-        try {
-          const sessionItem: AdminSessionItem = {
-            id: sessionIdRef.current,
-            sessionId: sessionIdRef.current,
-            duration,
-            stage: stageReached,
-            isCrisis: Boolean(finalReport?.cbtStageReached === 'Crisis_Escalation'),
-            crisisLevel: finalReport?.cbtStageReached === 'Crisis_Escalation' ? 3 : 0,
-            crisisSummary: finalReport?.emotionalTrajectory?.deltaNotes || '已完成实时倾诉与认知梳理。',
-            coreConcerns: finalReport?.coreConcerns || [],
-            emotionalValence: 0.1,
-            deidentifiedReport: finalReport,
-            dispositionStatus: 'pending_contact',
-            dispositionNote: '',
-            isDeleted: false,
-            deletedAt: null,
-            deleteReason: null,
-            deletedBy: null,
-            createdAt: Math.floor(Date.now() / 1000),
-            hasEncryptedIdentity: Boolean(encryptedBundle),
-          };
-          const rawExisting = localStorage.getItem('rethink_real_sessions');
-          const existingList: AdminSessionItem[] = rawExisting ? JSON.parse(rawExisting) : [];
-          const updated = [sessionItem, ...existingList.filter((s) => s.sessionId !== sessionItem.sessionId && !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_'))];
-          localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
-        } catch {}
+          })
+          .catch((e) => {
+            console.warn('[VoiceSession] 后台持久化同步异常:', e);
+          });
       } catch (err) {
         console.error('[VoiceSession] 报告生成或加密异常:', err);
       }
     }
   }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport, setReportModalOpen, addDialogueTurn]);
+  endCallRef.current = endCall;
 
   const interrupt = useCallback(() => {
     const playedMs = audioGraphRef.current ? audioGraphRef.current.getPlaybackDurationMs() : 0;

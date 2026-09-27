@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@rethink/shared": "*",
     "@ricky0123/vad-web": "^0.0.31",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
@@ -31,7 +32,6 @@
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.5.0",
     "jsdom": "^29.1.1",
-    "motion": "^13.4.4",
     "postcss": "^8.5.12",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.5.0",

@@ -8,7 +8,7 @@ import type {
   DispositionStatus,
   UserProfile,
 } from '../types';
-import { apiFetch } from '../lib/api';
+import { AdminApiClient } from '../lib/api/adminApiClient';
 
 interface AdminState {
   isAuthenticated: boolean;
@@ -77,27 +77,21 @@ export const useAdminStore = create<AdminState>((set, get) => {
     login: async (username: string, password: string) => {
       set({ isLoading: true, error: null });
       try {
-        const res = await apiFetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
-        });
-        const data = await res.json();
+        const data = await AdminApiClient.login(username, password);
         if (data.success && data.token) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: data.token, user: data.user }));
           set({
             isAuthenticated: true,
             token: data.token,
-            teacherProfile: data.user,
+            teacherProfile: data.user || null,
             isLoading: false,
           });
           await get().fetchStats();
           await get().fetchCrises();
           return true;
-        } else {
-          set({ isLoading: false, error: data.error || '登录失败' });
-          return false;
         }
+        set({ isLoading: false, error: data.error || '登录失败' });
+        return false;
       } catch (e: any) {
         set({ isLoading: false, error: e?.message || '网络连接失败' });
         return false;
@@ -121,162 +115,46 @@ export const useAdminStore = create<AdminState>((set, get) => {
     },
 
     fetchStats: async () => {
-      try {
-        const res = await apiFetch('/api/admin/stats');
-        const data = await res.json();
-        if (data.success && data.stats) {
-          set({ stats: data.stats });
-        }
-      } catch {}
+      const stats = await AdminApiClient.fetchStats();
+      if (stats) set({ stats });
     },
 
     fetchCrises: async () => {
-      try {
-        const res = await apiFetch('/api/admin/crises');
-        const data = await res.json();
-        const backendCrises: AdminCrisisItem[] = (data.success && Array.isArray(data.crises)) ? data.crises : [];
-
-        let localSessions: AdminSessionItem[] = [];
-        try {
-          const raw = localStorage.getItem('rethink_real_sessions');
-          if (raw) {
-            localSessions = JSON.parse(raw);
-          }
-        } catch {}
-
-        const crisisMap = new Map<string, AdminCrisisItem>();
-        for (const c of backendCrises) {
-          if (!c.sessionId?.startsWith('sess_sample_') && !c.sessionId?.startsWith('mock_')) {
-            crisisMap.set(c.sessionId, c);
-          }
-        }
-
-        for (const s of localSessions) {
-          if ((s.isCrisis || s.crisisLevel >= 3) && !s.isDeleted && !s.sessionId?.startsWith('sess_sample_') && !s.sessionId?.startsWith('mock_')) {
-            if (!crisisMap.has(s.sessionId)) {
-              crisisMap.set(s.sessionId, {
-                sessionId: s.sessionId,
-                duration: s.duration,
-                crisisLevel: s.crisisLevel,
-                crisisSummary: s.crisisSummary,
-                coreConcerns: s.coreConcerns,
-                emotionalValence: s.emotionalValence,
-                dispositionStatus: s.dispositionStatus || 'pending_contact',
-                dispositionNote: s.dispositionNote || '',
-                createdAt: s.createdAt,
-                hasEncryptedIdentity: s.hasEncryptedIdentity,
-              });
-            } else {
-              const remote = crisisMap.get(s.sessionId)!;
-              if (s.dispositionStatus && s.dispositionStatus !== 'pending_contact' && remote.dispositionStatus === 'pending_contact') {
-                crisisMap.set(s.sessionId, {
-                  ...remote,
-                  dispositionStatus: s.dispositionStatus,
-                  dispositionNote: s.dispositionNote || remote.dispositionNote,
-                });
-              }
-            }
-          }
-        }
-
-        const combinedCrises = Array.from(crisisMap.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        const currentCount = get().crises.length;
-        set({ crises: combinedCrises });
-        if (combinedCrises.length > currentCount && get().buzzerEnabled) {
-          get().playBuzzer();
-        }
-      } catch {}
+      const combinedCrises = await AdminApiClient.fetchCrises();
+      const currentCount = get().crises.length;
+      set({ crises: combinedCrises });
+      if (combinedCrises.length > currentCount && get().buzzerEnabled) {
+        get().playBuzzer();
+      }
     },
 
     fetchSessions: async (crisisOnly = false, includeDeleted?: boolean) => {
       set({ isLoading: true });
-      try {
-        const incDel = includeDeleted ?? get().showArchived;
-        const res = await apiFetch(`/api/admin/sessions?crisisOnly=${crisisOnly ? 'true' : 'false'}&includeDeleted=${incDel ? 'true' : 'false'}`);
-        const data = await res.json();
-        const backendSessions: AdminSessionItem[] = (data.success && Array.isArray(data.sessions)) ? data.sessions : [];
-
-        let localSessions: AdminSessionItem[] = [];
-        try {
-          const raw = localStorage.getItem('rethink_real_sessions');
-          if (raw) {
-            localSessions = JSON.parse(raw);
-          }
-        } catch {}
-
-        const sessionMap = new Map<string, AdminSessionItem>();
-        for (const s of backendSessions) {
-          if (!s.sessionId?.startsWith('sess_sample_') && !s.sessionId?.startsWith('mock_')) {
-            sessionMap.set(s.sessionId, s);
-          }
-        }
-        for (const s of localSessions) {
-          if (!s.sessionId?.startsWith('sess_sample_') && !s.sessionId?.startsWith('mock_')) {
-            if (!sessionMap.has(s.sessionId)) {
-              sessionMap.set(s.sessionId, s);
-            } else {
-              const remote = sessionMap.get(s.sessionId)!;
-              if (s.dispositionStatus && s.dispositionStatus !== 'pending_contact' && remote.dispositionStatus === 'pending_contact') {
-                sessionMap.set(s.sessionId, {
-                  ...remote,
-                  dispositionStatus: s.dispositionStatus,
-                  dispositionNote: s.dispositionNote || remote.dispositionNote,
-                });
-              }
-            }
-          }
-        }
-
-        let combined = Array.from(sessionMap.values());
-        if (!incDel) {
-          combined = combined.filter((s) => !s.isDeleted);
-        }
-        if (crisisOnly) {
-          combined = combined.filter((s) => s.isCrisis || (s.crisisLevel >= 3));
-        }
-        combined.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-        set({ sessions: combined, isLoading: false });
-      } catch {
-        set({ isLoading: false });
-      }
+      const incDel = includeDeleted ?? get().showArchived;
+      const combined = await AdminApiClient.fetchSessions(crisisOnly, incDel);
+      set({ sessions: combined, isLoading: false });
     },
 
     fetchAuditLogs: async () => {
-      try {
-        const res = await apiFetch('/api/admin/audit-logs');
-        const data = await res.json();
-        if (data.success && Array.isArray(data.logs)) {
-          set({ auditLogs: data.logs });
-        }
-      } catch {}
+      const logs = await AdminApiClient.fetchAuditLogs();
+      set({ auditLogs: logs });
     },
 
     unmaskCrisis: async (sessionId: string, passcode: string, operatorName?: string) => {
       try {
         const op = operatorName || get().teacherProfile?.displayName || '心理专职教师';
-        const res = await apiFetch('/api/admin/crisis/unmask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId,
-            secondary_passcode: passcode,
-            operator_name: op,
-          }),
-        });
-        const data = await res.json();
+        const data = await AdminApiClient.unmaskCrisis(sessionId, passcode, op);
         if (data.success && data.realIdentity) {
           set((state) => ({
             unmaskedMap: {
               ...state.unmaskedMap,
-              [sessionId]: data.realIdentity,
+              [sessionId]: data.realIdentity!,
             },
           }));
           await get().fetchAuditLogs();
           return { success: true, identity: data.realIdentity };
-        } else {
-          return { success: false, error: data.error || '二次安全口令校验未通过' };
         }
+        return { success: false, error: data.error || '二次安全口令校验未通过' };
       } catch (err: any) {
         return { success: false, error: err?.message || '网络异常' };
       }
@@ -300,34 +178,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
         ),
       }));
 
-      try {
-        const raw = localStorage.getItem('rethink_real_sessions');
-        if (raw) {
-          const list: AdminSessionItem[] = JSON.parse(raw);
-          const updated = list.map((s) =>
-            s.sessionId === sessionId
-              ? { ...s, dispositionStatus: status, dispositionNote: finalNote }
-              : s
-          );
-          localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
-        }
-      } catch {}
-
-      try {
-        const res = await apiFetch('/api/admin/crisis/disposition', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId,
-            status,
-            note: finalNote,
-          }),
-        });
-        const data = await res.json();
-        return Boolean(data.success);
-      } catch {
-        return false;
-      }
+      return AdminApiClient.updateDisposition(sessionId, status, finalNote);
     },
 
     refreshAdminData: async () => {
@@ -340,26 +191,8 @@ export const useAdminStore = create<AdminState>((set, get) => {
     deleteSession: async (sessionId: string, passcode: string, reason: string, operatorName?: string) => {
       try {
         const op = operatorName || get().teacherProfile?.displayName || '心理专职教师';
-        const res = await apiFetch('/api/admin/sessions/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId,
-            secondary_passcode: passcode,
-            reason,
-            operator_name: op,
-          }),
-        });
-        const data = await res.json();
+        const data = await AdminApiClient.deleteSession(sessionId, passcode, reason, op);
         if (data.success) {
-          try {
-            const raw = localStorage.getItem('rethink_real_sessions');
-            if (raw) {
-              const list: AdminSessionItem[] = JSON.parse(raw);
-              const updated = list.map((s) => s.sessionId === sessionId ? { ...s, isDeleted: true, deleteReason: reason, deletedBy: op, deletedAt: Math.floor(Date.now() / 1000) } : s);
-              localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
-            }
-          } catch {}
           await get().refreshAdminData();
           return { success: true };
         }
@@ -372,25 +205,8 @@ export const useAdminStore = create<AdminState>((set, get) => {
     restoreSession: async (sessionId: string, passcode: string, operatorName?: string) => {
       try {
         const op = operatorName || get().teacherProfile?.displayName || '心理专职教师';
-        const res = await apiFetch('/api/admin/sessions/restore', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId,
-            secondary_passcode: passcode,
-            operator_name: op,
-          }),
-        });
-        const data = await res.json();
+        const data = await AdminApiClient.restoreSession(sessionId, passcode, op);
         if (data.success) {
-          try {
-            const raw = localStorage.getItem('rethink_real_sessions');
-            if (raw) {
-              const list: AdminSessionItem[] = JSON.parse(raw);
-              const updated = list.map((s) => s.sessionId === sessionId ? { ...s, isDeleted: false, deleteReason: null, deletedBy: null, deletedAt: null } : s);
-              localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
-            }
-          } catch {}
           await get().refreshAdminData();
           return { success: true };
         }
@@ -402,12 +218,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
 
     reEvaluateSession: async (sessionId: string, transcript?: string) => {
       try {
-        const res = await apiFetch('/api/admin/sessions/re-evaluate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId, transcript }),
-        });
-        const data = await res.json();
+        const data = await AdminApiClient.reEvaluateSession(sessionId, transcript);
         if (data.success && data.report) {
           set((state) => ({
             sessions: state.sessions.map((s) =>
@@ -424,26 +235,6 @@ export const useAdminStore = create<AdminState>((set, get) => {
                 : s
             ),
           }));
-          try {
-            const raw = localStorage.getItem('rethink_real_sessions');
-            if (raw) {
-              const list: AdminSessionItem[] = JSON.parse(raw);
-              const updated = list.map((s) =>
-                s.sessionId === sessionId
-                  ? {
-                      ...s,
-                      deidentifiedReport: data.report,
-                      crisisLevel: data.session?.crisisLevel ?? s.crisisLevel,
-                      isCrisis: data.session?.isCrisis ?? (data.session?.crisisLevel >= 3 || s.isCrisis),
-                      crisisSummary: data.session?.crisisSummary ?? s.crisisSummary,
-                      coreConcerns: data.session?.coreConcerns ?? s.coreConcerns,
-                      emotionalValence: data.session?.emotionalValence ?? s.emotionalValence,
-                    }
-                  : s
-              );
-              localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
-            }
-          } catch {}
           return { success: true, report: data.report, session: data.session };
         }
         return { success: false, error: data.error || '重新解析失败' };
@@ -463,7 +254,9 @@ export const useAdminStore = create<AdminState>((set, get) => {
 
     playBuzzer: () => {
       try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtxClass) return;
+        const ctx = new AudioCtxClass();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sine';

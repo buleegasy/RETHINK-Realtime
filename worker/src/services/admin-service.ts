@@ -15,9 +15,10 @@ import {
   generateWeeklySummaryDeepSeekV4Flash,
   generateStructuredReportWithFlash,
 } from '../lib/deepseek-flash';
+import { signAuthToken, verifyPassword } from '../lib/auth-crypto';
 
 export class AdminService {
-  public static async authenticateTeacher(username?: string, password?: string) {
+  public static async authenticateTeacher(username?: string, password?: string, env?: Env) {
     if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
       return { success: false, error: '请输入有效的教师账号与密码', status: 400 };
     }
@@ -27,7 +28,52 @@ export class AdminService {
       return { success: false, error: '账号格式不正确', status: 400 };
     }
 
-    const token = `teacher_token_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}`;
+    const expectedPassword = env?.TEACHER_PASSWORD || 'counselor2026';
+    let isPasswordValid = false;
+
+    if (env?.DB) {
+      try {
+        const row = await env.DB.prepare(
+          'SELECT password_hash FROM users WHERE username = ?'
+        )
+          .bind(cleanUser)
+          .first<{ password_hash?: string }>();
+
+        if (row?.password_hash) {
+          isPasswordValid = await verifyPassword(password, row.password_hash);
+        }
+      } catch (err) {
+        console.warn('[AdminAuth] D1 教师用户查询异常:', err);
+      }
+    }
+
+    // 若 D1 中无记录或未配置 D1，采用环境变量或默认口令兜底验证
+    if (!isPasswordValid) {
+      if (expectedPassword.startsWith('pbkdf2:')) {
+        isPasswordValid = await verifyPassword(password, expectedPassword);
+      } else {
+        isPasswordValid = password === expectedPassword;
+      }
+    }
+
+    if (!isPasswordValid) {
+      return { success: false, error: '教师账号或密码错误', status: 401 };
+    }
+
+    const currentEpoch = Math.floor(Date.now() / 1000);
+    const secretKey = env?.JWT_SECRET || 'rethink-auth-salt-default-key';
+    const token = await signAuthToken(
+      {
+        uid: `teacher_${cleanUser}`,
+        username: cleanUser,
+        displayName: cleanUser === 'teacher' ? '校心理专职教师' : `${cleanUser}老师`,
+        role: 'teacher',
+        iat: currentEpoch,
+        exp: currentEpoch + 86400, // 教师凭证 24 小时有效
+      },
+      secretKey
+    );
+
     const user = {
       uid: `teacher_${cleanUser}`,
       username: cleanUser,
@@ -245,7 +291,8 @@ export class AdminService {
     try {
       const decryptedStr = await decryptAesGcm(target.encrypted_real_identity, correctPasscode);
       realIdentityObj = JSON.parse(decryptedStr);
-    } catch {
+    } catch (err) {
+      console.warn('[AdminService] 身份数据解密异常:', err);
       return { success: false, error: '身份数据解密失败，安全口令或加密密钥不匹配', status: 500 };
     }
 

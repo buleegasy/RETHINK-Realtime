@@ -3,6 +3,6 @@ export type {
   CbtTransitionRecord,
   CbtTransitionResult,
   CbtFsmConfig,
-} from '../../../web/src/lib/cbt/cbtStateMachine';
+} from '@rethink/shared';
 
-export { CbtStateMachine } from '../../../web/src/lib/cbt/cbtStateMachine';
+export { CbtStateMachine } from '@rethink/shared';

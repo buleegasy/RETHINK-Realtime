@@ -72,7 +72,7 @@ export async function generateMiniMaxChatReply(options: {
   model?: string;
   baseUrl?: string;
 }): Promise<string> {
-  const { messages, apiKey, model = atob('Z3B0LTRvLW1pbmk='), baseUrl = 'https://api.apiyi.com/v1' } = options;
+  const { messages, apiKey, model = atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx'), baseUrl = 'https://api.apiyi.com/v1' } = options;
   if (!apiKey) return '';
 
   const cleanUrl = stripTrailingSlashes(baseUrl);

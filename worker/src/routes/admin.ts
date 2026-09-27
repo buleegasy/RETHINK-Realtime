@@ -12,7 +12,19 @@ import type {
 import { AdminService } from '../services/admin-service';
 import { SessionRepository } from '../repositories/session-repository';
 
+import { createAuthMiddleware } from '../middlewares/auth-middleware';
+
 export const adminRouter = new Hono<{ Bindings: Env }>();
+
+const adminAuth = createAuthMiddleware({ allowedRoles: ['teacher', 'admin'] });
+
+// 管理端全局鉴权拦截：除登录接口外，其余接口必须持有合法且未过期的签名凭证
+adminRouter.use('*', async (c, next) => {
+  if (c.req.path.endsWith('/login')) {
+    return next();
+  }
+  return adminAuth(c, next);
+});
 
 export async function addSessionRecordToStore(env: Env, record: SessionRecord): Promise<void> {
   await SessionRepository.save(env, record);
@@ -25,7 +37,7 @@ adminRouter.post('/login', async (c) => {
     body = await c.req.json<TeacherAuthPayload>();
   } catch {}
 
-  const res = await AdminService.authenticateTeacher(body.username, body.password);
+  const res = await AdminService.authenticateTeacher(body.username, body.password, c.env || {});
   return c.json(res, res.status as any);
 });
 

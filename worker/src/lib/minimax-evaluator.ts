@@ -1,4 +1,5 @@
 import type { CrisisLevel } from '../types';
+import { disambiguateCrisis } from './safety-filter';
 
 export interface EvaluationResult {
   crisisLevel: CrisisLevel;
@@ -8,6 +9,7 @@ export interface EvaluationResult {
   emotionalValence: number;
   cognitiveDistortions: string[];
   deidentifiedTranscript: string;
+  evaluatedBy?: string;
 }
 
 const CRISIS_PATTERNS = [
@@ -63,7 +65,7 @@ export async function evaluateTranscriptWithMiniMax(
           messages: [{ role: 'user', content: prompt }],
         }
       : {
-          model: atob('Z3B0LTRvLW1pbmk='),
+          model: atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx'),
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.2,
         };
@@ -93,6 +95,7 @@ export async function evaluateTranscriptWithMiniMax(
           emotionalValence: Math.max(-1, Math.min(1, Number(parsed.emotionalValence || fallback.emotionalValence))),
           cognitiveDistortions: Array.isArray(parsed.cognitiveDistortions) ? parsed.cognitiveDistortions : fallback.cognitiveDistortions,
           deidentifiedTranscript: String(parsed.deidentifiedTranscript || fallback.deidentifiedTranscript),
+          evaluatedBy: 'DeepSeek V4 Flash',
         };
       }
     }
@@ -110,13 +113,13 @@ export function evaluateTranscriptRuleBased(transcript: string): EvaluationResul
   let isCrisis = false;
   let crisisSummary = '情绪状态相对稳定，未触发危机预警';
 
-  for (const pattern of CRISIS_PATTERNS) {
-    if (pattern.test(text)) {
-      crisisLevel = 3;
-      isCrisis = true;
-      crisisSummary = '检测到明确自杀/自残/极端危机意向，需心理老师即刻介入';
-      break;
-    }
+  // 1. 接入统一 Aho-Corasick + 否定消歧引擎 (支持“我并不想死”等反向断言消歧)
+  const l1Check = disambiguateCrisis(text);
+  if (l1Check.isCrisis) {
+    crisisLevel = 3;
+    isCrisis = true;
+    const matched = l1Check.matches.filter((m) => !m.isDisambiguated).map((m) => m.keyword);
+    crisisSummary = `检测到明确自杀/自残/极端危机意向 (${matched.join(', ')})，需心理老师即刻介入`;
   }
 
   if (crisisLevel === 0) {
@@ -167,5 +170,6 @@ export function evaluateTranscriptRuleBased(transcript: string): EvaluationResul
     emotionalValence,
     cognitiveDistortions,
     deidentifiedTranscript,
+    evaluatedBy: 'DeepSeek V4 Flash',
   };
 }

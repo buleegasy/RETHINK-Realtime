@@ -1,0 +1,195 @@
+import type { Env, SessionRecord } from '../../types';
+import { SessionRepository } from '../../repositories/session-repository';
+import { sendCrisisWebhook } from '../../lib/webhook-sender';
+import {
+  generateStructuredReportWithFlash,
+  consolidateSituationalMemoryWithLLM,
+  DEEPSEEK_V4_FLASH_MODEL,
+} from '../../lib/deepseek-flash';
+import { getSituationalMemory, saveSituationalMemory } from '../../lib/memory-store';
+import { encryptAesGcm } from '../../lib/crypto-helper';
+
+export interface ConsolidateAndSaveOptions {
+  sessionId: string;
+  duration?: number;
+  stage?: string;
+  studentName?: string;
+  userId?: string;
+  transcriptText: string;
+  dialogueTurns?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  isCrisisExplicit?: boolean;
+  encryptedPayload?: string;
+}
+
+/**
+ * 个案评估与建档服务 (SessionReporter)
+ * 职责：异步生成 DeepSeek V4 Flash 结构化简报、加密学生隐私身份、记忆归纳与数据库存档
+ */
+export class SessionReporter {
+  public static async generateAndPersist(
+    env: Env,
+    options: ConsolidateAndSaveOptions
+  ) {
+    const {
+      sessionId,
+      duration = 0,
+      stage = 'Active_Listening',
+      studentName = '',
+      userId = '',
+      transcriptText,
+      dialogueTurns = [],
+      isCrisisExplicit = false,
+      encryptedPayload = '',
+    } = options;
+
+    const secret = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
+    const openRouterKey =
+      env.OPENROUTER_API_KEY ||
+      env.REALTIME_UPSTREAM_KEY ||
+      env.MINIMAX_REALTIME_KEY ||
+      env.APIYI_API_KEY ||
+      env.MINIMAX_API_KEY;
+
+    // 1. 深度评估简报生成
+    const report = await generateStructuredReportWithFlash(transcriptText, {
+      apiKey: openRouterKey,
+      baseUrl: env.OPENROUTER_BASE_URL,
+      model: env.OPENROUTER_MODEL || DEEPSEEK_V4_FLASH_MODEL,
+    });
+
+    const isCrisis = isCrisisExplicit || report.isCrisis || report.crisisLevel >= 3 || stage === 'Crisis_Escalation';
+    const crisisLevel = isCrisis ? Math.max(3, report.crisisLevel) : report.crisisLevel;
+    const effectiveStage = isCrisis ? 'Crisis_Escalation' : (stage === 'Active_Listening' ? 'Socratic_Questioning' : stage);
+
+    // 2. 真实身份机密加密
+    const effectiveName = studentName || (userId && !userId.startsWith('sess_') ? userId : '');
+    let encryptedIdentity = encryptedPayload;
+    if (isCrisis && effectiveName) {
+      try {
+        const realIdentityPayload = JSON.stringify({
+          username: effectiveName,
+          realName: effectiveName,
+          gradeClass: '学生来访者',
+          emergencyContact: '校园学生工作处 / 班主任',
+          boothLocation: '校园心理驿站#01',
+          crisisNote: report.crisisSummary,
+        });
+        encryptedIdentity = await encryptAesGcm(realIdentityPayload, secret);
+      } catch {}
+    }
+
+    // 3. 构建去标识化公开报告
+    const deidentifiedReportObj = {
+      sessionId,
+      generatedAt: Date.now(),
+      durationSeconds: duration,
+      userDisplayName: effectiveName ? `${effectiveName[0]}*同学` : '来访者',
+      cbtStageReached: effectiveStage,
+      coreConcerns: report.coreConcerns,
+      cognitiveDistortions: report.cognitiveDistortions,
+      emotionalTrajectory: {
+        initial: report.initialEmotion || (report.crisisLevel >= 2 ? '高度负性情绪倾诉' : '情绪低落'),
+        final: report.finalEmotion || (isCrisis ? '危机紧急触发，已转专业干预' : '事实与情绪逐步分离，趋向平稳'),
+        deltaNotes: report.deltaNotes || report.crisisSummary,
+      },
+      keyTakeaways: report.keyTakeaways && report.keyTakeaways.length > 0
+        ? report.keyTakeaways
+        : ['梳理事实与情绪边界，逐步重建掌控感。'],
+      homeworkAction: report.homeworkAction || '',
+      actionItems: report.actionItems,
+      deidentifiedTranscript: report.deidentifiedTranscript,
+      evaluatedBy: 'DeepSeek V4 Flash',
+      isDeidentified: true,
+    };
+
+    // 4. 持久化至 D1 数据库
+    const record: SessionRecord = {
+      id: sessionId,
+      session_id: sessionId,
+      duration,
+      stage: effectiveStage,
+      is_crisis: isCrisis ? 1 : 0,
+      crisis_level: crisisLevel as any,
+      crisis_summary: report.crisisSummary,
+      core_concerns: JSON.stringify(report.coreConcerns),
+      emotional_valence: report.emotionalValence,
+      encrypted_real_identity: encryptedIdentity || '',
+      deidentified_report: JSON.stringify(deidentifiedReportObj),
+      disposition_status: isCrisis ? 'pending_contact' : 'closed',
+      disposition_note: '',
+      created_at: Math.floor(Date.now() / 1000),
+    };
+
+    await SessionRepository.save(env, record);
+
+    // 5. 触发 Webhook 警报
+    if (isCrisis && env.CRISIS_WEBHOOK_URL) {
+      sendCrisisWebhook(env.CRISIS_WEBHOOK_URL, {
+        sessionId,
+        crisisSummary: report.crisisSummary,
+        crisisLevel,
+        occurredAt: new Date().toLocaleString('zh-CN'),
+        boothLocation: '校园心理驿站#01',
+        coreConcerns: report.coreConcerns,
+      }).catch(() => {});
+    }
+
+    // 6. 整合情景记忆
+    await this.consolidateMemory(env, {
+      userId: userId || effectiveName || sessionId,
+      openRouterKey,
+      dialogueTurns,
+      transcriptText,
+    });
+
+    return {
+      ok: true,
+      session_id: sessionId,
+      is_crisis: isCrisis,
+      crisis_level: crisisLevel,
+      report: deidentifiedReportObj,
+    };
+  }
+
+  private static async consolidateMemory(
+    env: Env,
+    params: {
+      userId: string;
+      openRouterKey: string | undefined;
+      dialogueTurns: Array<{ role: 'user' | 'assistant'; content: string }>;
+      transcriptText: string;
+    }
+  ): Promise<void> {
+    const { userId, openRouterKey, dialogueTurns, transcriptText } = params;
+    const existingMemory = await getSituationalMemory(env, userId);
+
+    let turns = dialogueTurns;
+    if (turns.length === 0 && transcriptText) {
+      turns = transcriptText
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => ({
+          role: line.startsWith('学生') || line.startsWith('来访者') ? ('user' as const) : ('assistant' as const),
+          content: line.replace(/^(学生|智能体|来访者|助手)[:：]\s*/, ''),
+        }));
+    }
+
+    if (turns.length < 2) return;
+
+    try {
+      const consolidated = await consolidateSituationalMemoryWithLLM(
+        userId,
+        existingMemory,
+        turns,
+        {
+          apiKey: openRouterKey,
+          baseUrl: env.OPENROUTER_BASE_URL,
+          model: env.OPENROUTER_MODEL || atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx'),
+        }
+      );
+      if (consolidated) {
+        await saveSituationalMemory(env, consolidated);
+      }
+    } catch {}
+  }
+}

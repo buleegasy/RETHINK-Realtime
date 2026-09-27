@@ -16,6 +16,7 @@ export const AdminPortal: React.FC = () => {
     activeTab,
     fetchStats,
     fetchCrises,
+    fetchSessions,
   } = useAdminStore();
 
   const [username, setUsername] = useState('teacher');
@@ -26,12 +27,13 @@ export const AdminPortal: React.FC = () => {
     if (isAuthenticated) {
       fetchStats();
       fetchCrises();
+      fetchSessions();
       const interval = setInterval(() => {
         fetchCrises();
       }, 10000);
       return () => clearInterval(interval);
     }
-  }, [isAuthenticated, fetchStats, fetchCrises]);
+  }, [isAuthenticated, fetchStats, fetchCrises, fetchSessions]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,16 +42,16 @@ export const AdminPortal: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="h-full w-full overflow-y-auto bg-[#f8f9fa] flex items-center justify-center p-4">
-        <div className="bg-[#ffffff] w-full max-w-sm rounded-3xl border border-[#c4c7c5] shadow-sm p-8 space-y-6">
+      <div className="h-full w-full overflow-y-auto bg-[#f8f9fa] flex items-center justify-center p-3 sm:p-4">
+        <div className="bg-[#ffffff] w-full max-w-sm rounded-3xl border border-[#c4c7c5] shadow-sm p-6 sm:p-8 space-y-5 sm:space-y-6">
           <div className="text-center space-y-1">
             <h1
-              className="text-2xl font-light tracking-[0.25em] text-[#1f1f1f] uppercase"
+              className="text-xl sm:text-2xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-[#1f1f1f] uppercase"
               style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
             >
               RETHINK
             </h1>
-            <p className="text-[11px] text-[#747775] font-mono tracking-widest uppercase">
+            <p className="text-[10px] sm:text-[11px] text-[#747775] font-mono tracking-widest uppercase">
               Console
             </p>
           </div>
@@ -71,7 +73,7 @@ export const AdminPortal: React.FC = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="teacher"
-                className="w-full px-4 py-2.5 text-sm rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77]"
+                className="w-full px-4 py-2.5 text-base sm:text-sm rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77]"
                 required
               />
             </div>
@@ -85,7 +87,7 @@ export const AdminPortal: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-2.5 text-sm rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77]"
+                className="w-full px-4 py-2.5 text-base sm:text-sm rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77]"
                 required
               />
             </div>
@@ -108,7 +110,7 @@ export const AdminPortal: React.FC = () => {
     <div className="h-full w-full overflow-y-auto bg-[#f8f9fa] flex flex-col text-[#1f1f1f] scroll-smooth">
       <AdminNavbar onOpenSettings={() => setIsSettingsOpen(true)} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8 pb-16">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 md:p-8 pb-24 md:pb-16">
         {activeTab === 'pulse' && <CampusPulseDashboard />}
         {activeTab === 'crises' && <CrisisResponseCenter />}
         {activeTab === 'sessions' && <SessionArchiveDrawer />}
