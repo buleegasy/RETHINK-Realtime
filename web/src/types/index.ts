@@ -28,6 +28,7 @@ export interface AdminStats {
   concernDistribution: Array<{ name: string; count: number }>;
   riskDistribution: Array<{ level: number; label: string; count: number }>;
   weeklyTrend: Array<{ date: string; sessions: number; crisis: number; avgValence: number }>;
+  weeklySummary?: string;
 }
 
 export interface AdminCrisisItem {

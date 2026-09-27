@@ -65,7 +65,9 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
       keyTakeaways: [
         `理清客观发生的事实与主观评价之间的边界，避免单一挫折泛化。`,
       ],
-      homeworkAction: `针对本次探讨的${mainTopic}，记录下一次发生类似情绪触发点时的客观事实，尝试写下一种更客观的看待角度。`,
+      homeworkAction: primaryUtterance && primaryUtterance.length > 5
+        ? `针对本次探讨的${mainTopic}，记录下一次发生类似情绪触发点时的客观事实，尝试写下一种更客观的看待角度。`
+        : '',
       isDeidentified: true,
     };
   }

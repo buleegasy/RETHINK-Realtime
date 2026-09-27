@@ -32,6 +32,7 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
     expect(data.stats.concernDistribution).toBeInstanceOf(Array);
     expect(data.stats.riskDistribution).toBeInstanceOf(Array);
     expect(data.stats.weeklyTrend).toBeInstanceOf(Array);
+    expect(typeof data.stats.weeklySummary).toBe('string');
   });
 
   it('POST /api/voice/session/persist 传入自残自杀对话自动触发高危并加密身份', async () => {

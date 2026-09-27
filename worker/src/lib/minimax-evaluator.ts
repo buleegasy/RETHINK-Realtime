@@ -139,7 +139,7 @@ export function evaluateTranscriptRuleBased(transcript: string): EvaluationResul
   if (/宿舍|同学|朋友|人际|孤立|不理我|吵架/.test(text)) coreConcerns.push('同伴人际矛盾');
   if (/爸妈|父母|家里|母亲|父亲|唠叨|管我/.test(text)) coreConcerns.push('家庭互动冲突');
   if (/失眠|心慌|头疼|胸闷|不想吃/.test(text)) coreConcerns.push('躯体化焦虑反应');
-  if (coreConcerns.length === 0) coreConcerns.push('日常情绪倾诉');
+  if (coreConcerns.length === 0) coreConcerns.push('日常交流');
 
   let emotionalValence = -0.1;
   if (crisisLevel === 3) emotionalValence = -0.9;
@@ -151,7 +151,7 @@ export function evaluateTranscriptRuleBased(transcript: string): EvaluationResul
   if (/必须|绝不能|全完了|没希望了/.test(text)) cognitiveDistortions.push('灾难化与绝对化思维');
   if (/所有人都|大家都不|每次都/.test(text)) cognitiveDistortions.push('以偏概全');
   if (/觉得我|肯定看不起我/.test(text)) cognitiveDistortions.push('读心术倾向');
-  if (cognitiveDistortions.length === 0) cognitiveDistortions.push('偶发性现实挫折');
+  if (cognitiveDistortions.length === 0) cognitiveDistortions.push('表达自然，未见负向认知偏差');
 
   const deidentifiedTranscript = text
     .replace(/(?:\+?86)?\s*(1[3-9]\d)\d{4}(\d{4})/g, '$1****$2')

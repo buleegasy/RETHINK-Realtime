@@ -12,6 +12,7 @@ import type {
 } from '../types';
 import { decryptAesGcm } from '../lib/crypto-helper';
 import { sendCrisisWebhook } from '../lib/webhook-sender';
+import { generateWeeklySummaryDeepSeekV4Flash } from '../lib/deepseek-flash';
 
 export const adminRouter = new Hono<{ Bindings: Env }>();
 
@@ -276,6 +277,20 @@ adminRouter.get('/stats', async (c) => {
     };
   });
 
+  const weeklySummary = await generateWeeklySummaryDeepSeekV4Flash(
+    {
+      totalSessions,
+      crisisCount,
+      avgValence,
+      topConcerns: concernDistribution.slice(0, 3),
+    },
+    {
+      apiKey: env.OPENROUTER_API_KEY,
+      baseUrl: env.OPENROUTER_BASE_URL,
+      model: env.OPENROUTER_MODEL,
+    }
+  );
+
   return c.json({
     success: true,
     stats: {
@@ -286,6 +301,7 @@ adminRouter.get('/stats', async (c) => {
       concernDistribution,
       riskDistribution,
       weeklyTrend,
+      weeklySummary,
     },
   });
 });

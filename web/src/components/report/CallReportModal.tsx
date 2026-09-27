@@ -69,17 +69,22 @@ export const CallReportModal: React.FC = () => {
 
             <div>
               <h3 className="text-xs font-mono tracking-wider uppercase text-on-muted mb-2">
-                情绪与自动思维觉察
+                情绪与思维觉察
               </h3>
               <div className="flex flex-wrap gap-1.5">
-                {latestReport.cognitiveDistortions.map((d, i) => (
-                  <span
-                    key={i}
-                    className="px-2.5 py-1 rounded-md text-xs border border-black/15 bg-surface-dim font-mono"
-                  >
-                    {d}
-                  </span>
-                ))}
+                {(() => {
+                  const filtered = (latestReport.cognitiveDistortions || [])
+                    .filter((d) => !d.includes('阶段性现实困扰') && !d.includes('未检测到显著偏执型认知歪曲'));
+                  const list = filtered.length > 0 ? filtered : ['表达自然，未见负向认知偏差'];
+                  return list.map((d, i) => (
+                    <span
+                      key={i}
+                      className="px-2.5 py-1 rounded-md text-xs border border-black/15 bg-surface-dim font-mono"
+                    >
+                      {d}
+                    </span>
+                  ));
+                })()}
               </div>
             </div>
 
@@ -101,16 +106,20 @@ export const CallReportModal: React.FC = () => {
               </div>
             </div>
 
-            {}
-            <div>
-              <h3 className="text-xs font-mono tracking-wider uppercase text-on-muted mb-2 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-black" />
-                <span>CBT 替代想法与课后小练习</span>
-              </h3>
-              <p className="p-3 rounded-xl border border-black/15 bg-white text-xs leading-relaxed text-neutral-800">
-                {latestReport.homeworkAction}
-              </p>
-            </div>
+            {latestReport.homeworkAction &&
+              latestReport.homeworkAction.trim() !== '' &&
+              !latestReport.homeworkAction.includes('保持规律作息') &&
+              !latestReport.homeworkAction.includes('写下最近的感受') && (
+                <div>
+                  <h3 className="text-xs font-mono tracking-wider uppercase text-on-muted mb-2 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-black" />
+                    <span>课后微行动建议</span>
+                  </h3>
+                  <p className="p-3 rounded-xl border border-black/15 bg-white text-xs leading-relaxed text-neutral-800">
+                    {latestReport.homeworkAction}
+                  </p>
+                </div>
+              )}
           </div>
 
           <div className="p-4 border-t border-black/10 bg-surface-dim flex gap-3">

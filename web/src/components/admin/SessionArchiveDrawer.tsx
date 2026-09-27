@@ -206,7 +206,7 @@ export const SessionArchiveDrawer: React.FC = () => {
               )}
 
               <div className="flex flex-wrap gap-1.5">
-                {(s.coreConcerns || []).map((c: string, idx: number) => (
+                {(s.coreConcerns && s.coreConcerns.length > 0 ? s.coreConcerns : ['日常交流']).map((c: string, idx: number) => (
                   <span
                     key={idx}
                     className="bg-[#f0f4f9] text-[#004a77] text-[11px] px-2.5 py-0.5 rounded-full font-medium"
@@ -217,7 +217,7 @@ export const SessionArchiveDrawer: React.FC = () => {
               </div>
 
               <p className="text-xs text-[#5e5e5e] line-clamp-2 leading-relaxed bg-[#f8f9fa] p-2.5 rounded-xl border border-[#f0f0f0]">
-                {s.crisisSummary || s.deidentifiedReport?.emotionalTrajectory?.deltaNotes || '已完成认知重塑。'}
+                {s.crisisSummary || s.deidentifiedReport?.emotionalTrajectory?.deltaNotes || '已完成会话交流。'}
               </p>
 
               <div className="flex items-center justify-between text-[11px] text-[#747775] pt-1 border-t border-[#f0f0f0]">
@@ -263,7 +263,7 @@ export const SessionArchiveDrawer: React.FC = () => {
               <div className="flex items-center gap-2.5 flex-wrap">
                 <Sparkles className="w-4 h-4 text-[#004a77]" />
                 <h3 className="text-sm font-bold text-[#1f1f1f]">
-                  CBT 简报 · {activeSession.sessionId}
+                  来访情绪简报 · {activeSession.sessionId}
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e8f0fe] text-[#004a77] border border-[#d2e3fc]">
                   DeepSeek V4 Flash 智能建档
@@ -283,7 +283,10 @@ export const SessionArchiveDrawer: React.FC = () => {
                   核心议题
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  {(activeSession.coreConcerns || []).map((item: string, i: number) => (
+                  {(activeSession.coreConcerns && activeSession.coreConcerns.length > 0
+                    ? activeSession.coreConcerns
+                    : ['日常交流与倾诉']
+                  ).map((item: string, i: number) => (
                     <span
                       key={i}
                       className="px-3 py-1 bg-[#f0f4f9] text-[#004a77] rounded-full font-medium"
@@ -299,15 +302,25 @@ export const SessionArchiveDrawer: React.FC = () => {
                   认知特点
                 </span>
                 <div className="bg-[#f8f9fa] border border-[#e1e3e1] rounded-2xl p-3.5 space-y-1.5">
-                  {(activeSession.deidentifiedReport?.cognitiveDistortions && activeSession.deidentifiedReport.cognitiveDistortions.length > 0
-                    ? activeSession.deidentifiedReport.cognitiveDistortions
-                    : ['未检测到显著偏执型认知歪曲，属于阶段性现实困扰']
-                  ).map((d: string, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-[#444746]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#004a77]" />
-                      <span>{d}</span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const rawDistortions = activeSession.deidentifiedReport?.cognitiveDistortions || [];
+                    const filtered = rawDistortions
+                      .filter(
+                        (d: string) =>
+                          typeof d === 'string' &&
+                          !d.includes('阶段性现实困扰') &&
+                          !d.includes('未检测到显著偏执型认知歪曲')
+                      )
+                      .map((d: string) => d.trim())
+                      .filter(Boolean);
+                    const list = filtered.length > 0 ? filtered : ['表达自然流畅，未见负向认知偏差'];
+                    return list.map((d: string, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-[#444746]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#004a77]" />
+                        <span>{d}</span>
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
 
@@ -337,14 +350,26 @@ export const SessionArchiveDrawer: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <span className="font-semibold text-[#1f1f1f] block">
-                  微行动练习
-                </span>
-                <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-2xl p-3.5 text-[#92400e] leading-relaxed">
-                  {activeSession.deidentifiedReport?.homeworkAction || '结合本次倾诉议题，建议保持规律作息并记录一件积极的生活小事。'}
-                </div>
-              </div>
+              {/* 微行动练习：仅在有实质内容且非套话时渲染，普通闲聊直接不渲染 */}
+              {(() => {
+                const action = activeSession.deidentifiedReport?.homeworkAction?.trim() || '';
+                const isBoilerplate =
+                  !action ||
+                  action.includes('保持规律作息') ||
+                  action.includes('写下最近的感受') ||
+                  action.includes('深呼吸');
+                if (isBoilerplate) return null;
+                return (
+                  <div className="space-y-1.5">
+                    <span className="font-semibold text-[#1f1f1f] block">
+                      微行动练习
+                    </span>
+                    <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-2xl p-3.5 text-[#92400e] leading-relaxed">
+                      {action}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="bg-[#f8f9fa] px-6 py-3 border-t border-[#e1e3e1] flex items-center justify-between shrink-0">
@@ -379,7 +404,7 @@ export const SessionArchiveDrawer: React.FC = () => {
                   onClick={handleReEvaluate}
                   disabled={isReEvaluating}
                   className="px-3 py-1.5 rounded-xl text-xs font-medium text-[#004a77] bg-[#ffffff] border border-[#c4c7c5] hover:bg-[#f0f4f9] transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  title="调用 DeepSeek V4 Flash 重新提炼本次会话的 CBT 简报"
+                  title="调用 DeepSeek V4 Flash 重新提炼本次会话的情绪评估简报"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
                   <span>{isReEvaluating ? '提炼中...' : '重新提炼简报'}</span>

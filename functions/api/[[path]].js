@@ -33,45 +33,59 @@ function buildFaithfulFallback(transcript, stage) {
     .filter(Boolean);
 
   const mainSnippet = userLines[0] || clean.slice(0, 30);
-  const coreConcerns = mainSnippet
-    ? [`围绕“${mainSnippet.slice(0, 20)}...”的现实议题探讨`]
-    : ['来访者进行了短时间陈述，尚未展开核心议题'];
+  const isShortChitChat = !mainSnippet || mainSnippet.length < 6 || /^(你好|在吗|喂|哈喽|hello|hi|测试)/i.test(mainSnippet);
+
+  const coreConcerns = isShortChitChat
+    ? ['日常交流']
+    : [`围绕“${mainSnippet.slice(0, 20)}...”的倾诉探讨`];
 
   const isEscalated = stage === 'Crisis_Escalation';
-  const initialEmotion = '情绪表达与倾诉';
-  const finalEmotion = isEscalated ? '触发危机转介通道' : '完成初步交流';
+  const initialEmotion = isShortChitChat ? '好奇/尝试' : '情绪表达与倾诉';
+  const finalEmotion = isEscalated ? '触发危机转介通道' : (isShortChitChat ? '轻松自然' : '完成初步交流');
 
   return {
     crisisLevel: isEscalated ? 3 : 0,
     isCrisis: isEscalated,
-    crisisSummary: mainSnippet ? `围绕“${mainSnippet.slice(0, 25)}”进行了倾诉与初步梳理。` : '来访者进行了短时间陈述，尚未展开核心议题。',
+    crisisSummary: isShortChitChat
+      ? '学生进行了简短的日常交流或电话亭体验。'
+      : `围绕“${mainSnippet.slice(0, 25)}”进行了倾诉与初步梳理。`,
     coreConcerns,
-    emotionalValence: isEscalated ? -0.8 : -0.1,
-    cognitiveDistortions: ['待通过 DeepSeek V4 Flash 进一步解析'],
+    emotionalValence: isEscalated ? -0.8 : (isShortChitChat ? 0.0 : -0.1),
+    cognitiveDistortions: isShortChitChat
+      ? ['表达自然，未见负向认知偏差']
+      : ['交流平稳，未见明显负向认知歪曲'],
     initialEmotion,
     finalEmotion,
-    deltaNotes: '记录了来访者本次实际发言片段，建议通过 DeepSeek V4 Flash 进行深度认知提炼。',
-    keyTakeaways: ['建议在管理后台点击“重新提炼”触发 DeepSeek V4 Flash 深度挖掘。'],
-    homeworkAction: mainSnippet ? `针对本次交流中提及的“${mainSnippet.slice(0, 18)}”，记录发生类似困扰时的第一念头。` : '结合本次交流的事实，记录生活中的积极变化。',
+    deltaNotes: isShortChitChat ? '日常互动，情绪自然放松。' : '梳理了发言内容，未见明显负向情绪聚集。',
+    keyTakeaways: ['可在管理后台点击“重新提炼简报”进行更新。'],
+    homeworkAction: '', // 闲聊或无明确共识时绝不捏造微行动练习
   };
 }
 
 async function requestDeepSeekV4FlashEvaluation(transcript) {
-  const prompt = `你是基于 DeepSeek V4 Flash 驱动的高中校园心理咨询评估专家。请针对以下高中学生真实倾诉对话文本进行严谨的心理学评估与个案建档。
-服务对象为纯高中在读学生（严禁出现工作、上班、同事等成年人职场概念）。所有字段必须100%严格根据本次真实对话中的事实提取，绝对严禁生成脱离对话的泛化套话（严禁套用深呼吸、日常情绪反刍等泛化模板）：
+  const prompt = `你是基于 DeepSeek V4 Flash 驱动的中学校园心理情绪评估专家。请针对以下学生真实倾诉对话文本进行客观、严谨、实事求是的心理学评估与个案建档。
+服务对象为纯高中在读学生。所有字段必须100%严格根据本次真实对话中的事实提取，绝对严禁捏造任何未发生的事实或模板套话：
+
+【核心求实准则（极其重要，严格遵守）】：
+1. 普通闲聊绝不能说是现实困扰：若学生只是打招呼、试探、日常寒暄或简短尝试（未表达具体心理痛苦或现实危机），必须如实判定为日常交流：
+   - coreConcerns: 若为普通闲聊，输出 ["日常交流"]；
+   - cognitiveDistortions: 若无认知扭曲，必须输出 ["表达自然，未见负向认知偏差"]，绝对严禁使用“属于阶段性现实困扰”或生硬安插挫折困扰！
+   - homeworkAction: 若无具体心理困扰或未达成行动共识，必须直接输出 ""（空字符串），绝对严禁捏造“写下感受”、“深呼吸”等模板化小练习！没有微行动练习就直接留空！
+2. 语言必须客观、中立、求实，面向学校心理专职老师展示，不要包含生硬理论名词。
+
 请严格输出合法的 JSON 对象，不要包含任何 markdown 代码块或反引号包裹：
 {
   "crisisLevel": 0,
   "isCrisis": false,
-  "crisisSummary": "紧密结合本次真实对话的一句话危机与核心议题说明",
-  "coreConcerns": ["根据对话真实提炼的1-3个具体议题，如高三模考失利、与室友争吵等"],
-  "emotionalValence": -0.2,
-  "cognitiveDistortions": ["根据对话中具体言语识别出的认知歪曲，如非黑即白、灾难化等；若无则结合现实挫折如实总结"],
-  "initialEmotion": "进线时学生真实情绪状态",
-  "finalEmotion": "挂机时学生真实情绪状态",
-  "deltaNotes": "学生在对话中的认知转化与情绪重塑轨迹",
-  "homeworkAction": "根据本次对话探讨的具体问题量身定制的1项切实可行的CBT微行动练习",
-  "keyTakeaways": ["根据本次具体议题提炼的1-2条关键启发"]
+  "crisisSummary": "紧密结合本次真实对话的一句话客观判定说明",
+  "coreConcerns": ["根据对话真实提炼的1-2个具体议题；普通闲聊填日常交流"],
+  "emotionalValence": 0.0,
+  "cognitiveDistortions": ["从学生言语中客观识别的认知偏差；若无则填“表达自然，未见负向认知偏差”，严禁编造现实困扰"],
+  "initialEmotion": "进线时学生真实情绪状态，如平静、好奇、焦虑",
+  "finalEmotion": "挂机时学生真实情绪状态，如轻松、平和、释怀",
+  "deltaNotes": "学生在对话中的情绪变化轨迹客观描述",
+  "homeworkAction": "若学生明确提及具体问题且达成行动方案，总结1条切实微行动；若为普通闲聊或无明确微行动，必须留空输出\"\"",
+  "keyTakeaways": ["根据本次交流提炼的1条启发或空"]
 }
 待评估真实对话:
 """${(transcript || '').slice(0, 3000)}"""`;
@@ -92,6 +106,52 @@ async function requestDeepSeekV4FlashEvaluation(transcript) {
     }
   } catch {}
   return null;
+}
+
+async function generateWeeklySummaryDeepSeekV4Flash(realSessions, totalSessions, crisisCount, avgValence, topConcerns) {
+  if (totalSessions === 0) {
+    return '本周暂无学生进线倾诉，校园情绪状态整体平稳，各终端正常待命。';
+  }
+
+  const concernNames = (topConcerns || []).map((c) => c.name).filter(Boolean);
+  const concernStr = concernNames.length > 0 ? concernNames.join('、') : '日常闲聊与尝试';
+
+  const prompt = `你是学校心理健康管理专家。请根据以下本周脱敏统计事实，生成一段20-50字的“本周情绪摘要”，供学校心理老师大屏参阅。
+【严格要求】：
+1. 保持绝对客观中立、求实的语言，绝对不允许捏造任何未发生的困扰或模板套话。
+2. 若以日常闲聊、问候为主，如实指出整体平稳自然，绝不能无中生有夸大困扰。
+3. 字数严格控制在20至50字之间，简洁精炼，直接输出一段话，不要带任何标题、前缀、引号或编号。
+
+【统计事实】：
+- 累计通话：${totalSessions}次
+- 需关注危机预警：${crisisCount}起
+- 平均情绪效价：${avgValence > 0 ? '+' + avgValence : avgValence} (-1至+1区间)
+- 主要议题分布：${concernStr}
+`;
+
+  try {
+    const res = await fetch(`${WORKER_ORIGIN}/api/voice/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: prompt, stage: 'Active_Listening', history: [] }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      let reply = (data?.reply || '').trim().replace(/^["“'‘]+|["”'’]+$/g, '');
+      if (reply.length >= 18 && reply.length <= 55) {
+        return reply;
+      }
+    }
+  } catch {}
+
+  // 客观真实的规则兜底（严格 20-50 字）
+  if (crisisCount > 0) {
+    return `本周记录${totalSessions}次倾诉，监测到${crisisCount}起需关注预警，议题多集中于${concernStr.slice(0, 15)}，请老师重点跟进。`;
+  }
+  if (concernNames.length === 0 || concernStr.includes('闲聊') || concernStr.includes('日常')) {
+    return `本周学生通话以日常闲聊与设备体验为主，整体情绪平稳自然，未监测到群体性心理压力。`;
+  }
+  return `本周倾诉主要围绕${concernStr.slice(0, 16)}展开，平均情绪效价为${avgValence > 0 ? '+' + avgValence : avgValence}，整体处于常规调节状态。`;
 }
 
 export async function onRequest(context) {
@@ -162,15 +222,15 @@ export async function onRequest(context) {
       durationSeconds: duration,
       userDisplayName: username ? `${username[0]}*同学` : '来访者',
       cbtStageReached: stage,
-      coreConcerns: evalResult.coreConcerns || ['现实压力倾诉'],
-      cognitiveDistortions: evalResult.cognitiveDistortions || ['未见显著偏执型认知歪曲'],
+      coreConcerns: evalResult.coreConcerns && evalResult.coreConcerns.length > 0 ? evalResult.coreConcerns : ['日常交流'],
+      cognitiveDistortions: evalResult.cognitiveDistortions && evalResult.cognitiveDistortions.length > 0 ? evalResult.cognitiveDistortions : ['表达自然，未见负向认知偏差'],
       emotionalTrajectory: {
         initial: evalResult.initialEmotion || '情绪倾诉',
         final: evalResult.finalEmotion || '平稳梳理',
         deltaNotes: evalResult.deltaNotes || evalResult.crisisSummary || '已梳理事实与情绪边界。',
       },
-      keyTakeaways: evalResult.keyTakeaways || ['关注当下可控事实，逐步重塑积极认知。'],
-      homeworkAction: evalResult.homeworkAction || '结合本次探讨的议题，记录一件客观发生的事实与感受。',
+      keyTakeaways: evalResult.keyTakeaways || [],
+      homeworkAction: evalResult.homeworkAction || '',
       isDeidentified: true,
       evaluatedBy: 'DeepSeek V4 Flash',
     };
@@ -374,6 +434,14 @@ export async function onRequest(context) {
       };
     });
 
+    const weeklySummary = await generateWeeklySummaryDeepSeekV4Flash(
+      realSessions,
+      totalSessions,
+      crisisCount,
+      avgValence,
+      concernDistribution
+    );
+
     return jsonResponse({
       success: true,
       stats: {
@@ -384,6 +452,7 @@ export async function onRequest(context) {
         concernDistribution,
         riskDistribution,
         weeklyTrend,
+        weeklySummary,
       },
     });
   }

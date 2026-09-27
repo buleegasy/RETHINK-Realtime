@@ -342,7 +342,7 @@ voiceRouter.get('/ws', async (c) => {
                 keyTakeaways: report.keyTakeaways && report.keyTakeaways.length > 0
                   ? report.keyTakeaways
                   : ['关注当下可控的事实，逐步重塑积极认知。'],
-                homeworkAction: report.homeworkAction || '尝试用客观视角记录一件今天发生的小事。',
+                homeworkAction: report.homeworkAction || '',
                 actionItems: report.actionItems,
                 deidentifiedTranscript: report.deidentifiedTranscript,
                 isDeidentified: true,
@@ -648,7 +648,7 @@ voiceRouter.post('/session/persist', async (c) => {
     keyTakeaways: (evalResult.keyTakeaways && evalResult.keyTakeaways.length > 0)
       ? evalResult.keyTakeaways
       : ['梳理事实与情绪边界，逐步重建掌控感。'],
-    homeworkAction: evalResult.homeworkAction || '尝试结合今天探讨的问题，记录一件具体生活小事的客观事实与个人看法。',
+    homeworkAction: evalResult.homeworkAction || '',
     actionItems: evalResult.actionItems,
     deidentifiedTranscript: evalResult.deidentifiedTranscript,
     isDeidentified: true,
