@@ -57,13 +57,7 @@ export const LoginWall: React.FC = () => {
 
       login(data.user, data.token);
     } catch {
-      const fallbackUser = {
-        uid: `user_${username.trim()}`,
-        userName: displayName.trim() || username.trim(),
-        displayName: displayName.trim() || username.trim(),
-        isAuthenticated: true,
-      };
-      login(fallbackUser, `token_${Date.now()}`);
+      setError('网络连接异常，请检查网络后重试');
     } finally {
       setLoading(false);
     }

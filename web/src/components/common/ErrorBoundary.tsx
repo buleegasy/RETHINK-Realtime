@@ -23,7 +23,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    console.error('[ErrorBoundary] 捕获运行时未捕获异常:', error, errorInfo);
+    if (import.meta.env.DEV) {
+      console.error('[ErrorBoundary]', error, errorInfo);
+    }
   }
 
   private handleReload = () => {
@@ -40,7 +42,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (this.props.onReset) {
       this.props.onReset();
     }
-    window.location.href = window.location.pathname;
+    window.location.href = '/';
   };
 
   private isChunkLoadFailure(msg: string): boolean {
