@@ -44,7 +44,7 @@ adminRouter.post('/login', async (c) => {
 // 2. 校园心理大盘实证宏观统计
 adminRouter.get('/stats', async (c) => {
   const stats = await AdminService.getMacroStats(c.env || {});
-  return c.json({ success: true, stats });
+  return c.json({ success: true, stats, d1Bound: Boolean(c.env?.DB) });
 });
 
 // 3. 全量会话脱敏列表查询

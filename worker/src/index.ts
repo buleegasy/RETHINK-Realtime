@@ -15,6 +15,15 @@ app.get('/', (c) => {
     status: 'ok',
     service: 'rethink-realtime-worker',
     model: 'minimax-realtime',
+    d1Bound: Boolean(c.env?.DB),
+    timestamp: Date.now(),
+  });
+});
+
+app.get('/api/health', (c) => {
+  return c.json({
+    status: 'ok',
+    d1Bound: Boolean(c.env?.DB),
     timestamp: Date.now(),
   });
 });
