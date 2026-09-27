@@ -8,10 +8,10 @@ export class CrisisHandler {
   private isCrisisTriggered: boolean = false;
 
   constructor(
-    private serverWs: WebSocket,
-    private upstreamWs: WebSocket,
-    private webhookUrl: string | undefined,
-    private sessionId: string
+    private readonly serverWs: WebSocket,
+    private readonly upstreamWs: WebSocket,
+    private readonly webhookUrl: string | undefined,
+    private readonly sessionId: string
   ) {}
 
   public get isTriggered(): boolean {

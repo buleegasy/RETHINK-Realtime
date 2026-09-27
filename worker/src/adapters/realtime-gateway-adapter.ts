@@ -52,6 +52,35 @@ export class RealtimeGatewayAdapter {
     return cleanBase.endsWith('/realtime') ? `${cleanBase}?${query}` : `${cleanBase}/realtime?${query}`;
   }
 
+  private static resolveTurnDetection(incoming: any): Record<string, unknown> | null | undefined {
+    const incomingVad = incoming.turn_detection !== undefined
+      ? incoming.turn_detection
+      : incoming.audio?.input?.turn_detection;
+
+    if (incomingVad === null) {
+      return null;
+    }
+    if (incomingVad === undefined) {
+      return undefined;
+    }
+
+    return {
+      type: 'server_vad',
+      threshold: incomingVad.threshold ?? 0.5,
+      prefix_padding_ms: incomingVad.prefix_padding_ms ?? 300,
+      silence_duration_ms: incomingVad.silence_duration_ms ?? 600,
+      create_response: true,
+    };
+  }
+
+  private static resolveInstructionsWithMemory(instructions: string, currentMemory?: any): string {
+    if (!currentMemory) return instructions;
+    const memoryPrompt = formatSituationalMemoryPrompt(currentMemory);
+    if (memoryPrompt && !instructions.includes('【来访学生历史个人情景记忆档案】')) {
+      return `${instructions}\n\n${memoryPrompt}`;
+    }
+    return instructions;
+  }
   /**
    * 规范化并清洗客户端传入的 session.update 载荷，动态注入历史记忆档案
    */
@@ -60,34 +89,20 @@ export class RealtimeGatewayAdapter {
       return {};
     }
 
-    const incomingVad = incoming.turn_detection !== undefined ? incoming.turn_detection : incoming.audio?.input?.turn_detection;
-    const turnDetection = incomingVad === null ? null : (incomingVad !== undefined ? {
-      type: 'server_vad',
-      threshold: incomingVad?.threshold ?? 0.5,
-      prefix_padding_ms: incomingVad?.prefix_padding_ms ?? 300,
-      silence_duration_ms: incomingVad?.silence_duration_ms ?? 600,
-      create_response: true,
-    } : undefined);
-
     const cleanSession: Record<string, unknown> = {};
     if (incoming.modalities) cleanSession.modalities = incoming.modalities;
 
     if (incoming.instructions !== undefined) {
-      let baseInstructions = incoming.instructions;
-      if (currentMemory) {
-        const memoryPrompt = formatSituationalMemoryPrompt(currentMemory);
-        if (memoryPrompt && !baseInstructions.includes('【来访学生历史个人情景记忆档案】')) {
-          baseInstructions = `${baseInstructions}\n\n${memoryPrompt}`;
-        }
-      }
-      cleanSession.instructions = baseInstructions;
+      cleanSession.instructions = this.resolveInstructionsWithMemory(incoming.instructions, currentMemory);
     }
+
+    const turnDetection = this.resolveTurnDetection(incoming);
+    if (turnDetection !== undefined) cleanSession.turn_detection = turnDetection;
 
     if (incoming.voice) cleanSession.voice = incoming.voice;
     if (incoming.input_audio_format) cleanSession.input_audio_format = incoming.input_audio_format;
     if (incoming.output_audio_format) cleanSession.output_audio_format = incoming.output_audio_format;
     if (incoming.input_audio_transcription) cleanSession.input_audio_transcription = incoming.input_audio_transcription;
-    if (turnDetection !== undefined) cleanSession.turn_detection = turnDetection;
     if (incoming.tools !== undefined) cleanSession.tools = incoming.tools;
     if (incoming.tool_choice !== undefined) cleanSession.tool_choice = incoming.tool_choice;
     if (incoming.temperature !== undefined) cleanSession.temperature = incoming.temperature;

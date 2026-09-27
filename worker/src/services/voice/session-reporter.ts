@@ -21,6 +21,37 @@ export interface ConsolidateAndSaveOptions {
   encryptedPayload?: string;
 }
 
+function resolveEffectiveStage(isCrisis: boolean, stage: string): string {
+  if (isCrisis) return 'Crisis_Escalation';
+  if (stage === 'Active_Listening') return 'Socratic_Questioning';
+  return stage;
+}
+
+async function encryptRealIdentityIfCrisis(params: {
+  isCrisis: boolean;
+  effectiveName: string;
+  crisisSummary: string;
+  existingPayload?: string;
+  secret: string;
+}): Promise<string> {
+  const { isCrisis, effectiveName, crisisSummary, existingPayload = '', secret } = params;
+  if (!isCrisis || !effectiveName) return existingPayload;
+
+  try {
+    const payload = JSON.stringify({
+      username: effectiveName,
+      realName: effectiveName,
+      gradeClass: '学生来访者',
+      emergencyContact: '校园学生工作处 / 班主任',
+      boothLocation: '校园心理驿站#01',
+      crisisNote: crisisSummary,
+    });
+    return await encryptAesGcm(payload, secret);
+  } catch {
+    return existingPayload;
+  }
+}
+
 /**
  * 个案评估与建档服务 (SessionReporter)
  * 职责：异步生成 DeepSeek V4 Flash 结构化简报、加密学生隐私身份、记忆归纳与数据库存档
@@ -59,24 +90,17 @@ export class SessionReporter {
 
     const isCrisis = isCrisisExplicit || report.isCrisis || report.crisisLevel >= 3 || stage === 'Crisis_Escalation';
     const crisisLevel = isCrisis ? Math.max(3, report.crisisLevel) : report.crisisLevel;
-    const effectiveStage = isCrisis ? 'Crisis_Escalation' : (stage === 'Active_Listening' ? 'Socratic_Questioning' : stage);
+    const effectiveStage = resolveEffectiveStage(isCrisis, stage);
 
     // 2. 真实身份机密加密
     const effectiveName = studentName || (userId && !userId.startsWith('sess_') ? userId : '');
-    let encryptedIdentity = encryptedPayload;
-    if (isCrisis && effectiveName) {
-      try {
-        const realIdentityPayload = JSON.stringify({
-          username: effectiveName,
-          realName: effectiveName,
-          gradeClass: '学生来访者',
-          emergencyContact: '校园学生工作处 / 班主任',
-          boothLocation: '校园心理驿站#01',
-          crisisNote: report.crisisSummary,
-        });
-        encryptedIdentity = await encryptAesGcm(realIdentityPayload, secret);
-      } catch {}
-    }
+    const encryptedIdentity = await encryptRealIdentityIfCrisis({
+      isCrisis,
+      effectiveName,
+      crisisSummary: report.crisisSummary,
+      existingPayload: encryptedPayload,
+      secret,
+    });
 
     // 3. 构建去标识化公开报告
     const deidentifiedReportObj = {

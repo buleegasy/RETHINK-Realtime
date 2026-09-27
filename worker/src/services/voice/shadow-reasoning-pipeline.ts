@@ -14,12 +14,12 @@ export interface ShadowPipelineConfig {
  * 职责：检索 CBT 知识库、执行 DeepSeek V4 Flash 影子推理，并将认知干预指令注入上游网关
  */
 export class ShadowReasoningPipeline {
-  private retriever: BgeRetriever;
+  private readonly retriever: BgeRetriever;
 
   constructor(
-    private env: Env,
-    private config: ShadowPipelineConfig,
-    private upstreamWs: WebSocket
+    private readonly env: Env,
+    private readonly config: ShadowPipelineConfig,
+    private readonly upstreamWs: WebSocket
   ) {
     this.retriever = new BgeRetriever({
       embeddingApiKey: env.EMBEDDING_API_KEY || config.upstreamKey,

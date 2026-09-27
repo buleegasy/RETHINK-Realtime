@@ -41,6 +41,58 @@ const memoryUsers = new Map<string, { id: string; passwordHash: string; displayN
   }
 })();
 
+interface AuthVerificationResult {
+  ok: boolean;
+  status: 200 | 401 | 500;
+  error?: string;
+  user?: {
+    id: string;
+    displayName: string;
+  };
+}
+
+async function verifyUserCredentials(cleanUser: string, password: string, env: Env): Promise<AuthVerificationResult> {
+  if (env.DB) {
+    try {
+      const userRow = await env.DB.prepare(
+        'SELECT id, username, password_hash, display_name FROM users WHERE username = ?'
+      )
+        .bind(cleanUser)
+        .first<{ id?: string; username?: string; password_hash?: string; display_name?: string }>();
+
+      if (!userRow || !(await verifyPassword(password, userRow.password_hash || ''))) {
+        return { ok: false, status: 401, error: '用户名或密码错误' };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        user: {
+          id: userRow.id || `user_${cleanUser}`,
+          displayName: userRow.display_name || cleanUser,
+        },
+      };
+    } catch (e) {
+      console.warn('[Auth] D1 用户查询校验异常:', e);
+      return { ok: false, status: 500, error: '鉴权服务暂时不可用，请稍后重试' };
+    }
+  }
+
+  const memUser = memoryUsers.get(cleanUser);
+  if (!memUser || !(await verifyPassword(password, memUser.passwordHash))) {
+    return { ok: false, status: 401, error: '用户名或密码错误' };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    user: {
+      id: memUser.id,
+      displayName: memUser.displayName,
+    },
+  };
+}
+
 authRouter.post('/login', async (c) => {
   let body: any = {};
   try {
@@ -61,57 +113,14 @@ authRouter.post('/login', async (c) => {
   }
 
   const env = c.env || {};
-  let displayName = cleanUser;
-  let userId = `user_${cleanUser}`;
-  let isAuthenticated = false;
-
   await ensureUsersTable(env);
 
-  if (env.DB) {
-    try {
-      const userRow = await env.DB.prepare(
-        'SELECT id, username, password_hash, display_name FROM users WHERE username = ?'
-      )
-        .bind(cleanUser)
-        .first<any>();
-
-      if (!userRow) {
-        return c.json({ success: false, error: '用户名或密码错误' }, 401);
-      }
-
-      const storedHash = userRow.password_hash || '';
-      const passwordMatches = await verifyPassword(password, storedHash);
-
-      if (!passwordMatches) {
-        return c.json({ success: false, error: '用户名或密码错误' }, 401);
-      }
-
-      userId = userRow.id || userId;
-      displayName = userRow.display_name || cleanUser;
-      isAuthenticated = true;
-    } catch (e) {
-      console.warn('[Auth] D1 用户查询校验异常:', e);
-      return c.json({ success: false, error: '鉴权服务暂时不可用，请稍后重试' }, 500);
-    }
-  } else {
-    // 无 D1 绑定模式下的内存比对
-    const memUser = memoryUsers.get(cleanUser);
-    if (memUser) {
-      const ok = await verifyPassword(password, memUser.passwordHash);
-      if (!ok) {
-        return c.json({ success: false, error: '用户名或密码错误' }, 401);
-      }
-      userId = memUser.id;
-      displayName = memUser.displayName;
-      isAuthenticated = true;
-    } else {
-      return c.json({ success: false, error: '用户名或密码错误' }, 401);
-    }
+  const authResult = await verifyUserCredentials(cleanUser, password, env);
+  if (!authResult.ok || !authResult.user) {
+    return c.json({ success: false, error: authResult.error }, authResult.status);
   }
 
-  if (!isAuthenticated) {
-    return c.json({ success: false, error: '用户名或密码错误' }, 401);
-  }
+  const { id: userId, displayName } = authResult.user;
 
   const currentEpoch = Math.floor(Date.now() / 1000);
   const secretKey = env.JWT_SECRET || 'rethink-auth-salt-default-key';
@@ -168,7 +177,7 @@ authRouter.post('/register', async (c) => {
     : cleanUser;
 
   const env = c.env || {};
-  const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const newUserId = `usr_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
   const passwordHash = await hashPassword(password);
 
   await ensureUsersTable(env);

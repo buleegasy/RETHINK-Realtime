@@ -183,7 +183,7 @@ export async function generateStructuredReportWithFlash(
   "initialEmotion": "进线时真实心境，如好奇、焦虑、平静",
   "finalEmotion": "挂机时真实状态，如轻松、释怀、平稳",
   "deltaNotes": "50-90字的连贯会谈纪要与心境演进叙述",
-  "homeworkAction": "若有切实微行动则填写，普通闲聊或无明确微行动必须输出\"\"",
+  "homeworkAction": "若有切实微行动则填写，普通闲聊或无明确微行动必须输出空字符串",
   "keyTakeaways": ["根据本次交流提炼的1条启发或空"],
   "deidentifiedTranscript": "对原对话彻底脱敏后的文本(自动隐去学生姓名、班级、电话等隐私)",
   "actionItems": ["后续跟进事项清单1", "后续跟进事项清单2"]

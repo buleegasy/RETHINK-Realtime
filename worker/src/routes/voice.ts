@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { Env, PersistSessionPayload, KnowledgeQueryPayload } from '../types';
-import { VoiceService, BargeInCoordinator } from '../services/voice-service';
+import { VoiceService } from '../services/voice-service';
 
-export { BargeInCoordinator };
+export { BargeInCoordinator } from '../services/voice-service';
 
 export const voiceRouter = new Hono<{ Bindings: Env }>();
 

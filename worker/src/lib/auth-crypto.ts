@@ -28,20 +28,20 @@ function base64UrlEncode(bytes: Uint8Array): string {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
     .replace(/=+$/, '');
 }
 
 function base64UrlDecode(str: string): Uint8Array {
-  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  let base64 = str.replaceAll('-', '+').replaceAll('_', '/');
   while (base64.length % 4 !== 0) {
     base64 += '=';
   }
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+    bytes[i] = binary.codePointAt(i) ?? 0;
   }
   return bytes;
 }
@@ -98,7 +98,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   const parts = storedHash.split(':');
   if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
 
-  const iterations = parseInt(parts[1], 10);
+  const iterations = Number.parseInt(parts[1], 10);
   const salt = hexToBytes(parts[2]);
   const expectedHash = hexToBytes(parts[3]);
 

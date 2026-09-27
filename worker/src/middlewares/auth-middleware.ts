@@ -16,7 +16,7 @@ export function createAuthMiddleware(options?: {
     const xToken = c.req.header('x-admin-token');
 
     let token = '';
-    if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+    if (authHeader?.toLowerCase().startsWith('bearer ')) {
       token = authHeader.slice(7).trim();
     } else if (xToken) {
       token = xToken.trim();

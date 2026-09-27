@@ -153,19 +153,31 @@ const acAutomaton = new AhoCorasick(CRISIS_KEYWORDS);
 // -------------------------------------------------------------
 
 // Step 1: 真实危机反向豁免（强肯定句型，绝对禁止消歧）
-const AFFIRMATIVE_EXCEPTION_PATTERN =
-  /(不得不|非.+不可|只能.+去死|只能.+自杀|只能.+跳楼|除了.+(别无选择|没有别的选择|没有退路)|必须死|非死不可|逼我.+死|再不.+就死)/;
+const AFFIRMATIVE_EXCEPTION_PATTERNS = [
+  /不得不|必须死|非死不可/,
+  /非[^，。？！\n]{1,10}不可/,
+  /只能[^，。？！\n]{1,10}(去死|自杀|跳楼)/,
+  /除了[^，。？！\n]{1,10}(别无选择|没有别的选择|没有退路)/,
+  /逼我[^，。？！\n]{1,10}死/,
+  /再不[^，。？！\n]{1,10}就死/,
+];
 
 // Step 2: 否定前缀断言模式
-const NEGATION_PREFIX_PATTERN =
-  /((并不(是)?|并非|没有|没(有)?|并未|未曾|不曾|绝不|决不|绝无|毫无|绝非|不会|不可能|压根(都)?不|根本(都)?不|才不(会)?|哪有|哪会|谁说(我|他|她)?|不至于|难道(我|他|她)?|傻子才|别|千万(别|不要))(想|要|打算|准备|去|试图|会)?|不(想|打算|准备|会)?)$/;
+const NEGATION_PREFIX_PATTERNS = [
+  /(?:并不(?:是)?|并非|没有?|并未|未曾|不曾|绝不|决不|绝无|毫无|绝非)(?:想|要|打算|准备|去|试图|会)?$/,
+  /(?:不会|不可能|压根(?:都)?不|根本(?:都)?不|才不(?:会)?|哪有|哪会)(?:想|要|打算|准备|去|试图|会)?$/,
+  /(?:谁说[我他她]?|不至于|难道[我他她]?|傻子才|别|千万(?:别|不要))(?:想|要|打算|准备|去|试图|会)?$/,
+  /不(?:想|打算|准备|会)?$/,
+];
 
 // Step 3: 第三方劝阻、干预与客观叙事模式
 const INTERVENTION_PREFIX_PATTERN =
   /(劝|劝阻|劝解|劝导|开导|阻止|阻拦|拦住|救下|挽救|制止|拉住|拉扯|救回).{0,8}$/;
 
-const NARRATIVE_PREFIX_PATTERN =
-  /(新闻|热搜|微博|电视(剧)?|电影|小说|故事|网上|网课|短视频|听说有人|听说有同学|隔壁学校|看到有人)(里|上|中|报道|说|写|播放)?.{0,8}$/;
+const NARRATIVE_PREFIX_PATTERNS = [
+  /(新闻|热搜|微博|电视剧?|电影|小说|故事|网上|网课|短视频).{0,8}$/,
+  /(听说有人|听说有同学|隔壁学校|看到有人).{0,8}$/,
+];
 
 // Step 4: 意念消除与转归模式
 const RESOLUTION_PREFIX_PATTERN =
@@ -180,7 +192,7 @@ export function evaluateCrisisMatch(
 ): { isDisambiguated: boolean; reason?: string } {
   // 1. 真实危机反向豁免检查 (Affirmative Exception Guard)
   const surroundingClause = extractSurroundingClause(text, match.start, match.end);
-  if (AFFIRMATIVE_EXCEPTION_PATTERN.test(surroundingClause)) {
+  if (AFFIRMATIVE_EXCEPTION_PATTERNS.some((p) => p.test(surroundingClause))) {
     return { isDisambiguated: false, reason: '命中强肯定/双重绝望语气，强制保留真实危机警报' };
   }
 
@@ -188,7 +200,7 @@ export function evaluateCrisisMatch(
   const suffixWindow = text.slice(match.end, Math.min(text.length, match.end + 10));
 
   // 2. 否定前缀断言扫描 (Prefix Negation Scope)
-  if (NEGATION_PREFIX_PATTERN.test(prefixWindow)) {
+  if (NEGATION_PREFIX_PATTERNS.some((p) => p.test(prefixWindow))) {
     return { isDisambiguated: true, reason: `否定前缀消歧通过: "${prefixWindow}${match.keyword}"` };
   }
 
@@ -198,7 +210,7 @@ export function evaluateCrisisMatch(
   }
 
   // 4. 客观叙事/影视新闻语境 (Narrative Context)
-  if (NARRATIVE_PREFIX_PATTERN.test(prefixWindow)) {
+  if (NARRATIVE_PREFIX_PATTERNS.some((p) => p.test(prefixWindow))) {
     return { isDisambiguated: true, reason: `客观叙事语境消歧通过: "${prefixWindow}${match.keyword}"` };
   }
 

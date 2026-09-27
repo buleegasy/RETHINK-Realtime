@@ -20,8 +20,11 @@ describe('L1 边缘硬过滤与否定消歧引擎 (Aho-Corasick + 多维语境�
       expect(res.matches.some((m) => m.keyword === '自杀' && m.isDisambiguated)).toBe(true);
     });
 
-    it('处理“拦住了想要跳楼的同学”应识别干预语境消歧', () => {
-      const text = '刚才在宿舍楼下，我们一起拦住了想要跳楼的同学';
+    it.each([
+      ['处理干预语境', '刚才在宿舍楼下，我们一起拦住了想要跳楼的同学'],
+      ['处理意念消除', '我已经走出了想自残的阴影，现在好多了'],
+      ['处理新闻叙事', '今天看到新闻里有人跳楼，觉得生命真的很脆弱'],
+    ])('%s 应消歧放行不判定为 L1 危机', (_, text) => {
       expect(isL1Crisis(text)).toBe(false);
     });
 
@@ -29,16 +32,6 @@ describe('L1 边缘硬过滤与否定消歧引擎 (Aho-Corasick + 多维语境�
       const text = '在班主任的开导下，我已经彻底打消了轻生的念头';
       expect(isL1Crisis(text)).toBe(false);
       expect(isNegatedCrisis(text)).toBe(true);
-    });
-
-    it('处理“走出了想自残的阴影”应识别意念消除消歧', () => {
-      const text = '我已经走出了想自残的阴影，现在好多了';
-      expect(isL1Crisis(text)).toBe(false);
-    });
-
-    it('处理客观新闻与影视叙事语境应消歧放行', () => {
-      const text = '今天看到新闻里有人跳楼，觉得生命真的很脆弱';
-      expect(isL1Crisis(text)).toBe(false);
     });
 
     it('处理反问与口语反驳语境应消歧放行', () => {

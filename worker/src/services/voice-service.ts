@@ -9,11 +9,10 @@ import { generateMiniMaxChatReply, synthesizeRealtimeAudio } from '../lib/minima
 import { isL1Crisis } from '../lib/safety-filter';
 import { CbtStateMachine, type CBTStage } from '../lib/cbt-fsm';
 import { getSituationalMemory } from '../lib/memory-store';
-import { BargeInCoordinator } from './voice/barge-in-coordinator';
 import { RelaySessionCoordinator, type RelayQueryParams } from './voice/relay-session-coordinator';
 import { SessionReporter } from './voice/session-reporter';
 
-export { BargeInCoordinator };
+export { BargeInCoordinator } from './voice/barge-in-coordinator';
 
 export class VoiceService {
   /**
@@ -65,6 +64,7 @@ export class VoiceService {
       knowledgeHint = hintObj?.conciseDirective || '';
     } catch {}
 
+    const cbtGuideSection = knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : '';
     const systemPrompt = `你是 RETHINK 校园心理支持智能体。你使用 maple 音色，当前处于【${currentStage}】阶段。
 你以同龄死党的平视、真诚、温和、松弛语气，为来访学生提供即时陪伴与结构化 CBT 认知行为支持。
 【声音与口语核心准则】
@@ -72,7 +72,7 @@ export class VoiceService {
 2. 极简有力，严格限制 1-2 句：每次回复必须严格控制在 1-2 句话以内（绝对严禁超过两句话，汉字字数控制在 40 字以内），极简自然，倾听多于说教，把表达空间留给学生。
 3. 绝对严禁自言自语或输出无意义口头禅（如“听起来……”、“好呀”、“随时告诉我”等），学生沉默时保持静默。
 4. 若学生告知了名字或昵称，在对话中亲切自然地称呼对方。
-${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
+${cbtGuideSection}`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -101,27 +101,10 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
     }
 
     if (replyText === '我一直在这里听你说，别着急，慢慢告诉我发生什么了。' && env.MINIMAX_API_KEY) {
-      try {
-        const minimaxBase = env.MINIMAX_BASE_URL || 'https://api.minimaxi.chat/v1';
-        const cleanMinimax = minimaxBase.replace(/\/+$/, '');
-        const chatEndpoint = cleanMinimax.endsWith('/text/chatcompletion_v2') ? cleanMinimax : `${cleanMinimax}/text/chatcompletion_v2`;
-        const chatRes = await fetch(chatEndpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${env.MINIMAX_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'MiniMax-Text-01',
-            messages,
-          }),
-        });
-        const chatData: any = await chatRes.json();
-        const candidate = chatData.choices?.[0]?.message?.content;
-        if (candidate) {
-          replyText = candidate.replace(/[*#`_~]/g, '').trim();
-        }
-      } catch {}
+      const directFallback = await VoiceService.fetchDirectMiniMaxReply(env, messages);
+      if (directFallback) {
+        replyText = directFallback;
+      }
     }
 
     let audioBase64 = '';
@@ -215,5 +198,31 @@ ${knowledgeHint ? `【专业 CBT 参考指南】${knowledgeHint}` : ''}`;
    */
   public static async getMemory(env: Env, userId: string) {
     return getSituationalMemory(env, userId);
+  }
+
+  private static async fetchDirectMiniMaxReply(env: Env, messages: any[]): Promise<string | null> {
+    try {
+      const rawBase = env.MINIMAX_BASE_URL || 'https://api.minimaxi.chat/v1';
+      const cleanMinimax = rawBase.trim().endsWith('/') ? rawBase.trim().slice(0, -1) : rawBase.trim();
+      const chatEndpoint = cleanMinimax.endsWith('/text/chatcompletion_v2')
+        ? cleanMinimax
+        : `${cleanMinimax}/text/chatcompletion_v2`;
+      const chatRes = await fetch(chatEndpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.MINIMAX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'MiniMax-Text-01',
+          messages,
+        }),
+      });
+      const chatData: any = await chatRes.json();
+      const candidate = chatData.choices?.[0]?.message?.content;
+      return candidate ? candidate.replace(/[*#`_~]/g, '').trim() : null;
+    } catch {
+      return null;
+    }
   }
 }

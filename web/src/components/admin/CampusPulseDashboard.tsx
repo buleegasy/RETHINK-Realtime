@@ -32,9 +32,10 @@ export const CampusPulseDashboard: React.FC = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        <div
+        <button
+          type="button"
           onClick={() => setActiveTab('sessions')}
-          className="bg-[#ffffff] border border-[#e1e3e1] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 cursor-pointer hover:border-[#004a77] hover:shadow-sm transition-all"
+          className="text-left bg-[#ffffff] border border-[#e1e3e1] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 cursor-pointer hover:border-[#004a77] hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#004a77]"
         >
           <div>
             <span className="text-[11px] sm:text-xs font-medium text-[#5e5e5e] block">
@@ -51,11 +52,12 @@ export const CampusPulseDashboard: React.FC = () => {
           <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#f0f4f9] text-[#004a77] flex items-center justify-center shrink-0 self-end sm:self-auto">
             <Users className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
-        </div>
+        </button>
 
-        <div
+        <button
+          type="button"
           onClick={() => setActiveTab('crises')}
-          className="bg-[#ffffff] border border-[#f2b8b5] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 cursor-pointer hover:border-[#ba1a1a] hover:shadow-sm transition-all"
+          className="text-left bg-[#ffffff] border border-[#f2b8b5] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 cursor-pointer hover:border-[#ba1a1a] hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#ba1a1a]"
         >
           <div>
             <span className="text-[11px] sm:text-xs font-medium text-[#601410] block">
@@ -72,11 +74,12 @@ export const CampusPulseDashboard: React.FC = () => {
           <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#fce8e6] text-[#ba1a1a] flex items-center justify-center shrink-0 self-end sm:self-auto">
             <AlertTriangle className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
-        </div>
+        </button>
 
-        <div
+        <button
+          type="button"
           onClick={() => setActiveTab('crises')}
-          className="bg-[#ffffff] border border-[#feedc2] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 cursor-pointer hover:border-[#b45309] hover:shadow-sm transition-all"
+          className="text-left bg-[#ffffff] border border-[#feedc2] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 cursor-pointer hover:border-[#b45309] hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#b45309]"
         >
           <div>
             <span className="text-[11px] sm:text-xs font-medium text-[#442c00] block">
@@ -93,7 +96,7 @@ export const CampusPulseDashboard: React.FC = () => {
           <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#fef3c7] text-[#b45309] flex items-center justify-center shrink-0 self-end sm:self-auto">
             <HeartHandshake className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
-        </div>
+        </button>
 
         <div className="bg-[#ffffff] border border-[#bbf7d0] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
           <div>
