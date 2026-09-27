@@ -87,17 +87,18 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-medium text-[#1f1f1f] mb-1.5 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-[#004a77]" />
-              二次安全口令 (Passcode) <span className="text-[#ba1a1a]">*</span>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-[#1f1f1f] flex items-center gap-2">
+              <Lock className="w-3.5 h-3.5 text-[#146c2e]" />
+              <span>管理端恢复授权口令</span>
+              <span className="text-[#ba1a1a]">*</span>
             </label>
             <input
               type="password"
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
-              placeholder="请输入教师专属二次安全口令"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77]"
+              placeholder="请输入心理教师二级授权口令"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#146c2e]"
               required
             />
           </div>

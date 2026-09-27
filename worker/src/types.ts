@@ -98,8 +98,10 @@ export interface DispositionPayload {
 }
 
 export interface WebhookTestPayload {
-  webhook_url: string;
+  webhook_url?: string;
+  webhookUrl?: string;
   provider?: string;
+  crisisLevel?: number;
 }
 
 export interface DeleteSessionPayload {

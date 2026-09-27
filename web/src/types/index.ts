@@ -138,5 +138,7 @@ export interface SanitizedCbtReport {
   };
   keyTakeaways: string[];
   homeworkAction?: string;
+  deidentifiedTranscript?: string;
+  evaluatedBy?: string;
   isDeidentified: boolean;
 }

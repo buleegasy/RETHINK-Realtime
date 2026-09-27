@@ -37,6 +37,7 @@ interface AdminState {
   deleteSession: (sessionId: string, passcode: string, reason: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
   restoreSession: (sessionId: string, passcode: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
   reEvaluateSession: (sessionId: string, transcript?: string) => Promise<{ success: boolean; report?: any; session?: any; error?: string }>;
+  refreshAdminData: () => Promise<void>;
   setShowArchived: (show: boolean) => void;
   setBuzzerEnabled: (enabled: boolean) => void;
   playBuzzer: () => void;

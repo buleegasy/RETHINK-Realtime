@@ -1,4 +1,5 @@
 import type { CBTStage } from '../../types';
+export type { CBTStage };
 
 export interface CbtTransitionRecord {
   from: CBTStage;

@@ -240,6 +240,7 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
     useAdminStore.setState({
       sessions: [
         {
+          id: 'sess_123',
           sessionId: 'sess_123',
           duration: 120,
           stage: 'Active_Listening',
@@ -251,7 +252,7 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
           dispositionStatus: 'pending_contact',
           dispositionNote: '',
           createdAt: 1000,
-        },
+        } as any,
       ],
     });
 
