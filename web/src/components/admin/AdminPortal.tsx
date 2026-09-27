@@ -19,8 +19,8 @@ export const AdminPortal: React.FC = () => {
     fetchSessions,
   } = useAdminStore();
 
-  const [username, setUsername] = useState('teacher');
-  const [password, setPassword] = useState('counselor2026');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {

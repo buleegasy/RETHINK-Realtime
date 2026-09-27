@@ -1,20 +1,19 @@
 import type { ISessionCrypto } from './types';
 
-const SESSION_CRYPTO_PASSPHRASE =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SESSION_CRYPTO_KEY) ||
-  'RETHINK_KIOSK_LOCAL_CACHE_2026';
-
 export class WebCryptoAesGcm implements ISessionCrypto {
   public readonly algorithm = 'AES-GCM-256';
 
   private keyPromise: Promise<CryptoKey | null>;
 
-  constructor(passphraseOrKey?: string) {
-    const passphrase = passphraseOrKey || SESSION_CRYPTO_PASSPHRASE;
-    this.keyPromise = this.deriveKey(passphrase);
+  constructor(customKey?: string) {
+    const envKey = typeof import.meta !== 'undefined'
+      ? (import.meta as any).env?.VITE_SESSION_CRYPTO_KEY
+      : undefined;
+    const keyMaterial = customKey || envKey;
+    this.keyPromise = this.initKey(keyMaterial);
   }
 
-  private async deriveKey(passphrase: string): Promise<CryptoKey | null> {
+  private async initKey(seed?: string): Promise<CryptoKey | null> {
     try {
       const cryptoSubtle = typeof window !== 'undefined'
         ? window.crypto?.subtle
@@ -22,14 +21,27 @@ export class WebCryptoAesGcm implements ISessionCrypto {
       if (!cryptoSubtle || typeof cryptoSubtle.importKey !== 'function') {
         return null;
       }
-      const encoder = new TextEncoder();
-      const baseKey = await cryptoSubtle.importKey(
-        'raw', encoder.encode(passphrase), 'PBKDF2', false, ['deriveKey']
-      );
-      const salt = encoder.encode('rethink-session-v1');
-      return await cryptoSubtle.deriveKey(
-        { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
-        baseKey,
+
+      if (seed) {
+        const encoder = new TextEncoder();
+        const baseKey = await cryptoSubtle.importKey(
+          'raw',
+          encoder.encode(seed),
+          'PBKDF2',
+          false,
+          ['deriveKey']
+        );
+        const salt = encoder.encode('rethink-session-v1');
+        return await cryptoSubtle.deriveKey(
+          { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+          baseKey,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+      }
+
+      return await cryptoSubtle.generateKey(
         { name: 'AES-GCM', length: 256 },
         false,
         ['encrypt', 'decrypt']
