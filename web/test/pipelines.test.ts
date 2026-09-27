@@ -31,7 +31,7 @@ describe('五大扩展管线契约与核心算法验证 (Pipelines & Providers)'
       const compressor = new SlidingWindowCompressor(20, 2); 
 
       const turns: DialogueTurn[] = [
-        { id: '1', role: 'assistant', content: '你好，我是电话亭心理AI。', timestamp: 100 },
+        { id: '1', role: 'assistant', content: '你好，我是心理陪伴AI。', timestamp: 100 },
         { id: '2', role: 'user', content: '我最近毕业论文压力很大，天天失眠。', timestamp: 200 },
         { id: '3', role: 'assistant', content: '听起来真的很让人疲惫。', timestamp: 300 },
         { id: '4', role: 'user', content: '是的，我觉得自己可能要延毕了，全完了。', timestamp: 400 },

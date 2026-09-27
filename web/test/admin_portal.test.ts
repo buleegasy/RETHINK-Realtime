@@ -43,7 +43,7 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
       realName: '真实来访学生',
       gradeClass: '高一 (3) 班',
       emergencyContact: '班主任王老师 (13800138000)',
-      boothLocation: '高中部教学楼连廊电话亭 #01',
+      boothLocation: '高中部教学楼连廊终端 #01',
       crisisNote: '学生自述有跳楼意向',
     };
 

@@ -149,7 +149,7 @@ authRouter.post('/kiosk-login', async (c) => {
   const user = {
     uid: `device_${deviceId}`,
     userName: '来访者',
-    displayName: `电话亭终端 (${deviceId})`,
+    displayName: `咨询终端 (${deviceId})`,
     role: 'kiosk_device',
     deviceId,
     isAuthenticated: true,

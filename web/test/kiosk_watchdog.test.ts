@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useKioskWatchdog } from '../src/hooks/useKioskWatchdog';
 
-describe('树莓派电话亭无人值守看门狗测试 (Kiosk Watchdog)', () => {
+describe('树莓派终端无人值守看门狗测试 (Kiosk Watchdog)', () => {
   it('当摘机且音量持续低于静默阈值超时时，应触发自动挂机回调', () => {
     vi.useFakeTimers();
     const onTimeout = vi.fn();

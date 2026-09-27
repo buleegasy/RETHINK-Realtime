@@ -97,7 +97,7 @@ describe('Worker 路由与健康检查测试', () => {
       expect(data.user.displayName).toBe('小李同学');
     });
 
-    it('POST /api/auth/kiosk-login 支持树莓派电话亭终端一键就绪', async () => {
+    it('POST /api/auth/kiosk-login 支持树莓派终端一键就绪', async () => {
       const res = await app.request('/api/auth/kiosk-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

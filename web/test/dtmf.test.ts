@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { DTMF_FREQUENCIES, playDtmfTone, playHookSwitchSound } from '../src/lib/audio/dtmf';
 
-describe('DTMF 双音多频与电话亭音效验证 (DTMF Synthesizer)', () => {
+describe('DTMF 双音多频与终端音效验证 (DTMF Synthesizer)', () => {
   it('所有 12 个电话按键必须具备符合 ITU-T Q.23 的行频与列频定义', () => {
     const keys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '#'];
     for (const k of keys) {

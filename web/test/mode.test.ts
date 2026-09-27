@@ -16,7 +16,7 @@ describe('运行模式状态机测试 (Web Mode vs Kiosk Mode)', () => {
     expect(localStorage.getItem('rethink_run_mode')).toBe('kiosk');
   });
 
-  it('更新电话亭设备配置并持久化设备号', () => {
+  it('更新终端设备配置并持久化设备号', () => {
     const store = useModeStore.getState();
     store.updateKioskConfig({
       deviceId: 'pi-custom-booth-99',

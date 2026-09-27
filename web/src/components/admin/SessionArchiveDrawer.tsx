@@ -168,7 +168,7 @@ export const SessionArchiveDrawer: React.FC = () => {
           <p className="text-xs text-[#747775]">
             {showArchived
               ? '当前无被安全归档的会话记录。'
-              : '管理后台已严格剔除假数据，当学生通过电话亭终端完成咨询倾诉后将在此实时建档。'}
+              : '管理后台已严格剔除假数据，当学生通过终端完成咨询倾诉后将在此实时建档。'}
           </p>
         </div>
       )}

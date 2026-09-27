@@ -47,7 +47,7 @@ function buildFaithfulFallback(transcript, stage) {
     crisisLevel: isEscalated ? 3 : 0,
     isCrisis: isEscalated,
     crisisSummary: isShortChitChat
-      ? '学生进行了简短的日常交流或电话亭体验。'
+      ? '学生进行了简短的日常交流或设备体验。'
       : `围绕“${mainSnippet.slice(0, 25)}”进行了倾诉与初步梳理。`,
     coreConcerns,
     emotionalValence: isEscalated ? -0.8 : (isShortChitChat ? 0.0 : -0.1),
@@ -57,7 +57,7 @@ function buildFaithfulFallback(transcript, stage) {
     initialEmotion,
     finalEmotion,
     deltaNotes: isShortChitChat
-      ? '来访学生初次体验电话亭，以日常问候和功能探索为主。交谈中气氛轻松自然，未表达现实心理困扰，挂机时情绪平和舒畅。'
+      ? '来访学生初次体验设备，以日常问候和功能探索为主。交谈中气氛轻松自然，未表达现实心理困扰，挂机时情绪平和舒畅。'
       : `学生进线主要就“${mainSnippet.slice(0, 20)}”展开表达，交流中情绪逐步趋向平稳，事实与主观担忧边界清晰。`,
     keyTakeaways: ['可在管理后台点击“重新提炼简报”进行更新。'],
     homeworkAction: '', // 闲聊或无明确共识时绝不捏造微行动练习
@@ -112,7 +112,7 @@ async function requestDeepSeekV4FlashEvaluation(transcript) {
 
 async function generateWeeklySummaryDeepSeekV4Flash(realSessions, totalSessions, crisisCount, avgValence, topConcerns) {
   if (totalSessions === 0) {
-    return '当前暂无足够的学生来访数据，各电话亭终端正常就绪待命。';
+    return '当前暂无足够的学生来访数据，各咨询终端正常就绪待命。';
   }
 
   const concernNames = (topConcerns || []).map((c) => c.name).filter(Boolean);
@@ -151,7 +151,7 @@ async function generateWeeklySummaryDeepSeekV4Flash(realSessions, totalSessions,
     return `近期校园监测到个别情绪高压个案，主要涉及${concernStr.slice(0, 12)}等生活事件，建议专职老师重点跟进，常规学生心境整体受控。`;
   }
   if (concernNames.length === 0 || concernStr.includes('闲聊') || concernStr.includes('日常')) {
-    return `本周学生多以电话亭功能探索与轻量寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。`;
+    return `本周学生多以轻量交流与日常寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。`;
   }
   return `本周来访焦点主要聚焦于${concernStr.slice(0, 12)}，学生在倾诉后情绪多能得到自然舒缓与理清，校园心境总体平稳。`;
 }

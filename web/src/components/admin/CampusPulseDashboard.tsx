@@ -104,7 +104,7 @@ export const CampusPulseDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 本周心境与趋势观察 (DeepSeek V4 Flash 客观中立自然研判) */}
+      {/* 本周小结 (AI生成) */}
       <div className="bg-gradient-to-r from-[#f0f4f9] via-[#ffffff] to-[#f8f9fa] border border-[#d2e3fc] rounded-3xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
         <div className="flex items-center justify-between gap-3 mb-2.5">
           <div className="flex items-center gap-2">
@@ -112,15 +112,15 @@ export const CampusPulseDashboard: React.FC = () => {
               <Sparkles className="w-4 h-4 text-[#004a77]" />
             </div>
             <h3 className="text-sm font-bold text-[#1f1f1f] tracking-tight">
-              本周心境与趋势观察
+              本周小结
             </h3>
           </div>
-          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#ffffff] text-[#004a77] border border-[#d2e3fc] shadow-xs">
-            DeepSeek V4 Flash 宏观洞察
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] text-[#5e5e5e] bg-[#ffffff] border border-[#d2e3fc] shadow-2xs font-medium">
+            AI生成
           </span>
         </div>
         <p className="text-xs text-[#333a40] leading-relaxed pl-9 pr-2 font-normal">
-          {stats.weeklySummary || (stats.totalSessions === 0 ? '当前暂无足够的学生来访数据，各电话亭终端正常就绪待命。' : '本周学生多以电话亭功能探索与轻量寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。')}
+          {stats.weeklySummary || (stats.totalSessions === 0 ? '当前暂无足够的学生来访数据，各咨询终端正常就绪待命。' : '本周学生多以轻量交流与日常寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。')}
         </p>
       </div>
 

@@ -277,7 +277,7 @@ export async function generateWeeklySummaryDeepSeekV4Flash(
 ): Promise<string> {
   const { totalSessions, crisisCount, avgValence, topConcerns } = stats;
   if (totalSessions === 0) {
-    return '当前暂无足够的学生来访数据，各电话亭终端正常就绪待命。';
+    return '当前暂无足够的学生来访数据，各咨询终端正常就绪待命。';
   }
 
   const concernNames = (topConcerns || []).map((c) => c.name).filter(Boolean);
@@ -287,7 +287,7 @@ export async function generateWeeklySummaryDeepSeekV4Flash(
   const fallback = crisisCount > 0
     ? `近期校园监测到个别情绪高压个案，主要涉及${concernStr.slice(0, 12)}等生活事件，建议专职老师重点跟进，常规学生心境整体受控。`
     : (concernNames.length === 0 || concernStr.includes('闲聊') || concernStr.includes('日常'))
-      ? `本周学生多以电话亭功能探索与轻量寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。`
+      ? `本周学生多以轻量交流与日常寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。`
       : `本周来访焦点主要聚焦于${concernStr.slice(0, 12)}，学生在倾诉后情绪多能得到自然舒缓与理清，校园心境总体平稳。`;
 
   if (!options?.apiKey) {

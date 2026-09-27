@@ -693,7 +693,7 @@ adminRouter.post('/webhook/test', async (c) => {
 
   const result = await sendCrisisWebhook(body.webhook_url, {
     sessionId: `test_crisis_${Date.now()}`,
-    crisisSummary: '【测试演练】电话亭高危触发联调测试',
+    crisisSummary: '【测试演练】终端高危触发联调测试',
     crisisLevel: 3,
     occurredAt: new Date().toLocaleString('zh-CN'),
     boothLocation: '校园心理驿站#01 (测试演练)',

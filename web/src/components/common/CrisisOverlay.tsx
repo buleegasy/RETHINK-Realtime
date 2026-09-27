@@ -67,7 +67,7 @@ export const CrisisOverlay: React.FC = () => {
             onClick={() => setCrisisOverlayOpen(false)}
             className="w-full py-2.5 rounded-xl border border-black/20 text-xs font-mono tracking-wider hover:bg-neutral-100 transition-colors"
           >
-            我已知晓，返回电话亭
+            我已知晓，返回待机界面
           </button>
         </motion.div>
       </div>
