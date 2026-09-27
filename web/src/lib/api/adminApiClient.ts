@@ -60,13 +60,54 @@ export class AdminApiClient {
         `/api/admin/sessions?crisisOnly=${crisisOnly ? 'true' : 'false'}&includeDeleted=${includeDeleted ? 'true' : 'false'}`
       );
       const data = await res.json();
+      let serverSessions: AdminSessionItem[] = [];
       if (data.success && Array.isArray(data.sessions)) {
-        return data.sessions;
+        serverSessions = data.sessions;
       }
-      return [];
+
+      // 严禁假数据进入展示层
+      serverSessions = serverSessions.filter(
+        (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_')
+      );
+
+      // 合并本地真实会话缓存（保证刚完成的本地通话在弱网或冷启动时必定秒级呈现在管理端）
+      try {
+        const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('rethink_real_sessions') : null;
+        if (rawLocal) {
+          const localList: AdminSessionItem[] = JSON.parse(rawLocal);
+          if (Array.isArray(localList)) {
+            for (const loc of localList) {
+              if (
+                !loc.sessionId.startsWith('sess_sample_') &&
+                !loc.sessionId.startsWith('mock_') &&
+                !serverSessions.some((s) => s.sessionId === loc.sessionId)
+              ) {
+                if (!crisisOnly || loc.isCrisis || loc.crisisLevel >= 3) {
+                  serverSessions.push(loc);
+                }
+              }
+            }
+          }
+        }
+      } catch {}
+
+      serverSessions.sort((a, b) => b.createdAt - a.createdAt);
+      return serverSessions;
     } catch (err) {
       console.warn('[AdminApiClient] 获取个案档案列表异常:', err);
       return [];
+    }
+  }
+
+  public static async cleanMockData(): Promise<{ success: boolean; purged?: number }> {
+    try {
+      const res = await apiFetch('/api/admin/clean-mock-data', {
+        method: 'POST',
+      });
+      return await res.json();
+    } catch (err) {
+      console.warn('[AdminApiClient] 清理假数据异常:', err);
+      return { success: false };
     }
   }
 

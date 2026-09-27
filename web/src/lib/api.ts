@@ -74,14 +74,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     options.body = JSON.stringify({});
   }
 
-  const isRemoteWeb =
-    typeof window !== 'undefined' &&
-    window.location.hostname !== 'localhost' &&
-    window.location.hostname !== '127.0.0.1';
-
-  const primaryUrl = isRemoteWeb && WORKER_ORIGIN && !targetPath.startsWith('http')
-    ? `${WORKER_ORIGIN}${targetPath}`
-    : targetPath;
+  const primaryUrl = targetPath;
 
   try {
     const res = await fetch(primaryUrl, options);

@@ -133,3 +133,10 @@ adminRouter.get('/audit-logs', async (c) => {
   const logs = await AdminService.getAuditLogs(c.env || {});
   return c.json({ success: true, logs });
 });
+
+// 12. 物理彻底清除所有历史假数据端点
+adminRouter.post('/clean-mock-data', async (c) => {
+  const purged = await SessionRepository.purgeMockData(c.env || {});
+  return c.json({ success: true, purged, message: '已彻底物理清除历史假数据' });
+});
+

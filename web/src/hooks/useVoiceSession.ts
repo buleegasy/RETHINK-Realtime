@@ -365,6 +365,35 @@ export function useVoiceSession() {
           .map((t) => `${t.role === 'user' ? (user?.displayName || user?.userName || '学生') : '智能体'}: ${t.content}`)
           .join('\n');
 
+        const localSessionRecord = {
+          id: currentSessionId,
+          sessionId: currentSessionId,
+          duration,
+          stage: stageReached,
+          isCrisis: stageReached === 'Crisis_Escalation',
+          crisisLevel: stageReached === 'Crisis_Escalation' ? 3 : 0,
+          crisisSummary: report.emotionalTrajectory?.deltaNotes || '真实来访倾诉记录',
+          coreConcerns: report.coreConcerns || ['真实交流'],
+          emotionalValence: 0.0,
+          deidentifiedReport: report,
+          dispositionStatus: 'pending_contact',
+          dispositionNote: '',
+          createdAt: Math.floor(Date.now() / 1000),
+          hasEncryptedIdentity: Boolean(encryptedBundle),
+        };
+        try {
+          if (typeof localStorage !== 'undefined') {
+            const raw = localStorage.getItem('rethink_real_sessions') || '[]';
+            const existing = JSON.parse(raw);
+            if (Array.isArray(existing)) {
+              const idx = existing.findIndex((s: any) => s.sessionId === currentSessionId);
+              if (idx >= 0) existing[idx] = localSessionRecord;
+              else existing.unshift(localSessionRecord);
+              localStorage.setItem('rethink_real_sessions', JSON.stringify(existing.slice(0, 50)));
+            }
+          }
+        } catch {}
+
         apiFetch('/api/voice/session/persist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

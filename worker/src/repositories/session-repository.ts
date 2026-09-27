@@ -28,6 +28,31 @@ export async function ensureSchemaOnce(db?: D1Database): Promise<void> {
         created_at INTEGER DEFAULT (unixepoch())
       )
     `).run();
+
+    try {
+      await db.prepare('ALTER TABLE school_sessions ADD COLUMN is_deleted INTEGER DEFAULT 0').run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE school_sessions ADD COLUMN deleted_at INTEGER DEFAULT NULL').run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE school_sessions ADD COLUMN delete_reason TEXT DEFAULT NULL').run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE school_sessions ADD COLUMN deleted_by TEXT DEFAULT NULL').run();
+    } catch {}
+
+    // 物理级彻底清除任何假数据与测试案例
+    try {
+      await db.prepare(`
+        DELETE FROM school_sessions 
+        WHERE session_id LIKE 'sess_sample_%' 
+           OR session_id LIKE 'mock_%' 
+           OR id LIKE 'sess_sample_%' 
+           OR id LIKE 'mock_%'
+      `).run();
+    } catch {}
+
     isSchemaInitialized = true;
   } catch (e) {
     console.warn('[SessionRepository ensureSchemaOnce error]:', e);
@@ -88,14 +113,18 @@ export class SessionRepository {
           'SELECT * FROM school_sessions WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT ?'
         ).bind(limit).all<SessionRecord>();
         if (results && results.length >= 0) {
-          return results;
+          return results.filter(
+            (s) => !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
+          );
         }
       } catch (e) {
         console.warn('[SessionRepository findActive error]:', e);
       }
     }
 
-    return memorySessions.filter((s) => !s.is_deleted).slice(0, limit);
+    return memorySessions
+      .filter((s) => !s.is_deleted && !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_'))
+      .slice(0, limit);
   }
 
   public static async findArchived(env: Env, limit: number = 500): Promise<SessionRecord[]> {
@@ -106,14 +135,18 @@ export class SessionRepository {
           'SELECT * FROM school_sessions WHERE is_deleted = 1 ORDER BY deleted_at DESC LIMIT ?'
         ).bind(limit).all<SessionRecord>();
         if (results && results.length >= 0) {
-          return results;
+          return results.filter(
+            (s) => !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_')
+          );
         }
       } catch (e) {
         console.warn('[SessionRepository findArchived error]:', e);
       }
     }
 
-    return memorySessions.filter((s) => s.is_deleted === 1).slice(0, limit);
+    return memorySessions
+      .filter((s) => s.is_deleted === 1 && !s.session_id.startsWith('sess_sample_') && !s.session_id.startsWith('mock_'))
+      .slice(0, limit);
   }
 
   public static async findBySessionId(env: Env, sessionId: string): Promise<SessionRecord | null> {
@@ -261,5 +294,42 @@ export class SessionRepository {
     }
 
     return Boolean(mem);
+  }
+
+  public static async purgeMockData(env: Env): Promise<number> {
+    let deletedCount = 0;
+
+    // 1. 物理清空内存假数据
+    for (let i = memorySessions.length - 1; i >= 0; i--) {
+      const s = memorySessions[i];
+      if (
+        s.session_id.startsWith('sess_sample_') ||
+        s.session_id.startsWith('mock_') ||
+        s.id.startsWith('sess_sample_') ||
+        s.id.startsWith('mock_')
+      ) {
+        memorySessions.splice(i, 1);
+        deletedCount++;
+      }
+    }
+
+    // 2. 物理从 D1 表中执行 DELETE
+    if (env.DB) {
+      try {
+        await ensureSchemaOnce(env.DB);
+        const res = await env.DB.prepare(`
+          DELETE FROM school_sessions 
+          WHERE session_id LIKE 'sess_sample_%' 
+             OR session_id LIKE 'mock_%' 
+             OR id LIKE 'sess_sample_%' 
+             OR id LIKE 'mock_%'
+        `).run();
+        deletedCount += res.meta?.changes ?? 0;
+      } catch (e) {
+        console.warn('[SessionRepository purgeMockData D1 error]:', e);
+      }
+    }
+
+    return deletedCount;
   }
 }
