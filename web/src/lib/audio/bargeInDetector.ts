@@ -71,7 +71,7 @@ export class BargeInDetector {
         return;
       }
 
-      const dynamicThreshold = Math.max(0.18, speakerRms * 0.85 + 0.1);
+      const dynamicThreshold = Math.max(0.06, speakerRms * 0.7 + 0.04);
       if (micRms > dynamicThreshold) {
         this.consecutiveSpeechFrames++;
         const base64 = resampleAndEncodePCM(inputBuffer, sampleRate, 24000);
@@ -82,13 +82,16 @@ export class BargeInDetector {
           }
         }
 
-        if (this.consecutiveSpeechFrames >= 4) {
+        if (this.consecutiveSpeechFrames >= 2) {
           const bufferedChunks = [...this.preRollChunks];
           this.reset();
           onBargeIn(playedMs, bufferedChunks);
         }
       } else {
-        this.reset();
+        this.consecutiveSpeechFrames = Math.max(0, this.consecutiveSpeechFrames - 1);
+        if (this.consecutiveSpeechFrames === 0) {
+          this.preRollChunks = [];
+        }
       }
     } else {
       this.reset();

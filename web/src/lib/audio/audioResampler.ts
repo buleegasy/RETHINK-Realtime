@@ -41,9 +41,11 @@ export function floatToInt16(input: Float32Array): Int16Array {
 export function int16ToBase64(int16Array: Int16Array): string {
   const bytes = new Uint8Array(int16Array.buffer, int16Array.byteOffset, int16Array.byteLength);
   let binary = '';
+  const chunkSize = 8192;
   const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < len; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
   }
   return btoa(binary);
 }

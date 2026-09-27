@@ -333,4 +333,52 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
 
     client.disconnect();
   });
+
+  it('收到 input_audio_buffer.speech_stopped 应触发 onSpeechStopped 回调', async () => {
+    const onSpeechStopped = vi.fn();
+    const client = new MiniMaxRealtimeClient({
+      relayUrl: 'ws://localhost:8787/api/voice/ws',
+      callbacks: { onSpeechStopped },
+    });
+
+    client.connect();
+    await new Promise((r) => setTimeout(r, 15));
+    const ws = (client as any).ws as MockWebSocket;
+
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'input_audio_buffer.speech_stopped',
+      }),
+    });
+
+    expect(onSpeechStopped).toHaveBeenCalledTimes(1);
+    client.disconnect();
+  });
+
+  it('连续多次调用相同模式的 updateTurnDetection 不会重复发送 session.update 帧', async () => {
+    const client = new MiniMaxRealtimeClient({
+      relayUrl: 'ws://localhost:8787/api/voice/ws',
+    });
+
+    client.connect();
+    await new Promise((r) => setTimeout(r, 15));
+    const ws = (client as any).ws as MockWebSocket;
+
+    client.updateTurnDetection('speaking');
+    const msgCountAfterFirst = ws.sentMessages.length;
+
+    // 连续再次触发 speaking
+    client.updateTurnDetection('speaking');
+    expect(ws.sentMessages.length).toBe(msgCountAfterFirst);
+
+    // 切换到 listening 应发送一帧
+    client.updateTurnDetection('listening');
+    expect(ws.sentMessages.length).toBe(msgCountAfterFirst + 1);
+
+    // 再次触发 listening 亦不重复发送
+    client.updateTurnDetection('listening');
+    expect(ws.sentMessages.length).toBe(msgCountAfterFirst + 1);
+
+    client.disconnect();
+  });
 });

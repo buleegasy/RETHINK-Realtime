@@ -66,6 +66,11 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
             请随时开口说话，我在听...
           </p>
         )}
+        {isActive && duplexPhase === 'thinking' && (
+          <p className="mt-8 text-xs font-mono text-black/40 tracking-wider animate-pulse">
+            正在思考中...
+          </p>
+        )}
       </main>
 
       <footer className="w-full flex items-center justify-center pb-12 pt-4 px-6">

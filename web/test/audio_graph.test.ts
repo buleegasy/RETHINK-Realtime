@@ -86,6 +86,76 @@ describe('AudioGraphService 打断音量渐弱与状态管理验证', () => {
     expect(setValueSpy).toHaveBeenCalledWith(0.85, expect.any(Number));
   });
 
+  it('initAudioContext 应配置输出链路动态压缩器 (compressorNode) 抑制爆音', async () => {
+    await service.initAudioContext();
+    const compressor = (service as any).compressorNode;
+    expect(compressor).toBeDefined();
+  });
+
+  it('BargeInDetector 插话检测在连续两帧满足阈值时触发打断，并在安静帧平滑漏桶衰减', () => {
+    const detector = (service as any).bargeInDetector;
+    detector.resetWarmUp(0);
+    const onBargeIn = vi.fn();
+    const onAudioChunk = vi.fn();
+
+    // 构造有效语音帧 (RMS 约 0.2)
+    const speechBuffer = new Float32Array(2048).fill(0.2);
+
+    // 第一帧：未达 2 帧门槛，不触发打断
+    detector.processInputChunk({
+      inputBuffer: speechBuffer,
+      sampleRate: 24000,
+      isMuted: false,
+      isAiSpeakingOrActive: true,
+      speakerRms: 0.05,
+      playedMs: 300,
+      onAudioChunk,
+      onBargeIn,
+    });
+    expect(detector.consecutiveSpeechFrames).toBe(1);
+    expect(onBargeIn).not.toHaveBeenCalled();
+
+    // 静音帧：通过漏桶衰减 1 帧，而不是直接归零
+    const silentBuffer = new Float32Array(2048).fill(0.01);
+    detector.processInputChunk({
+      inputBuffer: silentBuffer,
+      sampleRate: 24000,
+      isMuted: false,
+      isAiSpeakingOrActive: true,
+      speakerRms: 0.05,
+      playedMs: 350,
+      onAudioChunk,
+      onBargeIn,
+    });
+    expect(detector.consecutiveSpeechFrames).toBe(0);
+
+    // 连续两帧语音：触发打断
+    detector.processInputChunk({
+      inputBuffer: speechBuffer,
+      sampleRate: 24000,
+      isMuted: false,
+      isAiSpeakingOrActive: true,
+      speakerRms: 0.05,
+      playedMs: 400,
+      onAudioChunk,
+      onBargeIn,
+    });
+    expect(detector.consecutiveSpeechFrames).toBe(1);
+
+    detector.processInputChunk({
+      inputBuffer: speechBuffer,
+      sampleRate: 24000,
+      isMuted: false,
+      isAiSpeakingOrActive: true,
+      speakerRms: 0.05,
+      playedMs: 450,
+      onAudioChunk,
+      onBargeIn,
+    });
+    expect(onBargeIn).toHaveBeenCalledTimes(1);
+    expect(detector.consecutiveSpeechFrames).toBe(0); // 触发后重置
+  });
+
   it('cleanup 应安全释放所有节点与上下文', async () => {
     await service.initAudioContext();
     expect(() => service.cleanup()).not.toThrow();

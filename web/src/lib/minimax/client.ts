@@ -34,6 +34,7 @@ export class MiniMaxRealtimeClient {
   private currentToolCallItemId: string | null = null;
   private playbackEpoch: number = 0;
   private readonly canceledResponseItemIds: Set<string> = new Set();
+  private currentTurnDetectionMode: 'speaking' | 'listening' | null = null;
 
   constructor(options?: MiniMaxClientOptions) {
     this.options = options || {};
@@ -58,6 +59,7 @@ export class MiniMaxRealtimeClient {
 
   public connect(): void {
     this.isExplicitlyClosed = false;
+    this.currentTurnDetectionMode = null;
     this.cleanupSocket();
 
     const wsUrl = this.options.relayUrl || getWsUrl({
@@ -177,7 +179,8 @@ export class MiniMaxRealtimeClient {
   }
 
   public updateTurnDetection(mode: 'speaking' | 'listening'): void {
-    if (!this.ready) return;
+    if (!this.ready || this.currentTurnDetectionMode === mode) return;
+    this.currentTurnDetectionMode = mode;
     const vadConfig = mode === 'speaking'
       ? {
           type: 'server_vad',
@@ -286,6 +289,7 @@ export class MiniMaxRealtimeClient {
 
   public disconnect(): void {
     this.isExplicitlyClosed = true;
+    this.currentTurnDetectionMode = null;
     this.stopKeepalive();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -357,6 +361,10 @@ export class MiniMaxRealtimeClient {
           audioStartMs: event.audio_start_ms,
           itemId: targetItemId || undefined,
         });
+      }
+
+      if (type === 'input_audio_buffer.speech_stopped') {
+        this.callbacks.onSpeechStopped?.();
       }
 
       if (type === 'response.created') {

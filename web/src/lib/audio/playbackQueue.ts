@@ -18,8 +18,8 @@ export class PlaybackQueue {
   private isSpeaking: boolean = false;
   public stopPlaybackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private readonly JITTER_TARGET_SEC: number = 0.12;
-  private readonly JITTER_REBUFFER_SEC: number = 0.05;
+  private readonly JITTER_TARGET_SEC: number = 0.08;
+  private readonly JITTER_REBUFFER_SEC: number = 0.04;
 
   constructor(private listener?: PlaybackStateListener) {}
 
@@ -76,8 +76,10 @@ export class PlaybackQueue {
     outputGainNode: GainNode,
     analyserNode: AnalyserNode | null
   ): void {
-    outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
-    outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+    if (outputGainNode.gain.value < 0.84) {
+      outputGainNode.gain.cancelScheduledValues(ctx.currentTime);
+      outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
+    }
 
     while (this.jitterBuffer.length > 0) {
       const buffer = this.jitterBuffer.shift();
@@ -93,7 +95,7 @@ export class PlaybackQueue {
 
       const now = ctx.currentTime;
       if (this.nextPlayTime < now) {
-        this.nextPlayTime = now + 0.025;
+        this.nextPlayTime = now + 0.005;
       }
 
       if (this.playbackStartCtxTime === null || this.scheduledSources.length === 0) {

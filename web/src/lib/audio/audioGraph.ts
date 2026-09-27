@@ -16,6 +16,7 @@ export class AudioGraphService {
   private analyserNode: AnalyserNode | null = null;
   private speakerAnalyserNode: AnalyserNode | null = null;
   private outputGainNode: GainNode | null = null;
+  private compressorNode: DynamicsCompressorNode | null = null;
   private inputGainNode: GainNode | null = null;
   private highpassFilterNode: BiquadFilterNode | null = null;
 
@@ -227,11 +228,19 @@ export class AudioGraphService {
       this.outputGainNode = ctx.createGain();
       this.outputGainNode.gain.setValueAtTime(0.85, ctx.currentTime);
 
+      this.compressorNode = ctx.createDynamicsCompressor();
+      this.compressorNode.threshold.setValueAtTime(-18, ctx.currentTime);
+      this.compressorNode.knee.setValueAtTime(12, ctx.currentTime);
+      this.compressorNode.ratio.setValueAtTime(3, ctx.currentTime);
+      this.compressorNode.attack.setValueAtTime(0.003, ctx.currentTime);
+      this.compressorNode.release.setValueAtTime(0.1, ctx.currentTime);
+
       this.speakerAnalyserNode = ctx.createAnalyser();
       this.speakerAnalyserNode.fftSize = 256;
       this.speakerAnalyserNode.smoothingTimeConstant = 0.3;
 
-      this.outputGainNode.connect(this.speakerAnalyserNode);
+      this.outputGainNode.connect(this.compressorNode);
+      this.compressorNode.connect(this.speakerAnalyserNode);
       this.speakerAnalyserNode.connect(ctx.destination);
     }
     return this.outputGainNode;
@@ -367,6 +376,12 @@ export class AudioGraphService {
         this.speakerAnalyserNode.disconnect();
       } catch {}
       this.speakerAnalyserNode = null;
+    }
+    if (this.compressorNode) {
+      try {
+        this.compressorNode.disconnect();
+      } catch {}
+      this.compressorNode = null;
     }
     if (this.outputGainNode) {
       try {

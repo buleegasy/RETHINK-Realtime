@@ -5,8 +5,13 @@
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
-  const workerOrigin = env.WORKER_ORIGIN || 'https://rethink-realtime.workers.dev';
+  const workerOrigin = env.WORKER_ORIGIN || 'https://rethink-realtime-worker.buleegasy-6c8.workers.dev';
   const targetUrl = new URL(url.pathname + url.search, workerOrigin);
+
+  const upgradeHeader = request.headers.get('Upgrade');
+  if (upgradeHeader && upgradeHeader.toLowerCase() === 'websocket') {
+    return fetch(targetUrl.toString(), request);
+  }
 
   const init = {
     method: request.method,

@@ -83,8 +83,8 @@ export function useVoiceSession() {
   const startCall = useCallback(async () => {
     setErrorMessage(null);
     setHookState('connected');
-    setSessionStatus('connected');
-    setDuplexPhase('listening');
+    setSessionStatus('connecting');
+    setDuplexPhase('thinking');
 
     sessionIdRef.current = `kiosk_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     transcriptionRef.current.reset();
@@ -147,6 +147,14 @@ export function useVoiceSession() {
           onClose: () => {
             if (useBoothStore.getState().sessionStatus === 'connected') {
               endCallRef.current?.();
+            } else if (useBoothStore.getState().sessionStatus === 'connecting') {
+              setErrorMessage('语音服务器连接失败，请检查网络或稍后重试');
+              setSessionStatus('error');
+              setHookState('on_hook');
+              if (audioGraphRef.current) {
+                audioGraphRef.current.cleanup();
+                audioGraphRef.current = null;
+              }
             }
           },
           onError: (err: any) => {
@@ -185,8 +193,17 @@ export function useVoiceSession() {
               });
             }
           },
+          onSpeechStopped: () => {
+            if (useBoothStore.getState().sessionStatus === 'connected' && useBoothStore.getState().duplexPhase === 'listening') {
+              setDuplexPhase('thinking');
+            }
+          },
           onTurnStart: () => {
-            setDuplexPhase('speaking');
+            if (audioGraph.isPlaybackActive()) {
+              setDuplexPhase('speaking');
+            } else {
+              setDuplexPhase('thinking');
+            }
             audioGraph.setAiSpeaking(true);
             clientRef.current?.updateTurnDetection('speaking');
           },
