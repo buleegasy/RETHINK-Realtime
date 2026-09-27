@@ -36,7 +36,7 @@ interface AdminState {
   updateDisposition: (sessionId: string, status: DispositionStatus, note?: string) => Promise<boolean>;
   deleteSession: (sessionId: string, passcode: string, reason: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
   restoreSession: (sessionId: string, passcode: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
-  reEvaluateSession: (sessionId: string) => Promise<{ success: boolean; report?: any; error?: string }>;
+  reEvaluateSession: (sessionId: string, transcript?: string) => Promise<{ success: boolean; report?: any; session?: any; error?: string }>;
   setShowArchived: (show: boolean) => void;
   setBuzzerEnabled: (enabled: boolean) => void;
   playBuzzer: () => void;
@@ -399,12 +399,12 @@ export const useAdminStore = create<AdminState>((set, get) => {
       }
     },
 
-    reEvaluateSession: async (sessionId: string) => {
+    reEvaluateSession: async (sessionId: string, transcript?: string) => {
       try {
         const res = await apiFetch('/api/admin/sessions/re-evaluate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId }),
+          body: JSON.stringify({ session_id: sessionId, transcript }),
         });
         const data = await res.json();
         if (data.success && data.report) {
@@ -415,6 +415,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
                     ...s,
                     deidentifiedReport: data.report,
                     crisisLevel: data.session?.crisisLevel ?? s.crisisLevel,
+                    isCrisis: data.session?.isCrisis ?? (data.session?.crisisLevel >= 3 || s.isCrisis),
                     crisisSummary: data.session?.crisisSummary ?? s.crisisSummary,
                     coreConcerns: data.session?.coreConcerns ?? s.coreConcerns,
                     emotionalValence: data.session?.emotionalValence ?? s.emotionalValence,
@@ -432,6 +433,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
                       ...s,
                       deidentifiedReport: data.report,
                       crisisLevel: data.session?.crisisLevel ?? s.crisisLevel,
+                      isCrisis: data.session?.isCrisis ?? (data.session?.crisisLevel >= 3 || s.isCrisis),
                       crisisSummary: data.session?.crisisSummary ?? s.crisisSummary,
                       coreConcerns: data.session?.coreConcerns ?? s.coreConcerns,
                       emotionalValence: data.session?.emotionalValence ?? s.emotionalValence,
@@ -441,7 +443,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
               localStorage.setItem('rethink_real_sessions', JSON.stringify(updated));
             }
           } catch {}
-          return { success: true, report: data.report };
+          return { success: true, report: data.report, session: data.session };
         }
         return { success: false, error: data.error || '重新解析失败' };
       } catch (err: any) {

@@ -58,23 +58,50 @@ export const SessionArchiveDrawer: React.FC = () => {
   const [deletingSession, setDeletingSession] = useState<AdminSessionItem | null>(null);
   const [restoringSession, setRestoringSession] = useState<AdminSessionItem | null>(null);
   const [isReEvaluating, setIsReEvaluating] = useState(false);
+  const [reEvaluateStatus, setReEvaluateStatus] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const handleReEvaluate = async () => {
     if (!activeSession || isReEvaluating) return;
     setIsReEvaluating(true);
+    setReEvaluateStatus(null);
     try {
-      const res = await reEvaluateSession(activeSession.sessionId);
+      const transcript =
+        activeSession.deidentifiedReport?.deidentifiedTranscript ||
+        activeSession.deidentifiedReport?.emotionalTrajectory?.deltaNotes ||
+        activeSession.crisisSummary ||
+        '';
+      const res = await reEvaluateSession(activeSession.sessionId, transcript);
       if (res && res.success && res.report) {
         setActiveSession((prev) => {
           if (!prev) return null;
           return {
             ...prev,
             deidentifiedReport: res.report,
-            coreConcerns: res.report.coreConcerns || prev.coreConcerns,
-            crisisSummary: res.report.crisisSummary || prev.crisisSummary,
+            coreConcerns: res.report.coreConcerns || res.session?.coreConcerns || prev.coreConcerns,
+            crisisSummary: res.report.crisisSummary || res.session?.crisisSummary || prev.crisisSummary,
+            crisisLevel: res.session?.crisisLevel ?? prev.crisisLevel,
+            isCrisis: res.session?.isCrisis ?? (res.session?.crisisLevel >= 3 || prev.isCrisis),
+            emotionalValence: res.session?.emotionalValence ?? prev.emotionalValence,
           };
         });
+        setReEvaluateStatus({ type: 'success', message: '已由 DeepSeek V4 Flash 重新提炼并更新档案' });
+        setTimeout(() => setReEvaluateStatus(null), 4000);
+      } else {
+        setReEvaluateStatus({
+          type: 'error',
+          message: res?.error || '提炼未返回有效数据，请检查网络或后端',
+        });
+        setTimeout(() => setReEvaluateStatus(null), 5000);
       }
+    } catch (err: any) {
+      setReEvaluateStatus({
+        type: 'error',
+        message: err?.message || '提炼请求异常',
+      });
+      setTimeout(() => setReEvaluateStatus(null), 5000);
     } finally {
       setIsReEvaluating(false);
     }
@@ -315,10 +342,17 @@ export const SessionArchiveDrawer: React.FC = () => {
               {/* 2. 心境演进与倾诉纪要 (自然叙事，不再是僵硬框框) */}
               <div className="bg-[#ffffff] border border-[#e1e3e1] rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between border-b border-[#f0f0f0] pb-2.5">
-                  <span className="font-semibold text-[#1f1f1f] text-xs flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-[#004a77]" />
-                    心境演进与倾诉纪要
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-[#1f1f1f] text-xs flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-[#004a77]" />
+                      心境演进与倾诉纪要
+                    </span>
+                    {activeSession.deidentifiedReport?.evaluatedBy && (
+                      <span className="text-[10px] text-[#004a77] bg-[#e8f0fe] px-2 py-0.5 rounded-full font-medium">
+                        {activeSession.deidentifiedReport.evaluatedBy}
+                      </span>
+                    )}
+                  </div>
 
                   {/* 自然的心境流转胶囊 */}
                   <div className="flex items-center gap-1.5 text-[11px] bg-[#f0fdf4] text-[#166534] px-2.5 py-1 rounded-full border border-[#bbf7d0]">
@@ -424,6 +458,19 @@ export const SessionArchiveDrawer: React.FC = () => {
                   <RefreshCw className={`w-3.5 h-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
                   <span>{isReEvaluating ? '提炼中...' : '重新提炼简报'}</span>
                 </button>
+
+                {reEvaluateStatus && (
+                  <span
+                    className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-all ${
+                      reEvaluateStatus.type === 'success'
+                        ? 'text-[#166534] bg-[#dcfce7] border border-[#bbf7d0]'
+                        : 'text-[#ba1a1a] bg-[#fee2e2] border border-[#fecaca]'
+                    }`}
+                  >
+                    {reEvaluateStatus.type === 'success' ? '✓ ' : '✕ '}
+                    {reEvaluateStatus.message}
+                  </span>
+                )}
               </div>
 
               <button

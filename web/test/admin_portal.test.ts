@@ -235,4 +235,53 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
     expect(useModeStore.getState().runMode).toBe('admin');
     expect(localStorage.getItem('rethink_run_mode')).toBe('admin');
   });
+
+  it('reEvaluateSession 能够向后端请求重新提炼并更新本地状态', async () => {
+    useAdminStore.setState({
+      sessions: [
+        {
+          sessionId: 'sess_123',
+          duration: 120,
+          stage: 'Active_Listening',
+          isCrisis: false,
+          crisisLevel: 0,
+          crisisSummary: '旧评估',
+          coreConcerns: ['初始交流'],
+          emotionalValence: 0.0,
+          dispositionStatus: 'pending_contact',
+          dispositionNote: '',
+          createdAt: 1000,
+        },
+      ],
+    });
+
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/admin/sessions/re-evaluate')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              report: {
+                coreConcerns: ['考前焦虑'],
+                crisisSummary: '由 DeepSeek V4 Flash 重新提炼评估',
+                evaluatedBy: 'DeepSeek V4 Flash',
+              },
+              session: {
+                sessionId: 'sess_123',
+                coreConcerns: ['考前焦虑'],
+                crisisSummary: '由 DeepSeek V4 Flash 重新提炼评估',
+              },
+            }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
+    });
+
+    const res = await useAdminStore.getState().reEvaluateSession('sess_123', '学生：我考试好焦虑');
+    expect(res.success).toBe(true);
+    expect(res.report?.evaluatedBy).toBe('DeepSeek V4 Flash');
+    const updated = useAdminStore.getState().sessions.find((s) => s.sessionId === 'sess_123');
+    expect(updated?.crisisSummary).toBe('由 DeepSeek V4 Flash 重新提炼评估');
+  });
 });

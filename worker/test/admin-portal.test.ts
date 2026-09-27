@@ -189,4 +189,21 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
     expect(restoredSessionsData.sessions.length).toBe(1);
     expect(restoredSessionsData.sessions[0].isDeleted).toBe(false);
   });
+
+  it('POST /api/admin/sessions/re-evaluate 能够重新提炼个案简报并更新', async () => {
+    const res = await app.request('/api/admin/sessions/re-evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: testSessionId,
+        transcript: '学生：老师，我最近数学考试很焦虑。\n智能体：别担心，我们一步一步来。',
+      }),
+    });
+    expect(res.status).toBe(200);
+    const data: any = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.report).toBeDefined();
+    expect(data.report.evaluatedBy).toBe('DeepSeek V4 Flash');
+  });
 });
+
