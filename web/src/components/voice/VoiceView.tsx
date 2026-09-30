@@ -4,6 +4,7 @@ import { VoiceOrb } from './VoiceOrb';
 import { CrisisOverlay } from '../common/CrisisOverlay';
 import { useAuthStore } from '../../store/authStore';
 import { useBoothStore } from '../../store/boothStore';
+import { useModeStore } from '../../store/modeStore';
 
 interface VoiceViewProps {
   onStartCall: () => void;
@@ -17,11 +18,29 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 }) => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const runMode = useModeStore((s) => s.runMode);
+  const setRunMode = useModeStore((s) => s.setRunMode);
   const sessionStatus = useBoothStore((s) => s.sessionStatus);
   const duplexPhase = useBoothStore((s) => s.duplexPhase);
   const audioLevel = useBoothStore((s) => s.audioLevel);
   const callDuration = useBoothStore((s) => s.callDuration);
   const cbtStage = useBoothStore((s) => s.cbtStage);
+
+  const handleLogout = () => {
+    if (runMode === 'kiosk') {
+      setRunMode('web');
+      try {
+        localStorage.removeItem('rethink_run_mode');
+        if (typeof window !== 'undefined' && window.history?.replaceState) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('mode');
+          url.searchParams.delete('device');
+          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+        }
+      } catch {}
+    }
+    logout();
+  };
 
   const isActive = sessionStatus === 'connected' || sessionStatus === 'connecting';
 
@@ -44,7 +63,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           <span className="text-black/60">{user?.displayName || user?.userName}</span>
           <button
             type="button"
-            onClick={logout}
+            onClick={handleLogout}
             className="flex items-center gap-1 text-black/50 hover:text-black transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />

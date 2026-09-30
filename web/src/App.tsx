@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy, useEffect, useRef } from 'react';
 import { VoiceView } from './components/voice/VoiceView';
 import { LoginWall } from './components/auth/LoginWall';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -15,12 +15,20 @@ export function App() {
   const runMode = useModeStore((s) => s.runMode);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const login = useAuthStore((s) => s.login);
+  const hasAutoLoggedInRef = useRef(false);
 
   const { startCall, endCall, interrupt } = useVoiceSession();
 
   useEffect(() => {
-    if (runMode === 'kiosk' && !isAuthenticated) {
-      apiFetch('/api/auth/kiosk-login', {
+    if (runMode !== 'kiosk') {
+      hasAutoLoggedInRef.current = false;
+    }
+  }, [runMode]);
+
+  useEffect(() => {
+    if (runMode === 'kiosk' && !isAuthenticated && !hasAutoLoggedInRef.current) {
+      hasAutoLoggedInRef.current = true;
+      void apiFetch('/api/auth/kiosk-login', {
         method: 'POST',
         body: JSON.stringify({ deviceId: 'kiosk-booth-01' }),
       })

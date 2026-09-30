@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useModeStore } from '../src/store/modeStore';
+import { useAuthStore } from '../src/store/authStore';
 
 describe('运行模式状态机测试 (Web Mode vs Kiosk Mode)', () => {
   beforeEach(() => {
@@ -60,5 +61,26 @@ describe('运行模式状态机测试 (Web Mode vs Kiosk Mode)', () => {
 
     store.clearHistoryRecords();
     expect(useModeStore.getState().historyRecords.length).toBe(0);
+  });
+
+  it('终端模式下退出登录应清除持久化状态并回退至网页模式', () => {
+    const modeStore = useModeStore.getState();
+    const authStore = useAuthStore.getState();
+
+    modeStore.setRunMode('kiosk');
+    authStore.login(
+      { id: 'kiosk-01', userName: 'kiosk-01', displayName: '咨询终端', role: 'student' },
+      'test-token'
+    );
+
+    expect(useModeStore.getState().runMode).toBe('kiosk');
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+
+    useAuthStore.getState().logout();
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(useModeStore.getState().runMode).toBe('web');
+    expect(localStorage.getItem('rethink_run_mode')).toBeNull();
+    expect(localStorage.getItem('rethink_auth_token')).toBeNull();
   });
 });

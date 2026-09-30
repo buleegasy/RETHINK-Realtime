@@ -58,9 +58,17 @@ const detectInitialMode = (): { mode: AppRunMode; deviceId: string } => {
 
   const storedMode = safeGetItem('rethink_run_mode') as AppRunMode | null;
   const storedDevice = safeGetItem('rethink_kiosk_device') || 'kiosk-booth-01';
+  const hasAuthToken = !!safeGetItem('rethink_auth_token');
+
+  const effectiveMode: AppRunMode =
+    storedMode === 'admin'
+      ? 'admin'
+      : storedMode === 'kiosk' && hasAuthToken
+      ? 'kiosk'
+      : 'web';
 
   return {
-    mode: (storedMode === 'kiosk' || storedMode === 'admin') ? storedMode : 'web',
+    mode: effectiveMode,
     deviceId: storedDevice,
   };
 };
@@ -92,7 +100,15 @@ export const useModeStore = create<ModeState>((set) => ({
   isHistoryDrawerOpen: false,
 
   setRunMode: (mode) => {
-    safeSetItem('rethink_run_mode', mode);
+    if (mode === 'web') {
+      try {
+        if (typeof localStorage !== 'undefined' && typeof localStorage.removeItem === 'function') {
+          localStorage.removeItem('rethink_run_mode');
+        }
+      } catch {}
+    } else {
+      safeSetItem('rethink_run_mode', mode);
+    }
     set({ runMode: mode });
   },
 

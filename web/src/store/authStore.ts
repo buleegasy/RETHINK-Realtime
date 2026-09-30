@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { UserProfile } from '../types';
+import { useModeStore } from './modeStore';
 
 interface AuthState {
   user: UserProfile | null;
@@ -42,8 +43,15 @@ export const useAuthStore = create<AuthState>((set) => {
     },
 
     logout: () => {
-      localStorage.removeItem('rethink_auth_token');
-      localStorage.removeItem('rethink_auth_user');
+      try {
+        localStorage.removeItem('rethink_auth_token');
+        localStorage.removeItem('rethink_auth_user');
+        localStorage.removeItem('rethink_run_mode');
+        const modeState = useModeStore.getState();
+        if (modeState.runMode === 'kiosk') {
+          modeState.setRunMode('web');
+        }
+      } catch {}
       set({ user: null, token: null, isAuthenticated: false });
     },
 
