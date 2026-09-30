@@ -258,7 +258,7 @@ export class RelaySessionCoordinator {
           }).catch(() => {});
 
           // 3. 影子大脑认知指导
-          shadowPipeline.execute({
+          void shadowPipeline.execute({
             userText,
             dialogueHistory,
             studentName: getStudentName(),

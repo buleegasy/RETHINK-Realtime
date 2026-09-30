@@ -29,7 +29,7 @@ const memoryUsers = new Map<string, { id: string; passwordHash: string; displayN
 
 // 仅在非生产/测试环境中初始化内置测试账号，生产环境严禁预置任何静态测试账号
 if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
-  (async () => {
+  void (async () => {
     try {
       const defaultHash = await hashPassword('password123');
       memoryUsers.set('testuser', {

@@ -46,7 +46,7 @@ export class CrisisHandler {
   }
 
   private dispatchWebhook(summary: string, concerns: string[]): void {
-    sendCrisisWebhook(this.webhookUrl, {
+    void sendCrisisWebhook(this.webhookUrl, {
       sessionId: this.sessionId,
       crisisLevel: 3,
       crisisSummary: summary,

@@ -23,13 +23,13 @@ export function isSafeWebhookUrl(rawUrl: string): boolean {
       hostname === '0.0.0.0' ||
       hostname.startsWith('10.') ||
       hostname.startsWith('192.168.') ||
-      hostname === '169.254.169.254'
+      hostname.startsWith('169.254.')
     ) {
       return false;
     }
     const ipMatch = hostname.match(/^172\.(\d+)\./);
     if (ipMatch) {
-      const secondOctet = parseInt(ipMatch[1], 10);
+      const secondOctet = Number.parseInt(ipMatch[1], 10);
       if (secondOctet >= 16 && secondOctet <= 31) {
         return false;
       }

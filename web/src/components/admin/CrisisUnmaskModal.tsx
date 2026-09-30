@@ -51,7 +51,7 @@ export const CrisisUnmaskModal: React.FC<CrisisUnmaskModalProps> = ({ crisis, on
   };
 
   const copyContact = (text: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
