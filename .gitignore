@@ -16,3 +16,5 @@ yarn-error.log*
 .vscode/
 .idea/
 Thumbs.db
+coverage/
+*.lcov

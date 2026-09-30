@@ -1,6 +1,5 @@
-import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
 
 const BombComponent = ({ shouldThrow }: { shouldThrow: boolean }) => {
@@ -19,7 +18,7 @@ describe('ErrorBoundary 全局防白屏容灾测试', () => {
     render(
       <ErrorBoundary>
         <BombComponent shouldThrow={false} />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByText('正常的子组件内容')).toBeInTheDocument();
@@ -29,7 +28,7 @@ describe('ErrorBoundary 全局防白屏容灾测试', () => {
     render(
       <ErrorBoundary fallbackTitle="页面崩溃降级提示">
         <BombComponent shouldThrow={true} />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.queryByText('正常的子组件内容')).not.toBeInTheDocument();
@@ -46,7 +45,7 @@ describe('ErrorBoundary 全局防白屏容灾测试', () => {
     render(
       <ErrorBoundary>
         <ChunkBomb />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByText('系统资源已更新')).toBeInTheDocument();

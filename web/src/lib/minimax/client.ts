@@ -1,5 +1,4 @@
 import {
-  MINIMAX_MODEL,
   AUDIO_SAMPLE_RATE,
   DEFAULT_VOICE,
   CBT_VOICE_TOOLS,
@@ -62,11 +61,13 @@ export class MiniMaxRealtimeClient {
     this.currentTurnDetectionMode = null;
     this.cleanupSocket();
 
-    const wsUrl = this.options.relayUrl || getWsUrl({
-      userId: this.options.userId,
-      username: this.options.username,
-      sessionId: this.options.sessionId,
-    });
+    const wsUrl =
+      this.options.relayUrl ||
+      getWsUrl({
+        userId: this.options.userId,
+        username: this.options.username,
+        sessionId: this.options.sessionId,
+      });
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -99,7 +100,9 @@ export class MiniMaxRealtimeClient {
       };
 
       ws.onclose = (event) => {
-        console.warn(`[MiniMaxClient] WebSocket 关闭 (code: ${event.code}, reason: ${event.reason})`);
+        console.warn(
+          `[MiniMaxClient] WebSocket 关闭 (code: ${event.code}, reason: ${event.reason})`,
+        );
         this.isConnected = false;
         this.stopKeepalive();
         this.callbacks.onClose?.(event.code, event.reason);
@@ -117,13 +120,16 @@ export class MiniMaxRealtimeClient {
 
   public sendSessionUpdate(customConfig?: MiniMaxSessionConfig): void {
     const config = { ...this.options.sessionConfig, ...customConfig };
-    const vadConfig = config.turnDetection !== undefined ? config.turnDetection : {
-      type: 'server_vad',
-      threshold: 0.5,
-      prefix_padding_ms: 300,
-      silence_duration_ms: 600,
-      create_response: true,
-    };
+    const vadConfig =
+      config.turnDetection !== undefined
+        ? config.turnDetection
+        : {
+            type: 'server_vad',
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 600,
+            create_response: true,
+          };
 
     const sessionPayload: Record<string, unknown> = {
       type: 'realtime',
@@ -181,21 +187,22 @@ export class MiniMaxRealtimeClient {
   public updateTurnDetection(mode: 'speaking' | 'listening'): void {
     if (!this.ready || this.currentTurnDetectionMode === mode) return;
     this.currentTurnDetectionMode = mode;
-    const vadConfig = mode === 'speaking'
-      ? {
-          type: 'server_vad',
-          threshold: 0.85,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500,
-          create_response: true,
-        }
-      : {
-          type: 'server_vad',
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 600,
-          create_response: true,
-        };
+    const vadConfig =
+      mode === 'speaking'
+        ? {
+            type: 'server_vad',
+            threshold: 0.85,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 500,
+            create_response: true,
+          }
+        : {
+            type: 'server_vad',
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 600,
+            create_response: true,
+          };
 
     this.send({
       type: 'session.update',
@@ -398,7 +405,8 @@ export class MiniMaxRealtimeClient {
 
       if (
         type === 'response.function_call_arguments.delta' ||
-        (type === 'response.output_item.added' && (event.item?.type === 'function_call' || event.item?.type === 'function_call_output'))
+        (type === 'response.output_item.added' &&
+          (event.item?.type === 'function_call' || event.item?.type === 'function_call_output'))
       ) {
         const itemId = event.item_id || event.item?.id;
         if (itemId) {
@@ -418,7 +426,10 @@ export class MiniMaxRealtimeClient {
       }
 
       if (type === 'rethink.crisis_intercepted') {
-        const msg = typeof (event as any).message === 'string' ? (event as any).message : '检测到安全危机，已启动紧急干预';
+        const msg =
+          typeof (event as any).message === 'string'
+            ? (event as any).message
+            : '检测到安全危机，已启动紧急干预';
         const tier = typeof (event as any).tier === 'string' ? (event as any).tier : undefined;
         this.callbacks.onCrisisInterception?.({ message: msg, tier });
       }
@@ -455,7 +466,6 @@ export class MiniMaxRealtimeClient {
 
     this.keepaliveTimer = setInterval(() => {
       if (this.ready) {
-
         this.send({ type: 'client.ping' });
       }
     }, 30000);
@@ -494,9 +504,7 @@ export class MiniMaxRealtimeClient {
         if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
           this.ws.close(1000, 'Client closed');
         }
-      } catch {
-
-      }
+      } catch {}
       this.ws = null;
     }
   }

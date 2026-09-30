@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { MiniMaxRealtimeClient } from '../src/lib/minimax/client';
 
 class MockWebSocket {

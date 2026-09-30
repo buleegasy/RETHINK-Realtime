@@ -3,12 +3,10 @@ import { CBT_CAPSULES } from './cbt-capsules';
 
 export class BgeRetriever {
   public static readonly MODEL = 'bge-m3';
-  public static readonly DEFAULT_THRESHOLD = 0.50;
+  public static readonly DEFAULT_THRESHOLD = 0.5;
 
   private readonly embeddingApiKey: string;
   private readonly embeddingApiUrl: string;
-  private readonly rerankApiKey: string;
-  private readonly rerankApiUrl: string;
 
   constructor(options?: {
     embeddingApiKey?: string;
@@ -18,8 +16,6 @@ export class BgeRetriever {
   }) {
     this.embeddingApiKey = options?.embeddingApiKey || '';
     this.embeddingApiUrl = options?.embeddingApiUrl || 'https://api.apiyi.com/v1/embeddings';
-    this.rerankApiKey = options?.rerankApiKey || '';
-    this.rerankApiUrl = options?.rerankApiUrl || 'https://api.apiyi.com/v1/rerank';
   }
 
   public dotProduct(vecA: number[], vecB: number[]): number {
@@ -56,7 +52,7 @@ export class BgeRetriever {
         return null;
       }
 
-      const data = await res.json() as any;
+      const data = (await res.json()) as any;
       if (Array.isArray(data?.data) && data.data[0]?.embedding) {
         return data.data[0].embedding;
       }
@@ -85,8 +81,11 @@ export class BgeRetriever {
       }
     }
 
-    if (qLower.includes(capsule.title.toLowerCase()) || capsule.title.toLowerCase().includes(qLower)) {
-      score += 0.20;
+    if (
+      qLower.includes(capsule.title.toLowerCase()) ||
+      capsule.title.toLowerCase().includes(qLower)
+    ) {
+      score += 0.2;
     }
 
     const words = qLower.split(/[\s,，.。!！?？]+/).filter((w) => w.length >= 2);
@@ -115,7 +114,11 @@ export class BgeRetriever {
     const queryVec = await this.fetchBgeEmbedding(cleanQuery);
 
     const results: RagSearchResult[] = pool.map((capsule) => {
-      if (queryVec && Array.isArray(capsule.embedding) && capsule.embedding.length === queryVec.length) {
+      if (
+        queryVec &&
+        Array.isArray(capsule.embedding) &&
+        capsule.embedding.length === queryVec.length
+      ) {
         const score = this.dotProduct(queryVec, capsule.embedding);
         return {
           capsule,
@@ -143,7 +146,8 @@ export class BgeRetriever {
     if (!results || results.length === 0) {
       return {
         status: 'no_relevant_context',
-        conciseDirective: '未检索到特定CBT微干预胶囊。请保持同龄好友视角，以积极倾听和情绪共鸣为主，避免讲大道理或随意评价。每次回复必须在1-2句话以内。',
+        conciseDirective:
+          '未检索到特定CBT微干预胶囊。请保持同龄好友视角，以积极倾听和情绪共鸣为主，避免讲大道理或随意评价。每次回复必须在1-2句话以内。',
       };
     }
 

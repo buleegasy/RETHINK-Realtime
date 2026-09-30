@@ -17,9 +17,9 @@ export class ShadowReasoningPipeline {
   private readonly retriever: BgeRetriever;
 
   constructor(
-    private readonly env: Env,
+    env: Env,
     private readonly config: ShadowPipelineConfig,
-    private readonly upstreamWs: WebSocket
+    private readonly upstreamWs: WebSocket,
   ) {
     this.retriever = new BgeRetriever({
       embeddingApiKey: env.EMBEDDING_API_KEY || config.upstreamKey,
@@ -38,7 +38,15 @@ export class ShadowReasoningPipeline {
     isTurnValid: () => boolean;
     onExtractedName?: (name: string) => void;
   }): Promise<void> {
-    const { userText, dialogueHistory, studentName, situationalMemory, signal, isTurnValid, onExtractedName } = params;
+    const {
+      userText,
+      dialogueHistory,
+      studentName,
+      situationalMemory,
+      signal,
+      isTurnValid,
+      onExtractedName,
+    } = params;
 
     try {
       const hintObj = await this.retriever.getStrategyHint(userText, { topK: 1 });
@@ -57,7 +65,7 @@ export class ShadowReasoningPipeline {
           baseUrl: this.config.openRouterBaseUrl,
           model: this.config.openRouterModel,
           signal,
-        }
+        },
       );
 
       if (!isTurnValid() || !reasoning) {
@@ -89,7 +97,7 @@ export class ShadowReasoningPipeline {
             },
           ],
         },
-      })
+      }),
     );
   }
 }

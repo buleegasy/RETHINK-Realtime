@@ -12,22 +12,16 @@ export interface EvaluationResult {
   evaluatedBy?: string;
 }
 
-const CRISIS_PATTERNS = [
-  /想死|寻死|自杀|自残|割腕|跳楼|跳河|跳桥|跳下去|不想活|活不下去|活着.*没意思|轻生|离开这个世界|不想在这个世界上/,
-  /吞药|服毒|上吊|遗书|遗言|安眠药|结束生命|彻底解脱|绝命/,
-];
-
 const MODERATE_STRESS_PATTERNS = [
   /撑不下去了|快崩溃了|受不了了|天天哭|整夜睡不着|抑郁|绝望|心好累/,
   /被霸凌|孤立|排挤|辱骂|被老师针对|厌学|不想上学/,
 ];
 
-
 export async function evaluateTranscriptWithMiniMax(
   transcript: string,
   apiKey?: string,
   minimaxBaseUrl?: string,
-  apiyiBaseUrl?: string
+  apiyiBaseUrl?: string,
 ): Promise<EvaluationResult> {
   const fallback = evaluateTranscriptRuleBased(transcript);
 
@@ -56,8 +50,12 @@ export async function evaluateTranscriptWithMiniMax(
     const defaultMiniMaxUrl = 'https://api.minimaxi.chat/v1/text/chatcompletion_v2';
     const defaultApiyiUrl = 'https://api.apiyi.com/v1/chat/completions';
     const url = isMiniMax
-      ? (minimaxBaseUrl ? `${minimaxBaseUrl.replace(/\/+$/, '')}/text/chatcompletion_v2` : defaultMiniMaxUrl)
-      : (apiyiBaseUrl ? `${apiyiBaseUrl.replace(/\/+$/, '')}/chat/completions` : defaultApiyiUrl);
+      ? minimaxBaseUrl
+        ? `${minimaxBaseUrl.replace(/\/+$/, '')}/text/chatcompletion_v2`
+        : defaultMiniMaxUrl
+      : apiyiBaseUrl
+        ? `${apiyiBaseUrl.replace(/\/+$/, '')}/chat/completions`
+        : defaultApiyiUrl;
 
     const payload = isMiniMax
       ? {
@@ -88,13 +86,25 @@ export async function evaluateTranscriptWithMiniMax(
       if (match) {
         const parsed = JSON.parse(match[0]);
         return {
-          crisisLevel: Math.max(0, Math.min(3, Number(parsed.crisisLevel || fallback.crisisLevel))) as CrisisLevel,
+          crisisLevel: Math.max(
+            0,
+            Math.min(3, Number(parsed.crisisLevel || fallback.crisisLevel)),
+          ) as CrisisLevel,
           isCrisis: Boolean(parsed.isCrisis ?? fallback.isCrisis),
           crisisSummary: String(parsed.crisisSummary || fallback.crisisSummary),
-          coreConcerns: Array.isArray(parsed.coreConcerns) ? parsed.coreConcerns : fallback.coreConcerns,
-          emotionalValence: Math.max(-1, Math.min(1, Number(parsed.emotionalValence || fallback.emotionalValence))),
-          cognitiveDistortions: Array.isArray(parsed.cognitiveDistortions) ? parsed.cognitiveDistortions : fallback.cognitiveDistortions,
-          deidentifiedTranscript: String(parsed.deidentifiedTranscript || fallback.deidentifiedTranscript),
+          coreConcerns: Array.isArray(parsed.coreConcerns)
+            ? parsed.coreConcerns
+            : fallback.coreConcerns,
+          emotionalValence: Math.max(
+            -1,
+            Math.min(1, Number(parsed.emotionalValence || fallback.emotionalValence)),
+          ),
+          cognitiveDistortions: Array.isArray(parsed.cognitiveDistortions)
+            ? parsed.cognitiveDistortions
+            : fallback.cognitiveDistortions,
+          deidentifiedTranscript: String(
+            parsed.deidentifiedTranscript || fallback.deidentifiedTranscript,
+          ),
           evaluatedBy: 'DeepSeek V4 Flash',
         };
       }
@@ -132,7 +142,7 @@ export function evaluateTranscriptRuleBased(transcript: string): EvaluationResul
     }
   }
 
-  if (crisisLevel === 0 && (/难过|伤心|焦虑|烦躁|压力|失眠|担心/.test(text))) {
+  if (crisisLevel === 0 && /难过|伤心|焦虑|烦躁|压力|失眠|担心/.test(text)) {
     crisisLevel = 1;
     crisisSummary = '存在阶段性负面情绪，处于倾诉排解过程中';
   }

@@ -7,10 +7,7 @@ export default defineConfig({
   plugins: [react()],
   css: {
     postcss: {
-      plugins: [
-        tailwindcss(),
-        autoprefixer(),
-      ],
+      plugins: [tailwindcss(), autoprefixer()],
     },
   },
   server: {
@@ -41,5 +38,18 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./test/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'json'],
+      reportsDirectory: './coverage',
+      include: ['src/**'],
+      exclude: [
+        'src/main.tsx',
+        'src/**/*.d.ts',
+        'src/types/**',
+        'src/**/types.ts',
+        'src/components/voice/siri-orb/**',
+      ],
+    },
   },
 });

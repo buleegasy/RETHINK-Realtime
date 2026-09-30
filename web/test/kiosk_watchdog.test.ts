@@ -7,22 +7,22 @@ describe('树莓派终端无人值守看门狗测试 (Kiosk Watchdog)', () => {
     vi.useFakeTimers();
     const onTimeout = vi.fn();
 
-    const { rerender } = renderHook(
+    renderHook(
       (props) =>
         useKioskWatchdog({
           enabled: props.enabled,
           isOffHook: props.isOffHook,
           audioLevel: props.audioLevel,
-          silenceTimeoutSeconds: 5, 
+          silenceTimeoutSeconds: 5,
           onSilenceTimeout: onTimeout,
         }),
       {
         initialProps: {
           enabled: true,
           isOffHook: true,
-          audioLevel: 0.01, 
+          audioLevel: 0.01,
         },
-      }
+      },
     );
 
     act(() => {
@@ -53,7 +53,7 @@ describe('树莓派终端无人值守看门狗测试 (Kiosk Watchdog)', () => {
         }),
       {
         initialProps: { audioLevel: 0.01 },
-      }
+      },
     );
 
     act(() => {

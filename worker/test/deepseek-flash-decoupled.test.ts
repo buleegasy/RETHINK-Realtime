@@ -6,7 +6,7 @@ import {
   consolidateSituationalMemoryWithLLM,
   formatSituationalMemoryPrompt,
 } from '../src/lib/deepseek-flash';
-import { getSituationalMemory, saveSituationalMemory, clearMemoryCache } from '../src/lib/memory-store';
+import { saveSituationalMemory, clearMemoryCache } from '../src/lib/memory-store';
 import app from '../src/index';
 
 describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知旁路管线)', () => {
@@ -129,7 +129,7 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
         {
           apiKey: 'test-openrouter-key',
           model: 'deepseek/deepseek-v4-flash',
-        }
+        },
       );
 
       expect(result).not.toBeNull();
@@ -147,7 +147,7 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
         },
         {
           apiKey: '',
-        }
+        },
       );
 
       expect(result).not.toBeNull();
@@ -201,7 +201,8 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
           duration: 120,
           stage: 'Socratic_Questioning',
           username: '小明',
-          transcript_text: '学生: 老师，我觉得最近压力很大。 智能体: 我听到了，愿不愿意跟我具体聊聊？',
+          transcript_text:
+            '学生: 老师，我觉得最近压力很大。 智能体: 我听到了，愿不愿意跟我具体聊聊？',
         }),
       });
 
@@ -228,11 +229,16 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
                 content: JSON.stringify({
                   userName: '小华',
                   identityContext: '高三住校理科生，备战高考冲刺',
-                  coreConcerns: ['近期数学模考断崖式下滑', '母亲期望过高引发亲子激烈争吵', '入睡困难'],
+                  coreConcerns: [
+                    '近期数学模考断崖式下滑',
+                    '母亲期望过高引发亲子激烈争吵',
+                    '入睡困难',
+                  ],
                   significantOthers: ['严格的母亲', '经常交流的班主任张老师'],
                   recentSituations: ['上周模拟考数学只有85分被妈妈斥责', '在宿舍整夜辗转反侧'],
                   effectiveStrategies: ['认可其刻苦努力', '避免直接催促成绩', '运用去灾难化引导'],
-                  summaryParagraph: '小华是高三住校生，近期因数学模考失利与母亲爆发冲突，存在较大焦虑与失眠，需要温和同龄陪伴。',
+                  summaryParagraph:
+                    '小华是高三住校生，近期因数学模考失利与母亲爆发冲突，存在较大焦虑与失眠，需要温和同龄陪伴。',
                 }),
               },
             },
@@ -244,13 +250,20 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
         'student_xiaohua_001',
         null,
         [
-          { role: 'user', content: '我叫小华，高三住校。上周数学模考只有85分，我妈把我狠狠骂了一顿，我现在晚上根本睡不着。' },
-          { role: 'assistant', content: '小华，模考受挫还要面对妈妈的指责，换作谁都会喘不过气来。我在这儿听你说。' },
+          {
+            role: 'user',
+            content:
+              '我叫小华，高三住校。上周数学模考只有85分，我妈把我狠狠骂了一顿，我现在晚上根本睡不着。',
+          },
+          {
+            role: 'assistant',
+            content: '小华，模考受挫还要面对妈妈的指责，换作谁都会喘不过气来。我在这儿听你说。',
+          },
         ],
         {
           apiKey: 'test-key',
           model: 'deepseek/deepseek-v4-flash',
-        }
+        },
       );
 
       expect(memory).not.toBeNull();

@@ -1,11 +1,12 @@
-import type { DialogueTurn, SanitizedCbtReport, CBTStage } from '../../../types';
+import type { SanitizedCbtReport } from '../../../types';
 import type { IReportGenerator, ReportGenerationInput } from './types';
 
 export class DeidentifiedCbtReportGenerator implements IReportGenerator {
   public readonly name = 'DeidentifiedCbtReportGenerator';
 
   private readonly phoneRegex = /(?:\+?86)?\s*(1[3-9]\d)\d{4}(\d{4})/g;
-  private readonly emailRegex = /([a-zA-Z0-9_.+-])[a-zA-Z0-9_.+-]*@([a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/g;
+  private readonly emailRegex =
+    /([a-zA-Z0-9_.+-])[a-zA-Z0-9_.+-]*@([a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/g;
   private readonly idCardRegex = /(\d{6})\d{8}(\w{4})/g;
 
   public deidentifyText(text: string): string {
@@ -36,18 +37,19 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
       .filter(Boolean);
 
     const primaryUtterance = userSpeechList[0] || '';
-    const mainTopic = primaryUtterance
-      ? `“${primaryUtterance.slice(0, 24)}...”`
-      : '本次会话陈述';
+    const mainTopic = primaryUtterance ? `“${primaryUtterance.slice(0, 24)}...”` : '本次会话陈述';
 
     const coreConcerns: string[] = primaryUtterance
       ? [`围绕${mainTopic}展开的真实倾诉`]
       : ['来访者进行了短时间陈述，尚未展开核心议题'];
 
     const initialEmotion = '情绪承压与倾诉表达';
-    const finalEmotion = stageReached === 'Crisis_Escalation'
-      ? '转入专业安全转介通道'
-      : (durationSeconds > 180 ? '事实逐步理清，紧绷状态缓解' : '完成初步表达');
+    const finalEmotion =
+      stageReached === 'Crisis_Escalation'
+        ? '转入专业安全转介通道'
+        : durationSeconds > 180
+          ? '事实逐步理清，紧绷状态缓解'
+          : '完成初步表达';
 
     return {
       sessionId,
@@ -62,12 +64,11 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
         final: finalEmotion,
         deltaNotes: `通话中学生重点表达了${mainTopic}，进线时呈现“${initialEmotion}”，挂机时转为“${finalEmotion}”。`,
       },
-      keyTakeaways: [
-        `理清客观发生的事实与主观评价之间的边界，避免单一挫折泛化。`,
-      ],
-      homeworkAction: primaryUtterance && primaryUtterance.length > 5
-        ? `针对本次探讨的${mainTopic}，记录下一次发生类似情绪触发点时的客观事实，尝试写下一种更客观的看待角度。`
-        : '',
+      keyTakeaways: [`理清客观发生的事实与主观评价之间的边界，避免单一挫折泛化。`],
+      homeworkAction:
+        primaryUtterance && primaryUtterance.length > 5
+          ? `针对本次探讨的${mainTopic}，记录下一次发生类似情绪触发点时的客观事实，尝试写下一种更客观的看待角度。`
+          : '',
       isDeidentified: true,
     };
   }

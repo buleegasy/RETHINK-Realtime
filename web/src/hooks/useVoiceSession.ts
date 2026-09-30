@@ -5,13 +5,11 @@ import { AudioGraphService } from '../lib/audio/audioGraph';
 import { MiniMaxRealtimeClient } from '../lib/minimax/client';
 import { RealtimeToolDispatcher } from '../lib/tools/toolDispatcher';
 import { DefaultRagProvider } from '../lib/pipelines/rag/defaultRagProvider';
-import { SlidingWindowCompressor } from '../lib/pipelines/context/slidingWindowCompressor';
 import { WebCryptoAesGcm } from '../lib/pipelines/security/webCryptoAesGcm';
 import { BufferedTranscriptionPipeline } from '../lib/pipelines/transcription/bufferedTranscription';
 import { DeidentifiedCbtReportGenerator } from '../lib/pipelines/reporting/deidentifiedReportGenerator';
 import { safeRandomId } from '../lib/utils';
 import { apiFetch } from '../lib/api';
-import type { CBTStage, DialogueTurn } from '../types';
 
 export function useVoiceSession() {
   const {
@@ -33,7 +31,6 @@ export function useVoiceSession() {
     setCrisisOverlayOpen,
     setErrorMessage,
     setCallDuration,
-    resetBooth,
   } = useBoothStore();
 
   const user = useAuthStore((s) => s.user);
@@ -44,10 +41,13 @@ export function useVoiceSession() {
   const toolDispatcherRef = useRef<RealtimeToolDispatcher | null>(null);
 
   const ragProviderRef = useRef<DefaultRagProvider>(new DefaultRagProvider());
-  const contextManagerRef = useRef<SlidingWindowCompressor>(new SlidingWindowCompressor());
   const cryptoRef = useRef<WebCryptoAesGcm>(new WebCryptoAesGcm());
-  const transcriptionRef = useRef<BufferedTranscriptionPipeline>(new BufferedTranscriptionPipeline());
-  const reportGeneratorRef = useRef<DeidentifiedCbtReportGenerator>(new DeidentifiedCbtReportGenerator());
+  const transcriptionRef = useRef<BufferedTranscriptionPipeline>(
+    new BufferedTranscriptionPipeline(),
+  );
+  const reportGeneratorRef = useRef<DeidentifiedCbtReportGenerator>(
+    new DeidentifiedCbtReportGenerator(),
+  );
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const rafVisualizerRef = useRef<number>(0);
@@ -195,7 +195,10 @@ export function useVoiceSession() {
             }
           },
           onSpeechStopped: () => {
-            if (useBoothStore.getState().sessionStatus === 'connected' && useBoothStore.getState().duplexPhase === 'listening') {
+            if (
+              useBoothStore.getState().sessionStatus === 'connected' &&
+              useBoothStore.getState().duplexPhase === 'listening'
+            ) {
               setDuplexPhase('thinking');
             }
           },
@@ -362,7 +365,10 @@ export function useVoiceSession() {
 
         // 异步同步至云端 Worker 深度建档（DeepSeek V4 Flash 结构化简报与情景记忆更新）
         const transcriptText = turns
-          .map((t) => `${t.role === 'user' ? (user?.displayName || user?.userName || '学生') : '智能体'}: ${t.content}`)
+          .map(
+            (t) =>
+              `${t.role === 'user' ? user?.displayName || user?.userName || '学生' : '智能体'}: ${t.content}`,
+          )
           .join('\n');
 
         const localSessionRecord = {
@@ -421,7 +427,16 @@ export function useVoiceSession() {
         console.error('[VoiceSession] 报告生成或加密异常:', err);
       }
     }
-  }, [stopVisualizer, setHookState, setSessionStatus, setDuplexPhase, user, setLatestReport, setReportModalOpen, addDialogueTurn]);
+  }, [
+    stopVisualizer,
+    setHookState,
+    setSessionStatus,
+    setDuplexPhase,
+    user,
+    setLatestReport,
+    setReportModalOpen,
+    addDialogueTurn,
+  ]);
   endCallRef.current = endCall;
 
   const interrupt = useCallback(() => {

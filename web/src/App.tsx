@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useRef } from 'react';
+import { Suspense, lazy, useEffect, useRef } from 'react';
 import { VoiceView } from './components/voice/VoiceView';
 import { LoginWall } from './components/auth/LoginWall';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -8,7 +8,9 @@ import { useVoiceSession } from './hooks/useVoiceSession';
 import { apiFetch } from './lib/api';
 
 const AdminPortal = lazy(() =>
-  import('./components/admin/AdminPortal').then((m) => ({ default: m.AdminPortal }))
+  import('./components/admin/AdminPortal').then((m) => ({
+    default: m.AdminPortal,
+  })),
 );
 
 export function App() {
@@ -64,11 +66,7 @@ export function App() {
       ) : !isAuthenticated ? (
         <LoginWall />
       ) : (
-        <VoiceView
-          onStartCall={startCall}
-          onEndCall={endCall}
-          onInterrupt={interrupt}
-        />
+        <VoiceView onStartCall={startCall} onEndCall={endCall} onInterrupt={interrupt} />
       )}
     </div>
   );

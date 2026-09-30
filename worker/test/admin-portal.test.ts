@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import app from '../src/index';
 
 describe('心理教师管理后台接口与危机穿透测试', () => {
@@ -224,7 +224,9 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
       headers: { Authorization: `Bearer ${teacherToken}` },
     });
     const auditData: any = await auditRes.json();
-    const delLog = auditData.logs.find((l: any) => l.session_id === testSessionId && l.reason.includes('学生演练已结束归档保存'));
+    const delLog = auditData.logs.find(
+      (l: any) => l.session_id === testSessionId && l.reason.includes('学生演练已结束归档保存'),
+    );
     expect(delLog).toBeDefined();
   });
 
