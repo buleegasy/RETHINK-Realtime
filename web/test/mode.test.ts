@@ -69,7 +69,7 @@ describe('运行模式状态机测试 (Web Mode vs Kiosk Mode)', () => {
 
     modeStore.setRunMode('kiosk');
     authStore.login(
-      { id: 'kiosk-01', userName: 'kiosk-01', displayName: '咨询终端', role: 'student' },
+      { uid: 'kiosk-01', userName: 'kiosk-01', displayName: '咨询终端', role: 'user', isAuthenticated: true },
       'test-token'
     );
 

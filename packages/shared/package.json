@@ -10,5 +10,8 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     }
+  },
+  "scripts": {
+    "build": "echo 'shared ok'"
   }
 }
