@@ -16,6 +16,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
+import { useModeStore } from '../../store/modeStore';
 import type { AdminSessionItem } from '../../types';
 import { SessionDeleteModal } from './SessionDeleteModal';
 import { SessionRestoreModal } from './SessionRestoreModal';
@@ -189,16 +190,28 @@ export const SessionArchiveDrawer: React.FC = () => {
       )}
 
       {!isLoading && filteredSessions.length === 0 && (
-        <div className="bg-white rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center border border-[#e1e3e1] space-y-2">
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center border border-[#e1e3e1] space-y-3">
           <Archive className="w-9 h-9 sm:w-10 sm:h-10 text-[#c4c7c5] mx-auto mb-2" />
           <h4 className="text-sm font-semibold text-[#1f1f1f]">
             {showArchived ? '暂无安全归档记录' : '暂无真实个案记录'}
           </h4>
-          <p className="text-xs text-[#747775] max-w-md mx-auto">
+          <p className="text-xs text-[#747775] max-w-md mx-auto leading-relaxed">
             {showArchived
               ? '当前无被安全归档的会话记录。'
-              : '管理后台已严格剔除假数据，当学生通过终端完成咨询倾诉后将在此实时建档。'}
+              : '管理后台已严格剔除假数据，当来访者通过终端或网页完成一次倾诉交流后，系统将自动提炼 CBT 认知评估并在此建档。'}
           </p>
+          {!showArchived && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => useModeStore.getState().setRunMode('web')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#004a77] text-white text-xs font-medium hover:bg-[#003355] transition-colors cursor-pointer shadow-sm"
+              >
+                <span>前往体验倾诉建档</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
