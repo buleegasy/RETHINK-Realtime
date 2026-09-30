@@ -195,3 +195,31 @@ export async function verifyAuthToken(token: string, secretKey: string): Promise
     return null;
   }
 }
+
+let ephemeralDevSecret: string | null = null;
+
+/**
+ * 安全解析 JWT 签名密钥
+ * 1. 优先读取环境变量 JWT_SECRET；
+ * 2. 若生产环境 (ENVIRONMENT === 'production') 且未注入密钥，严格拒绝降级为已知默认弱口令；
+ * 3. 若为本地开发或单元测试环境，动态生成进程级高强度随机密钥，彻底阻断离线已知密钥伪造攻击。
+ */
+export function resolveJwtSecret(env?: Record<string, any>): string {
+  const secret = env?.JWT_SECRET;
+  if (typeof secret === 'string' && secret.trim().length > 0) {
+    return secret.trim();
+  }
+
+  const isProduction = env?.ENVIRONMENT === 'production';
+  if (isProduction) {
+    throw new Error('[Security Exception] 生产环境必须注入 JWT_SECRET 环境变量，系统严禁使用任何已知弱口令兜底！');
+  }
+
+  if (!ephemeralDevSecret) {
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+    ephemeralDevSecret = Array.from(randomBytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  return ephemeralDevSecret;
+}
+

@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono';
-import { verifyAuthToken, type AuthTokenPayload } from '../lib/auth-crypto';
+import { verifyAuthToken, resolveJwtSecret, type AuthTokenPayload } from '../lib/auth-crypto';
 import type { Env } from '../types';
 
 declare module 'hono' {
@@ -26,7 +26,13 @@ export function createAuthMiddleware(options?: {
       return c.json({ success: false, error: '未提供有效鉴权凭证，请登录后重试' }, 401);
     }
 
-    const secret = c.env?.JWT_SECRET || 'rethink-auth-salt-default-key';
+    let secret = '';
+    try {
+      secret = resolveJwtSecret(c.env);
+    } catch (err: any) {
+      return c.json({ success: false, error: err?.message || '鉴权服务配置异常' }, 500);
+    }
+
     const payload = await verifyAuthToken(token, secret);
 
     if (!payload) {

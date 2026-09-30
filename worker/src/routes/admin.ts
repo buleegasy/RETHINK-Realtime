@@ -69,7 +69,10 @@ adminRouter.post('/crisis/unmask', async (c) => {
     body = await c.req.json<CrisisUnmaskPayload>();
   } catch {}
 
-  const res = await AdminService.unmaskCrisis(c.env || {}, body);
+  const authUser = c.get('authUser');
+  const fallbackOperator = authUser?.displayName || authUser?.username || '心理专职教师';
+  const operatorName = body.operator_name?.trim() || fallbackOperator;
+  const res = await AdminService.unmaskCrisis(c.env || {}, { ...body, operator_name: operatorName });
   return c.json(res, res.status as any);
 });
 
@@ -91,7 +94,10 @@ adminRouter.post('/sessions/delete', async (c) => {
     body = await c.req.json<DeleteSessionPayload>();
   } catch {}
 
-  const res = await AdminService.softDelete(c.env || {}, body);
+  const authUser = c.get('authUser');
+  const fallbackOperator = authUser?.displayName || authUser?.username || '心理专职教师';
+  const operatorName = body.operator_name?.trim() || fallbackOperator;
+  const res = await AdminService.softDelete(c.env || {}, { ...body, operator_name: operatorName });
   return c.json(res, res.status as any);
 });
 
@@ -102,7 +108,10 @@ adminRouter.post('/sessions/restore', async (c) => {
     body = await c.req.json<RestoreSessionPayload>();
   } catch {}
 
-  const res = await AdminService.restoreSession(c.env || {}, body);
+  const authUser = c.get('authUser');
+  const fallbackOperator = authUser?.displayName || authUser?.username || '心理专职教师';
+  const operatorName = body.operator_name?.trim() || fallbackOperator;
+  const res = await AdminService.restoreSession(c.env || {}, { ...body, operator_name: operatorName });
   return c.json(res, res.status as any);
 });
 

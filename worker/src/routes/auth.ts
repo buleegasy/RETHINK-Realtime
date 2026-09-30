@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
-import { hashPassword, verifyPassword, signAuthToken } from '../lib/auth-crypto';
+import { hashPassword, verifyPassword, signAuthToken, resolveJwtSecret } from '../lib/auth-crypto';
 
 export const authRouter = new Hono<{ Bindings: Env }>();
 
@@ -27,19 +27,22 @@ async function ensureUsersTable(env: Env): Promise<void> {
 // 内存测试/无数据库兜底用户表 (加盐哈希存储)
 const memoryUsers = new Map<string, { id: string; passwordHash: string; displayName: string }>();
 
-// 初始化内置测试账号
-(async () => {
-  try {
-    const defaultHash = await hashPassword('password123');
-    memoryUsers.set('testuser', {
-      id: 'usr_testuser',
-      passwordHash: defaultHash,
-      displayName: 'testuser',
-    });
-  } catch (err) {
-    console.warn('[Auth] 内存默认测试用户初始化异常:', err);
-  }
-})();
+// 仅在非生产/测试环境中初始化内置测试账号，生产环境严禁预置任何静态测试账号
+if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
+  (async () => {
+    try {
+      const defaultHash = await hashPassword('password123');
+      memoryUsers.set('testuser', {
+        id: 'usr_testuser',
+        passwordHash: defaultHash,
+        displayName: 'testuser',
+      });
+    } catch (err) {
+      console.warn('[Auth] 内存默认测试用户初始化异常:', err);
+    }
+  })();
+}
+
 
 interface AuthVerificationResult {
   ok: boolean;
@@ -123,7 +126,12 @@ authRouter.post('/login', async (c) => {
   const { id: userId, displayName } = authResult.user;
 
   const currentEpoch = Math.floor(Date.now() / 1000);
-  const secretKey = env.JWT_SECRET || 'rethink-auth-salt-default-key';
+  let secretKey = '';
+  try {
+    secretKey = resolveJwtSecret(env);
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || '鉴权服务配置异常' }, 500);
+  }
   const token = await signAuthToken(
     {
       uid: userId,
@@ -208,7 +216,12 @@ authRouter.post('/register', async (c) => {
   }
 
   const currentEpoch = Math.floor(Date.now() / 1000);
-  const secretKey = env.JWT_SECRET || 'rethink-auth-salt-default-key';
+  let secretKey = '';
+  try {
+    secretKey = resolveJwtSecret(env);
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || '鉴权服务配置异常' }, 500);
+  }
   const token = await signAuthToken(
     {
       uid: newUserId,
@@ -248,7 +261,12 @@ authRouter.post('/kiosk-login', async (c) => {
 
   const env = c.env || {};
   const currentEpoch = Math.floor(Date.now() / 1000);
-  const secretKey = env.JWT_SECRET || 'rethink-auth-salt-default-key';
+  let kioskSecret = '';
+  try {
+    kioskSecret = resolveJwtSecret(env);
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || '终端鉴权配置异常' }, 500);
+  }
   const token = await signAuthToken(
     {
       uid: `device_${deviceId}`,
@@ -258,7 +276,7 @@ authRouter.post('/kiosk-login', async (c) => {
       iat: currentEpoch,
       exp: currentEpoch + 30 * 86400, // 终端 Token 30 天有效
     },
-    secretKey
+    kioskSecret
   );
 
   return c.json({

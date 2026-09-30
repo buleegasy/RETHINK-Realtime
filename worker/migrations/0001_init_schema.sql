@@ -35,3 +35,30 @@ CREATE TABLE IF NOT EXISTS crisis_audit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_crisis_audit_logs_session_id ON crisis_audit_logs(session_id);
+
+-- 用户账号体系表
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE,
+  password_hash TEXT,
+  display_name TEXT,
+  role TEXT DEFAULT 'user',
+  created_at INTEGER DEFAULT (unixepoch())
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);
+
+-- 学生长期情景记忆档案表 (支持跨会话认知注入)
+CREATE TABLE IF NOT EXISTS user_situational_memories (
+  user_id TEXT PRIMARY KEY,
+  user_name TEXT,
+  identity_context TEXT,
+  core_concerns TEXT,
+  significant_others TEXT,
+  recent_situations TEXT,
+  effective_strategies TEXT,
+  summary_paragraph TEXT,
+  last_updated INTEGER DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_situational_memories_last_updated ON user_situational_memories(last_updated);

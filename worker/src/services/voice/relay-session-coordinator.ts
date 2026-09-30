@@ -191,15 +191,39 @@ export class RelaySessionCoordinator {
 
     upstreamWs.addEventListener('message', async (event) => {
       try {
-        if (serverWs.readyState === WebSocket.OPEN) {
-          serverWs.send(event.data);
+        let outgoingData = event.data;
+        let payload: any = null;
+
+        if (typeof event.data === 'string') {
+          try {
+            payload = JSON.parse(event.data);
+          } catch {}
+        } else if (event.data && typeof (event.data as any).text === 'function') {
+          try {
+            const txt = await (event.data as any).text();
+            payload = JSON.parse(txt);
+          } catch {}
         }
 
-        const raw = typeof event.data === 'string' ? event.data : event.data.toString();
-        let payload: any = null;
-        try {
-          payload = JSON.parse(raw);
-        } catch {}
+        // 统一模型呈现规范：拦截上游网关下发的所有帧，强制将底层模型标识覆写为 minimax-realtime
+        if (payload && typeof payload === 'object') {
+          let needsReserialize = false;
+          if (payload.session && typeof payload.session === 'object' && payload.session.model) {
+            payload.session.model = 'minimax-realtime';
+            needsReserialize = true;
+          }
+          if (payload.model && typeof payload.model === 'string' && payload.model !== 'minimax-realtime') {
+            payload.model = 'minimax-realtime';
+            needsReserialize = true;
+          }
+          if (needsReserialize) {
+            outgoingData = JSON.stringify(payload);
+          }
+        }
+
+        if (serverWs.readyState === WebSocket.OPEN) {
+          serverWs.send(outgoingData);
+        }
 
         if (!payload || typeof payload.type !== 'string') return;
 

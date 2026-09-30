@@ -8,6 +8,38 @@ export interface CrisisAlertPayload {
   adminConsoleUrl?: string;
 }
 
+export function isSafeWebhookUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('192.168.') ||
+      hostname === '169.254.169.254'
+    ) {
+      return false;
+    }
+    const ipMatch = hostname.match(/^172\.(\d+)\./);
+    if (ipMatch) {
+      const secondOctet = parseInt(ipMatch[1], 10);
+      if (secondOctet >= 16 && secondOctet <= 31) {
+        return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendCrisisWebhook(
   webhookUrl?: string,
   alert?: CrisisAlertPayload,
@@ -15,6 +47,10 @@ export async function sendCrisisWebhook(
 ): Promise<{ success: boolean; error?: string }> {
   if (!webhookUrl || !alert) {
     return { success: false, error: 'Webhook URL or alert payload missing' };
+  }
+
+  if (!isSafeWebhookUrl(webhookUrl)) {
+    return { success: false, error: '非法的 Webhook 目标地址：禁止指向内网、回环或云元数据私有地址' };
   }
 
   const adminUrl = alert.adminConsoleUrl || defaultAdminUrl || 'https://campus.rethink.internal/admin';

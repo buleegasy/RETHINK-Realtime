@@ -39,6 +39,9 @@ function resolveStoredAuthToken(targetPath: string): string | null {
         if (parsed?.token) return parsed.token;
       }
     }
+    const directToken = localStorage.getItem('rethink_auth_token');
+    if (directToken) return directToken;
+
     const rawAuth = localStorage.getItem('rethink_auth');
     if (rawAuth) {
       const parsed = JSON.parse(rawAuth);

@@ -1,10 +1,11 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { VoiceView } from './components/voice/VoiceView';
 import { LoginWall } from './components/auth/LoginWall';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useAuthStore } from './store/authStore';
 import { useModeStore } from './store/modeStore';
 import { useVoiceSession } from './hooks/useVoiceSession';
+import { apiFetch } from './lib/api';
 
 const AdminPortal = lazy(() =>
   import('./components/admin/AdminPortal').then((m) => ({ default: m.AdminPortal }))
@@ -13,8 +14,27 @@ const AdminPortal = lazy(() =>
 export function App() {
   const runMode = useModeStore((s) => s.runMode);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const login = useAuthStore((s) => s.login);
 
   const { startCall, endCall, interrupt } = useVoiceSession();
+
+  useEffect(() => {
+    if (runMode === 'kiosk' && !isAuthenticated) {
+      apiFetch('/api/auth/kiosk-login', {
+        method: 'POST',
+        body: JSON.stringify({ deviceId: 'kiosk-booth-01' }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.user && data.token) {
+            login(data.user, data.token);
+          }
+        })
+        .catch((err) => {
+          console.warn('[App] Kiosk 终端自动免密鉴权异常:', err);
+        });
+    }
+  }, [runMode, isAuthenticated, login]);
 
   return (
     <div className="fixed inset-0 w-full h-[100dvh] bg-white text-black font-sans overflow-hidden">

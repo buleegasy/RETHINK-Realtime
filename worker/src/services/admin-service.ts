@@ -14,9 +14,7 @@ import {
   generateWeeklySummaryDeepSeekV4Flash,
   generateStructuredReportWithFlash,
 } from '../lib/deepseek-flash';
-import { signAuthToken, verifyPassword } from '../lib/auth-crypto';
-
-const DEFAULT_AUTH_CREDENTIAL = atob('Y291bnNlbG9yMjAyNg==');
+import { signAuthToken, verifyPassword, resolveJwtSecret } from '../lib/auth-crypto';
 
 export class AdminService {
   public static async authenticateTeacher(username?: string, password?: string, env?: Env) {
@@ -29,7 +27,8 @@ export class AdminService {
       return { success: false, error: '账号格式不正确', status: 400 };
     }
 
-    const teacherCredential = env?.TEACHER_PASSWORD || DEFAULT_AUTH_CREDENTIAL;
+    const isProduction = env?.ENVIRONMENT === 'production';
+    const teacherCredential = env?.TEACHER_PASSWORD;
     let isPasswordValid = false;
 
     if (env?.DB) {
@@ -48,12 +47,20 @@ export class AdminService {
       }
     }
 
-    // 若 D1 中无记录或未配置 D1，采用环境变量或默认口令兜底验证
-    if (!isPasswordValid) {
+    // 若配置了 TEACHER_PASSWORD 环境变量，支持环境变量覆盖鉴权
+    if (!isPasswordValid && teacherCredential) {
       if (teacherCredential.startsWith('pbkdf2:')) {
         isPasswordValid = await verifyPassword(password, teacherCredential);
       } else {
         isPasswordValid = password === teacherCredential;
+      }
+    }
+
+    // 仅在非生产/单元测试调试环境下允许使用临时默认凭证；生产环境严格阻断已知弱口令
+    if (!isPasswordValid && !teacherCredential && !isProduction) {
+      const devDefault = atob('Y291bnNlbG9yMjAyNg==');
+      if (password === devDefault) {
+        isPasswordValid = true;
       }
     }
 
@@ -62,7 +69,13 @@ export class AdminService {
     }
 
     const currentEpoch = Math.floor(Date.now() / 1000);
-    const secretKey = env?.JWT_SECRET || 'rethink-auth-salt-default-key';
+    let secretKey = '';
+    try {
+      secretKey = resolveJwtSecret(env);
+    } catch (err: any) {
+      return { success: false, error: err?.message || '鉴权服务配置异常', status: 500 };
+    }
+
     const token = await signAuthToken(
       {
         uid: `teacher_${cleanUser}`,
@@ -270,8 +283,9 @@ export class AdminService {
       return { success: false, error: '缺少会话标识或二次安全口令', status: 400 };
     }
 
-    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
-    if (secondary_passcode.trim() !== correctPasscode) {
+    const isProduction = env.ENVIRONMENT === 'production';
+    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
+    if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
       return {
         success: false,
         error: '二次安全口令错误。为保护学生隐私，系统已拒绝解除脱敏并记录本次异常操作。',
@@ -334,8 +348,9 @@ export class AdminService {
       return { success: false, error: '缺少会话标识、归档口令或归档事由', status: 400 };
     }
 
-    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
-    if (secondary_passcode.trim() !== correctPasscode) {
+    const isProduction = env.ENVIRONMENT === 'production';
+    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
+    if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
       return { success: false, error: '二次口令校验失败，无权归档个案记录', status: 403 };
     }
 
@@ -374,8 +389,9 @@ export class AdminService {
       return { success: false, error: '缺少会话标识或恢复口令', status: 400 };
     }
 
-    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || 'teacher-safe-2026';
-    if (secondary_passcode.trim() !== correctPasscode) {
+    const isProduction = env.ENVIRONMENT === 'production';
+    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
+    if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
       return { success: false, error: '二次口令校验失败，无权恢复已归档个案', status: 403 };
     }
 

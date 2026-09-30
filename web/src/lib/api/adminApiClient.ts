@@ -34,42 +34,6 @@ export class AdminApiClient {
       if (data.success && data.stats) {
         stats = data.stats;
       }
-
-      // 若远端无 D1 绑定（统计数为 0），自适应合并本地真实会话指标
-      try {
-        const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('rethink_real_sessions') : null;
-        if (rawLocal && stats) {
-          const localList: AdminSessionItem[] = JSON.parse(rawLocal);
-          if (Array.isArray(localList) && localList.length > 0 && stats.totalSessions === 0) {
-            const validLocals = localList.filter(
-              (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_')
-            );
-            if (validLocals.length > 0) {
-              const crisisLocals = validLocals.filter((s) => s.isCrisis || s.crisisLevel >= 3);
-              stats.totalSessions = validLocals.length;
-              stats.crisisCount = crisisLocals.length;
-              stats.pendingInterventions = crisisLocals.filter((s) => s.dispositionStatus === 'pending_contact').length;
-              const valences = validLocals.map((s) => s.emotionalValence || 0);
-              stats.avgValence = Number((valences.reduce((a, b) => a + b, 0) / valences.length).toFixed(2));
-              
-              const counts: Record<string, number> = {};
-              for (const s of validLocals) {
-                for (const c of s.coreConcerns || []) {
-                  counts[c] = (counts[c] || 0) + 1;
-                }
-              }
-              stats.concernDistribution = Object.entries(counts).map(([name, count]) => ({ name, count }));
-              stats.riskDistribution = [
-                { level: 0, label: '正常稳定', count: validLocals.filter((s) => (s.crisisLevel || 0) === 0).length },
-                { level: 1, label: '轻度波动', count: validLocals.filter((s) => s.crisisLevel === 1).length },
-                { level: 2, label: '中度压力', count: validLocals.filter((s) => s.crisisLevel === 2).length },
-                { level: 3, label: '极高危预警', count: validLocals.filter((s) => (s.crisisLevel || 0) >= 3 || s.isCrisis).length },
-              ];
-            }
-          }
-        }
-      } catch {}
-
       return stats;
     } catch (err) {
       console.warn('[AdminApiClient] 获取宏观统计数据异常:', err);
@@ -88,35 +52,6 @@ export class AdminApiClient {
       list = list.filter(
         (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_')
       );
-
-      // 合并本地危机记录
-      try {
-        const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('rethink_real_sessions') : null;
-        if (rawLocal) {
-          const localList: AdminSessionItem[] = JSON.parse(rawLocal);
-          if (Array.isArray(localList)) {
-            for (const loc of localList) {
-              if (
-                (loc.isCrisis || loc.crisisLevel >= 3) &&
-                !loc.sessionId.startsWith('sess_sample_') &&
-                !loc.sessionId.startsWith('mock_') &&
-                !list.some((c) => c.sessionId === loc.sessionId)
-              ) {
-                list.push({
-                  id: loc.id,
-                  sessionId: loc.sessionId,
-                  crisisLevel: loc.crisisLevel as any,
-                  crisisSummary: loc.crisisSummary,
-                  coreConcerns: loc.coreConcerns,
-                  createdAt: loc.createdAt,
-                  dispositionStatus: loc.dispositionStatus as any,
-                  hasEncryptedIdentity: loc.hasEncryptedIdentity,
-                });
-              }
-            }
-          }
-        }
-      } catch {}
 
       list.sort((a, b) => b.createdAt - a.createdAt);
       return list;
@@ -137,31 +72,10 @@ export class AdminApiClient {
         serverSessions = data.sessions;
       }
 
-      // 严禁假数据进入展示层
+      // 严禁假数据进入展示层，真实反映服务端记录
       serverSessions = serverSessions.filter(
         (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_')
       );
-
-      // 合并本地真实会话缓存（保证刚完成的本地通话在弱网或冷启动时必定秒级呈现在管理端）
-      try {
-        const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('rethink_real_sessions') : null;
-        if (rawLocal) {
-          const localList: AdminSessionItem[] = JSON.parse(rawLocal);
-          if (Array.isArray(localList)) {
-            for (const loc of localList) {
-              if (
-                !loc.sessionId.startsWith('sess_sample_') &&
-                !loc.sessionId.startsWith('mock_') &&
-                !serverSessions.some((s) => s.sessionId === loc.sessionId)
-              ) {
-                if (!crisisOnly || loc.isCrisis || loc.crisisLevel >= 3) {
-                  serverSessions.push(loc);
-                }
-              }
-            }
-          }
-        }
-      } catch {}
 
       serverSessions.sort((a, b) => b.createdAt - a.createdAt);
       return serverSessions;
