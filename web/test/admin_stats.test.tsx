@@ -17,7 +17,7 @@ function createMockSession(
     crisisLevel: partial.crisisLevel ?? 0,
     crisisSummary: partial.crisisSummary || '',
     coreConcerns: partial.coreConcerns || [],
-    emotionalValence: partial.emotionalValence ?? 0,
+    emotionalValence: 'emotionalValence' in partial ? (partial.emotionalValence as any) : 0,
     deidentifiedReport: partial.deidentifiedReport || null,
     dispositionStatus: partial.dispositionStatus || 'pending_contact',
     dispositionNote: partial.dispositionNote || '',
@@ -156,6 +156,47 @@ describe('大盘宏观统计聚合算法与高可用加载状态机 (Dashboard &
       const stats = computeStatsFromLocalSessions([crisisSession]);
       expect(stats.weeklySummary).toContain('重点跟进');
       expect(stats.weeklySummary).toContain('学业重压');
+    });
+
+    it('有效过滤缺失或未评估的 emotionalValence，绝不将其默认视为 0 稀释平均效价', () => {
+      const sessions = [
+        createMockSession({
+          id: 'v1',
+          sessionId: 'sess_valence_valid',
+          emotionalValence: 0.8,
+        }),
+        createMockSession({
+          id: 'v2',
+          sessionId: 'sess_valence_missing',
+          emotionalValence: undefined as any,
+        }),
+      ];
+
+      const stats = computeStatsFromLocalSessions(sessions);
+      expect(stats.totalSessions).toBe(2);
+      // 应仅计算有效效价 0.8，而非被 0 稀释成 0.4
+      expect(stats.avgValence).toBe(0.8);
+    });
+
+    it('当会话标记为 isCrisis 时，即便 crisisLevel 为 0 或 1 也严格仅归入极高危预警，严禁重复累计', () => {
+      const sessions = [
+        createMockSession({
+          id: 'c_low_lvl',
+          sessionId: 'sess_low_level_crisis',
+          isCrisis: true,
+          crisisLevel: 1, // 虽然 level 为 1，但判定为 isCrisis
+          coreConcerns: ['人际危机'],
+        }),
+      ];
+
+      const stats = computeStatsFromLocalSessions(sessions);
+      expect(stats.crisisCount).toBe(1);
+      expect(stats.riskDistribution).toEqual([
+        { level: 0, label: '正常稳定', count: 0 },
+        { level: 1, label: '轻度波动', count: 0 },
+        { level: 2, label: '中度压力', count: 0 },
+        { level: 3, label: '极高危预警', count: 1 },
+      ]);
     });
   });
 

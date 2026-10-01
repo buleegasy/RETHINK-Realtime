@@ -146,17 +146,17 @@ export class AdminService {
       {
         level: 0,
         label: '正常稳定',
-        count: allSessions.filter((s) => (s.crisis_level || 0) === 0).length,
+        count: allSessions.filter((s) => (s.crisis_level || 0) === 0 && s.is_crisis !== 1).length,
       },
       {
         level: 1,
         label: '轻度波动',
-        count: allSessions.filter((s) => s.crisis_level === 1).length,
+        count: allSessions.filter((s) => s.crisis_level === 1 && s.is_crisis !== 1).length,
       },
       {
         level: 2,
         label: '中度压力',
-        count: allSessions.filter((s) => s.crisis_level === 2).length,
+        count: allSessions.filter((s) => s.crisis_level === 2 && s.is_crisis !== 1).length,
       },
       {
         level: 3,
@@ -167,10 +167,11 @@ export class AdminService {
 
     const now = new Date();
     const weeklyTrend = Array.from({ length: 7 }).map((_, idx) => {
-      const d = new Date(now.getTime() - (6 - idx) * 86400000);
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - idx));
       const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
       const daySessions = allSessions.filter((s) => {
-        const sDate = new Date(s.created_at * 1000);
+        const ms = (s.created_at || 0) > 1e11 ? s.created_at : (s.created_at || 0) * 1000;
+        const sDate = new Date(ms);
         return (
           sDate.getDate() === d.getDate() &&
           sDate.getMonth() === d.getMonth() &&
@@ -190,7 +191,7 @@ export class AdminService {
       return {
         date: dateStr,
         sessions: daySessions.length,
-        crisis: daySessions.filter((s) => s.crisis_level === 3 || s.is_crisis === 1).length,
+        crisis: daySessions.filter((s) => (s.crisis_level || 0) >= 3 || s.is_crisis === 1).length,
         avgValence: dayAvgValence,
       };
     });

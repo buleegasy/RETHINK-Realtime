@@ -10,6 +10,13 @@ import {
 } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
 
+const RISK_LEVEL_COLORS = [
+  { bg: 'bg-[#146c2e]', text: 'text-[#146c2e]' },
+  { bg: 'bg-[#004a77]', text: 'text-[#004a77]' },
+  { bg: 'bg-[#f59e0b]', text: 'text-[#b45309]' },
+  { bg: 'bg-[#ba1a1a]', text: 'text-[#ba1a1a]' },
+];
+
 export const CampusPulseDashboard: React.FC = () => {
   const { stats, isLoadingStats, fetchStats, setActiveTab } = useAdminStore();
 
@@ -121,7 +128,7 @@ export const CampusPulseDashboard: React.FC = () => {
               平均情绪效价
             </span>
             <span className="text-xl sm:text-2xl font-bold text-[#146c2e] mt-0.5 sm:mt-1 block">
-              {stats.avgValence > 0 ? `+${stats.avgValence}` : stats.avgValence}
+              {(stats.avgValence ?? 0) > 0 ? `+${stats.avgValence}` : (stats.avgValence ?? 0)}
             </span>
             <span className="text-[10px] sm:text-[11px] text-[#166534] font-medium block mt-1 truncate">
               -1.0 ~ +1.0
@@ -218,13 +225,7 @@ export const CampusPulseDashboard: React.FC = () => {
 
             <div className="space-y-3 sm:space-y-4">
               {(stats.riskDistribution || []).map((r) => {
-                const colors = [
-                  { bg: 'bg-[#146c2e]', text: 'text-[#146c2e]' },
-                  { bg: 'bg-[#004a77]', text: 'text-[#004a77]' },
-                  { bg: 'bg-[#f59e0b]', text: 'text-[#b45309]' },
-                  { bg: 'bg-[#ba1a1a]', text: 'text-[#ba1a1a]' },
-                ];
-                const c = colors[r.level] || colors[0];
+                const c = RISK_LEVEL_COLORS[r.level] || RISK_LEVEL_COLORS[0];
                 const percent =
                   totalRiskCount > 0 ? Math.round((r.count / totalRiskCount) * 100) : 0;
 

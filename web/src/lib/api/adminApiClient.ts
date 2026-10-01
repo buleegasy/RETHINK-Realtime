@@ -11,8 +11,8 @@ import { apiFetch } from '../api';
 
 function aggregateValence(sessions: AdminSessionItem[]): number {
   const valences = sessions
-    .map((s) => s.emotionalValence ?? 0)
-    .filter((v) => typeof v === 'number' && !Number.isNaN(v));
+    .map((s) => s.emotionalValence)
+    .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
   if (valences.length === 0) return 0;
   const sum = valences.reduce((acc, curr) => acc + curr, 0);
   return Number((sum / valences.length).toFixed(2));
@@ -56,24 +56,26 @@ function aggregateRiskDistribution(
   ];
 }
 
+function isSameCalendarDay(d1: Date, d2: Date): boolean {
+  return (
+    d1.getDate() === d2.getDate() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getFullYear() === d2.getFullYear()
+  );
+}
+
 function aggregateWeeklyTrend(
   sessions: AdminSessionItem[],
 ): Array<{ date: string; sessions: number; crisis: number; avgValence: number }> {
   const now = new Date();
   return Array.from({ length: 7 }).map((_, idx) => {
-    const d = new Date(now.getTime() - (6 - idx) * 86400000);
-    const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - idx));
     const daySessions = sessions.filter((s) => {
       const ms = (s.createdAt || 0) > 1e11 ? s.createdAt : (s.createdAt || 0) * 1000;
-      const sDate = new Date(ms);
-      return (
-        sDate.getDate() === d.getDate() &&
-        sDate.getMonth() === d.getMonth() &&
-        sDate.getFullYear() === d.getFullYear()
-      );
+      return isSameCalendarDay(new Date(ms), d);
     });
     return {
-      date: dateStr,
+      date: `${d.getMonth() + 1}/${d.getDate()}`,
       sessions: daySessions.length,
       crisis: daySessions.filter((s) => (s.crisisLevel ?? 0) >= 3 || s.isCrisis).length,
       avgValence: aggregateValence(daySessions),
@@ -96,27 +98,32 @@ function generateObjectiveSummary(
   return `本周来访焦点主要聚焦于${concernStr.slice(0, 12)}，学生在倾诉后情绪多能得到自然舒缓与理清，校园心境总体平稳。`;
 }
 
-export function computeStatsFromLocalSessions(sessions: AdminSessionItem[]): AdminStats {
-  const valid = (sessions || []).filter(
+function buildZeroStats(): AdminStats {
+  return {
+    totalSessions: 0,
+    crisisCount: 0,
+    pendingInterventions: 0,
+    avgValence: 0,
+    concernDistribution: [],
+    riskDistribution: [],
+    weeklyTrend: [],
+    weeklySummary: '当前暂无倾诉数据，各终端已就绪待命',
+  };
+}
+
+function filterValidSessions(sessions: AdminSessionItem[]): AdminSessionItem[] {
+  return (sessions || []).filter(
     (s) =>
       s &&
       !s.isDeleted &&
       !s.sessionId?.startsWith('sess_sample_') &&
       !s.sessionId?.startsWith('mock_'),
   );
+}
 
-  if (valid.length === 0) {
-    return {
-      totalSessions: 0,
-      crisisCount: 0,
-      pendingInterventions: 0,
-      avgValence: 0,
-      concernDistribution: [],
-      riskDistribution: [],
-      weeklyTrend: [],
-      weeklySummary: '当前暂无倾诉数据，各终端已就绪待命',
-    };
-  }
+export function computeStatsFromLocalSessions(sessions: AdminSessionItem[]): AdminStats {
+  const valid = filterValidSessions(sessions);
+  if (valid.length === 0) return buildZeroStats();
 
   const crisisLocals = valid.filter((s) => s.isCrisis || (s.crisisLevel ?? 0) >= 3);
   const crisisCount = crisisLocals.length;
@@ -144,13 +151,7 @@ function getLocalRealSessions(): AdminSessionItem[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (s) =>
-        s &&
-        !s.isDeleted &&
-        !s.sessionId?.startsWith('sess_sample_') &&
-        !s.sessionId?.startsWith('mock_'),
-    );
+    return filterValidSessions(parsed);
   } catch {
     return [];
   }
@@ -180,7 +181,7 @@ async function mergeCloudWithLocal(
     const sessionsRes = await apiFetch('/api/admin/sessions');
     if (sessionsRes?.ok) {
       const sData = await sessionsRes.json();
-      if (sData?.success && Array.isArray(sData.sessions)) {
+      if (sData?.success && Array.isArray(sData.sessions) && sData.sessions.length > 0) {
         const serverIds = new Set(sData.sessions.map((s: AdminSessionItem) => s.sessionId));
         const unsynced = localSessions.filter((s) => !serverIds.has(s.sessionId));
         if (unsynced.length > 0) {
@@ -188,7 +189,8 @@ async function mergeCloudWithLocal(
           const merged = computeStatsFromLocalSessions(combined);
           if (
             cloudStats.weeklySummary &&
-            cloudStats.weeklySummary !== '当前暂无倾诉数据，各终端已就绪待命'
+            cloudStats.weeklySummary !== '当前暂无倾诉数据，各终端已就绪待命' &&
+            !cloudStats.weeklySummary.includes('暂无足够的学生来访数据')
           ) {
             merged.weeklySummary = cloudStats.weeklySummary;
           }
