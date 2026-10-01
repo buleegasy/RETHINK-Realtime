@@ -7,5 +7,5 @@ ENVIRONMENT = "production"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "rethink-realtime-db"
-database_id = "rethink-realtime-db"
+database_name = "rethink-realtimevoice"
+database_id = "7e0b0d07-1888-4a37-adbf-8c33c2db314a"

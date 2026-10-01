@@ -16,6 +16,8 @@ interface AdminState {
   teacherProfile: UserProfile | null;
   activeTab: 'pulse' | 'crises' | 'sessions' | 'settings';
   stats: AdminStats | null;
+  isLoadingStats: boolean;
+  statsError: string | null;
   crises: AdminCrisisItem[];
   sessions: AdminSessionItem[];
   showArchived: boolean;
@@ -32,11 +34,31 @@ interface AdminState {
   fetchCrises: () => Promise<void>;
   fetchSessions: (crisisOnly?: boolean, includeDeleted?: boolean) => Promise<void>;
   fetchAuditLogs: () => Promise<void>;
-  unmaskCrisis: (sessionId: string, passcode: string, operatorName?: string) => Promise<{ success: boolean; identity?: UnmaskedIdentity; error?: string }>;
-  updateDisposition: (sessionId: string, status: DispositionStatus, note?: string) => Promise<boolean>;
-  deleteSession: (sessionId: string, passcode: string, reason: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
-  restoreSession: (sessionId: string, passcode: string, operatorName?: string) => Promise<{ success: boolean; error?: string }>;
-  reEvaluateSession: (sessionId: string, transcript?: string) => Promise<{ success: boolean; report?: any; session?: any; error?: string }>;
+  unmaskCrisis: (
+    sessionId: string,
+    passcode: string,
+    operatorName?: string,
+  ) => Promise<{ success: boolean; identity?: UnmaskedIdentity; error?: string }>;
+  updateDisposition: (
+    sessionId: string,
+    status: DispositionStatus,
+    note?: string,
+  ) => Promise<boolean>;
+  deleteSession: (
+    sessionId: string,
+    passcode: string,
+    reason: string,
+    operatorName?: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  restoreSession: (
+    sessionId: string,
+    passcode: string,
+    operatorName?: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  reEvaluateSession: (
+    sessionId: string,
+    transcript?: string,
+  ) => Promise<{ success: boolean; report?: any; session?: any; error?: string }>;
   refreshAdminData: () => Promise<void>;
   setShowArchived: (show: boolean) => void;
   setBuzzerEnabled: (enabled: boolean) => void;
@@ -64,6 +86,8 @@ export const useAdminStore = create<AdminState>((set, get) => {
     teacherProfile: initial.user,
     activeTab: 'pulse',
     stats: null,
+    isLoadingStats: false,
+    statsError: null,
     crises: [],
     sessions: [],
     showArchived: false,
@@ -105,6 +129,8 @@ export const useAdminStore = create<AdminState>((set, get) => {
         token: null,
         teacherProfile: null,
         stats: null,
+        isLoadingStats: false,
+        statsError: null,
         crises: [],
         sessions: [],
         showArchived: false,
@@ -115,8 +141,16 @@ export const useAdminStore = create<AdminState>((set, get) => {
     },
 
     fetchStats: async () => {
-      const stats = await AdminApiClient.fetchStats();
-      if (stats) set({ stats });
+      set({ isLoadingStats: true, statsError: null });
+      try {
+        const stats = await AdminApiClient.fetchStats();
+        set({ stats, isLoadingStats: false });
+      } catch (err: any) {
+        set({
+          isLoadingStats: false,
+          statsError: err?.message || '获取大盘统计失败',
+        });
+      }
     },
 
     fetchCrises: async () => {
@@ -163,18 +197,21 @@ export const useAdminStore = create<AdminState>((set, get) => {
     updateDisposition: async (sessionId: string, status: DispositionStatus, note?: string) => {
       const currentCrisis = get().crises.find((c) => c.sessionId === sessionId);
       const currentSession = get().sessions.find((s) => s.sessionId === sessionId);
-      const finalNote = note !== undefined ? note : (currentCrisis?.dispositionNote || currentSession?.dispositionNote || '');
+      const finalNote =
+        note !== undefined
+          ? note
+          : currentCrisis?.dispositionNote || currentSession?.dispositionNote || '';
 
       set((state) => ({
         crises: state.crises.map((c) =>
           c.sessionId === sessionId
             ? { ...c, dispositionStatus: status, dispositionNote: finalNote }
-            : c
+            : c,
         ),
         sessions: state.sessions.map((s) =>
           s.sessionId === sessionId
             ? { ...s, dispositionStatus: status, dispositionNote: finalNote }
-            : s
+            : s,
         ),
       }));
 
@@ -188,7 +225,12 @@ export const useAdminStore = create<AdminState>((set, get) => {
       await get().fetchAuditLogs();
     },
 
-    deleteSession: async (sessionId: string, passcode: string, reason: string, operatorName?: string) => {
+    deleteSession: async (
+      sessionId: string,
+      passcode: string,
+      reason: string,
+      operatorName?: string,
+    ) => {
       try {
         const op = operatorName || get().teacherProfile?.displayName || '心理专职教师';
         const data = await AdminApiClient.deleteSession(sessionId, passcode, reason, op);
@@ -227,12 +269,13 @@ export const useAdminStore = create<AdminState>((set, get) => {
                     ...s,
                     deidentifiedReport: data.report,
                     crisisLevel: data.session?.crisisLevel ?? s.crisisLevel,
-                    isCrisis: data.session?.isCrisis ?? (data.session?.crisisLevel >= 3 || s.isCrisis),
+                    isCrisis:
+                      data.session?.isCrisis ?? (data.session?.crisisLevel >= 3 || s.isCrisis),
                     crisisSummary: data.session?.crisisSummary ?? s.crisisSummary,
                     coreConcerns: data.session?.coreConcerns ?? s.coreConcerns,
                     emotionalValence: data.session?.emotionalValence ?? s.emotionalValence,
                   }
-                : s
+                : s,
             ),
           }));
           return { success: true, report: data.report, session: data.session };

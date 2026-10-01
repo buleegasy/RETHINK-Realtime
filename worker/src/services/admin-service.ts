@@ -33,9 +33,7 @@ export class AdminService {
 
     if (env?.DB) {
       try {
-        const row = await env.DB.prepare(
-          'SELECT password_hash FROM users WHERE username = ?'
-        )
+        const row = await env.DB.prepare('SELECT password_hash FROM users WHERE username = ?')
           .bind(cleanUser)
           .first<{ password_hash?: string }>();
 
@@ -85,7 +83,7 @@ export class AdminService {
         iat: currentEpoch,
         exp: currentEpoch + 86400, // 教师凭证 24 小时有效
       },
-      secretKey
+      secretKey,
     );
 
     const user = {
@@ -111,15 +109,19 @@ export class AdminService {
     const totalSessions = allSessions.length;
     const crisisCount = allSessions.filter((s) => s.is_crisis === 1 || s.crisis_level >= 3).length;
     const pendingInterventions = allSessions.filter(
-      (s) => (s.is_crisis === 1 || s.crisis_level >= 3) && s.disposition_status === 'pending_contact'
+      (s) =>
+        (s.is_crisis === 1 || s.crisis_level >= 3) && s.disposition_status === 'pending_contact',
     ).length;
 
     const validValences = allSessions
       .map((s) => s.emotional_valence)
       .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
-    const avgValence = validValences.length > 0
-      ? Number((validValences.reduce((acc, curr) => acc + curr, 0) / validValences.length).toFixed(2))
-      : 0.0;
+    const avgValence =
+      validValences.length > 0
+        ? Number(
+            (validValences.reduce((acc, curr) => acc + curr, 0) / validValences.length).toFixed(2),
+          )
+        : 0.0;
 
     const concernCounts: Record<string, number> = {};
     for (const s of allSessions) {
@@ -141,10 +143,26 @@ export class AdminService {
     }));
 
     const riskDistribution = [
-      { level: 0, label: '正常稳定', count: allSessions.filter((s) => (s.crisis_level || 0) === 0).length },
-      { level: 1, label: '轻度波动', count: allSessions.filter((s) => s.crisis_level === 1).length },
-      { level: 2, label: '中度压力', count: allSessions.filter((s) => s.crisis_level === 2).length },
-      { level: 3, label: '极高危预警', count: allSessions.filter((s) => (s.crisis_level || 0) >= 3 || s.is_crisis === 1).length },
+      {
+        level: 0,
+        label: '正常稳定',
+        count: allSessions.filter((s) => (s.crisis_level || 0) === 0).length,
+      },
+      {
+        level: 1,
+        label: '轻度波动',
+        count: allSessions.filter((s) => s.crisis_level === 1).length,
+      },
+      {
+        level: 2,
+        label: '中度压力',
+        count: allSessions.filter((s) => s.crisis_level === 2).length,
+      },
+      {
+        level: 3,
+        label: '极高危预警',
+        count: allSessions.filter((s) => (s.crisis_level || 0) >= 3 || s.is_crisis === 1).length,
+      },
     ];
 
     const now = new Date();
@@ -162,9 +180,12 @@ export class AdminService {
       const dayValences = daySessions
         .map((s) => s.emotional_valence)
         .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
-      const dayAvgValence = dayValences.length > 0
-        ? Number((dayValences.reduce((acc, curr) => acc + curr, 0) / dayValences.length).toFixed(2))
-        : 0.0;
+      const dayAvgValence =
+        dayValences.length > 0
+          ? Number(
+              (dayValences.reduce((acc, curr) => acc + curr, 0) / dayValences.length).toFixed(2),
+            )
+          : 0.0;
 
       return {
         date: dateStr,
@@ -174,19 +195,25 @@ export class AdminService {
       };
     });
 
-    const weeklySummary = await generateWeeklySummaryDeepSeekV4Flash(
-      {
-        totalSessions,
-        crisisCount,
-        avgValence,
-        topConcerns: concernDistribution.slice(0, 3),
-      },
-      {
-        apiKey: env.OPENROUTER_API_KEY,
-        baseUrl: env.OPENROUTER_BASE_URL,
-        model: env.OPENROUTER_MODEL,
-      }
-    );
+    let weeklySummary = '当前暂无足够的学生来访数据，各咨询终端正常就绪待命。';
+    try {
+      weeklySummary = await generateWeeklySummaryDeepSeekV4Flash(
+        {
+          totalSessions,
+          crisisCount,
+          avgValence,
+          topConcerns: concernDistribution.slice(0, 3),
+        },
+        {
+          apiKey: env.OPENROUTER_API_KEY,
+          baseUrl: env.OPENROUTER_BASE_URL,
+          model: env.OPENROUTER_MODEL,
+          signal: AbortSignal.timeout(3000),
+        },
+      );
+    } catch (err) {
+      console.warn('[AdminService] 宏观周报提炼超时或异常:', err);
+    }
 
     return {
       totalSessions,
@@ -200,7 +227,10 @@ export class AdminService {
     };
   }
 
-  public static async getSessions(env: Env, options?: { includeDeleted?: boolean; crisisOnly?: boolean }) {
+  public static async getSessions(
+    env: Env,
+    options?: { includeDeleted?: boolean; crisisOnly?: boolean },
+  ) {
     const rawSessions = options?.includeDeleted
       ? await SessionRepository.findArchived(env).then(async (arch) => {
           const act = await SessionRepository.findActive(env);
@@ -284,7 +314,8 @@ export class AdminService {
     }
 
     const isProduction = env.ENVIRONMENT === 'production';
-    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
+    const correctPasscode =
+      env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
     if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
       return {
         success: false,
@@ -349,13 +380,18 @@ export class AdminService {
     }
 
     const isProduction = env.ENVIRONMENT === 'production';
-    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
+    const correctPasscode =
+      env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
     if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
       return { success: false, error: '二次口令校验失败，无权归档个案记录', status: 403 };
     }
 
     if (reason.trim().length < 4) {
-      return { success: false, error: '归档事由描述不足，请详尽记录归档原因（至少4字）', status: 400 };
+      return {
+        success: false,
+        error: '归档事由描述不足，请详尽记录归档原因（至少4字）',
+        status: 400,
+      };
     }
 
     const operator = operator_name?.trim() || '心理专职教师';
@@ -371,7 +407,7 @@ export class AdminService {
         operator_name: operator,
         reason: `个案归档软删除: ${reason.trim()}`,
       },
-      'delete_audit'
+      'delete_audit',
     );
 
     return {
@@ -390,7 +426,8 @@ export class AdminService {
     }
 
     const isProduction = env.ENVIRONMENT === 'production';
-    const correctPasscode = env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
+    const correctPasscode =
+      env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
     if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
       return { success: false, error: '二次口令校验失败，无权恢复已归档个案', status: 403 };
     }
@@ -408,7 +445,7 @@ export class AdminService {
         operator_name: operator,
         reason: '已归档个案重新激活恢复至大盘',
       },
-      'restore_audit'
+      'restore_audit',
     );
 
     return {
@@ -435,7 +472,11 @@ export class AdminService {
       existingReport = JSON.parse(target.deidentified_report || '{}');
     } catch {}
 
-    const transcript = overrideTranscript || existingReport.deidentifiedTranscript || existingReport.transcript || '';
+    const transcript =
+      overrideTranscript ||
+      existingReport.deidentifiedTranscript ||
+      existingReport.transcript ||
+      '';
     if (!transcript) {
       return { success: false, error: '个案对话记录为空，无法重算评估简报', status: 400 };
     }
@@ -452,8 +493,12 @@ export class AdminService {
       coreConcerns: newReport.coreConcerns,
       cognitiveDistortions: newReport.cognitiveDistortions,
       emotionalTrajectory: {
-        initial: newReport.initialEmotion || existingReport.emotionalTrajectory?.initial || '情绪低落',
-        final: newReport.finalEmotion || existingReport.emotionalTrajectory?.final || '事实与情绪逐步分离',
+        initial:
+          newReport.initialEmotion || existingReport.emotionalTrajectory?.initial || '情绪低落',
+        final:
+          newReport.finalEmotion ||
+          existingReport.emotionalTrajectory?.final ||
+          '事实与情绪逐步分离',
         deltaNotes: newReport.deltaNotes || newReport.crisisSummary,
       },
       keyTakeaways: newReport.keyTakeaways,

@@ -11,13 +11,13 @@ import {
 import { useAdminStore } from '../../store/adminStore';
 
 export const CampusPulseDashboard: React.FC = () => {
-  const { stats, fetchStats, setActiveTab } = useAdminStore();
+  const { stats, isLoadingStats, fetchStats, setActiveTab } = useAdminStore();
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
-  if (!stats) {
+  if (isLoadingStats && !stats) {
     return (
       <div className="bg-white rounded-3xl p-12 text-center border border-[#e1e3e1]">
         <div className="text-xs text-[#5e5e5e]">正在加载真实情绪指标...</div>
@@ -25,9 +25,26 @@ export const CampusPulseDashboard: React.FC = () => {
     );
   }
 
-  const maxSessions = Math.max(...stats.weeklyTrend.map((t) => t.sessions), 1);
-  const totalConcerns = stats.concernDistribution.reduce((acc, curr) => acc + curr.count, 0) || 1;
-  const totalRiskCount = stats.riskDistribution.reduce((acc, curr) => acc + curr.count, 0);
+  if (!stats || stats.totalSessions === 0) {
+    return (
+      <div className="bg-white rounded-3xl p-12 text-center border border-[#e1e3e1] space-y-4">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-[#f0f4f9] text-[#004a77] flex items-center justify-center">
+          <Activity className="w-7 h-7 text-[#004a77]" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-base font-bold text-[#1f1f1f]">当前暂无倾诉数据，各终端已就绪待命</h3>
+          <p className="text-xs text-[#5e5e5e] max-w-md mx-auto">
+            当学生在校园心理终端完成语音倾诉后，系统将自动汇总宏观情绪效价、议题聚类与风险分层趋势。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const maxSessions = Math.max(...(stats.weeklyTrend || []).map((t) => t.sessions), 1);
+  const totalConcerns =
+    (stats.concernDistribution || []).reduce((acc, curr) => acc + curr.count, 0) || 1;
+  const totalRiskCount = (stats.riskDistribution || []).reduce((acc, curr) => acc + curr.count, 0);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -123,25 +140,24 @@ export const CampusPulseDashboard: React.FC = () => {
             <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-[#e8f0fe] text-[#004a77] flex items-center justify-center">
               <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#004a77]" />
             </div>
-            <h3 className="text-xs sm:text-sm font-bold text-[#1f1f1f] tracking-tight">
-              本周小结
-            </h3>
+            <h3 className="text-xs sm:text-sm font-bold text-[#1f1f1f] tracking-tight">本周小结</h3>
           </div>
           <span className="px-2 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] text-[#5e5e5e] bg-[#ffffff] border border-[#d2e3fc] shadow-2xs font-medium">
             AI生成
           </span>
         </div>
         <p className="text-xs text-[#333a40] leading-relaxed pl-0 sm:pl-9 mt-1 sm:mt-0 font-normal">
-          {stats.weeklySummary || (stats.totalSessions === 0 ? '当前暂无足够的学生来访数据，各咨询终端正常就绪待命。' : '本周学生多以轻量交流与日常寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。')}
+          {stats.weeklySummary ||
+            (stats.totalSessions === 0
+              ? '当前暂无足够的学生来访数据，各咨询终端正常就绪待命。'
+              : '本周学生多以轻量交流与日常寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。')}
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 bg-[#ffffff] border border-[#e1e3e1] rounded-2xl sm:rounded-3xl p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 mb-4 sm:mb-6">
-            <h3 className="text-sm sm:text-base font-bold text-[#1f1f1f]">
-              近 7 天趋势
-            </h3>
+            <h3 className="text-sm sm:text-base font-bold text-[#1f1f1f]">近 7 天趋势</h3>
             <div className="flex items-center gap-3 text-[11px] sm:text-xs">
               <span className="flex items-center gap-1 text-[#444746]">
                 <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm bg-[#004a77] inline-block" />
@@ -155,13 +171,16 @@ export const CampusPulseDashboard: React.FC = () => {
           </div>
 
           <div className="h-52 sm:h-64 flex items-end justify-between gap-1.5 sm:gap-3 pt-4 sm:pt-6 border-b border-[#e1e3e1] pb-2 overflow-x-auto min-w-0">
-            {stats.weeklyTrend.map((item, i) => {
+            {(stats.weeklyTrend || []).map((item, i) => {
               const normalCount = Math.max(0, item.sessions - item.crisis);
               const normalHeight = (normalCount / maxSessions) * 100;
               const crisisHeight = (item.crisis / maxSessions) * 100;
 
               return (
-                <div key={i} className="flex-1 flex flex-col items-center h-full justify-end group min-w-[28px]">
+                <div
+                  key={i}
+                  className="flex-1 flex flex-col items-center h-full justify-end group min-w-[28px]"
+                >
                   <div className="w-full max-w-[32px] sm:max-w-[40px] flex flex-col items-center justify-end h-full">
                     {item.crisis > 0 && (
                       <div
@@ -194,13 +213,11 @@ export const CampusPulseDashboard: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-3 sm:mb-4">
               <Layers className="w-4 h-4 text-[#004a77]" />
-              <h3 className="text-sm sm:text-base font-bold text-[#1f1f1f]">
-                风险分层
-              </h3>
+              <h3 className="text-sm sm:text-base font-bold text-[#1f1f1f]">风险分层</h3>
             </div>
 
             <div className="space-y-3 sm:space-y-4">
-              {stats.riskDistribution.map((r) => {
+              {(stats.riskDistribution || []).map((r) => {
                 const colors = [
                   { bg: 'bg-[#146c2e]', text: 'text-[#146c2e]' },
                   { bg: 'bg-[#004a77]', text: 'text-[#004a77]' },
@@ -208,13 +225,16 @@ export const CampusPulseDashboard: React.FC = () => {
                   { bg: 'bg-[#ba1a1a]', text: 'text-[#ba1a1a]' },
                 ];
                 const c = colors[r.level] || colors[0];
-                const percent = totalRiskCount > 0 ? Math.round((r.count / totalRiskCount) * 100) : 0;
+                const percent =
+                  totalRiskCount > 0 ? Math.round((r.count / totalRiskCount) * 100) : 0;
 
                 return (
                   <div key={r.level} className="space-y-1 sm:space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-medium text-[#1f1f1f]">{r.label}</span>
-                      <span className={`font-bold ${c.text}`}>{r.count} 起 ({percent}%)</span>
+                      <span className={`font-bold ${c.text}`}>
+                        {r.count} 起 ({percent}%)
+                      </span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-[#f0f4f9] overflow-hidden">
                       <div
@@ -231,17 +251,15 @@ export const CampusPulseDashboard: React.FC = () => {
       </div>
 
       <div className="bg-[#ffffff] border border-[#e1e3e1] rounded-2xl sm:rounded-3xl p-4 sm:p-6">
-        <h3 className="text-sm sm:text-base font-bold text-[#1f1f1f] mb-3 sm:mb-4">
-          议题分布
-        </h3>
+        <h3 className="text-sm sm:text-base font-bold text-[#1f1f1f] mb-3 sm:mb-4">议题分布</h3>
 
-        {stats.concernDistribution.length === 0 ? (
+        {(stats.concernDistribution || []).length === 0 ? (
           <div className="text-center py-6 sm:py-8 text-xs text-[#747775] bg-[#f8f9fa] rounded-2xl border border-dashed border-[#e1e3e1]">
             暂无议题数据（真实倾诉完成后系统自动统计）
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
-            {stats.concernDistribution.map((item, idx) => {
+            {(stats.concernDistribution || []).map((item, idx) => {
               const percent = Math.round((item.count / totalConcerns) * 100);
               return (
                 <div

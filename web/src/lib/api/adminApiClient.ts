@@ -9,6 +9,199 @@ import type {
 } from '../../types';
 import { apiFetch } from '../api';
 
+function aggregateValence(sessions: AdminSessionItem[]): number {
+  const valences = sessions
+    .map((s) => s.emotionalValence ?? 0)
+    .filter((v) => typeof v === 'number' && !Number.isNaN(v));
+  if (valences.length === 0) return 0;
+  const sum = valences.reduce((acc, curr) => acc + curr, 0);
+  return Number((sum / valences.length).toFixed(2));
+}
+
+function aggregateConcerns(sessions: AdminSessionItem[]): Array<{ name: string; count: number }> {
+  const counts: Record<string, number> = {};
+  for (const s of sessions) {
+    for (const c of s.coreConcerns || []) {
+      if (typeof c === 'string' && c.trim()) {
+        counts[c] = (counts[c] || 0) + 1;
+      }
+    }
+  }
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function aggregateRiskDistribution(
+  sessions: AdminSessionItem[],
+  crisisCount: number,
+): Array<{ level: number; label: string; count: number }> {
+  return [
+    {
+      level: 0,
+      label: '正常稳定',
+      count: sessions.filter((s) => (s.crisisLevel || 0) === 0 && !s.isCrisis).length,
+    },
+    {
+      level: 1,
+      label: '轻度波动',
+      count: sessions.filter((s) => s.crisisLevel === 1 && !s.isCrisis).length,
+    },
+    {
+      level: 2,
+      label: '中度压力',
+      count: sessions.filter((s) => s.crisisLevel === 2 && !s.isCrisis).length,
+    },
+    { level: 3, label: '极高危预警', count: crisisCount },
+  ];
+}
+
+function aggregateWeeklyTrend(
+  sessions: AdminSessionItem[],
+): Array<{ date: string; sessions: number; crisis: number; avgValence: number }> {
+  const now = new Date();
+  return Array.from({ length: 7 }).map((_, idx) => {
+    const d = new Date(now.getTime() - (6 - idx) * 86400000);
+    const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+    const daySessions = sessions.filter((s) => {
+      const ms = (s.createdAt || 0) > 1e11 ? s.createdAt : (s.createdAt || 0) * 1000;
+      const sDate = new Date(ms);
+      return (
+        sDate.getDate() === d.getDate() &&
+        sDate.getMonth() === d.getMonth() &&
+        sDate.getFullYear() === d.getFullYear()
+      );
+    });
+    return {
+      date: dateStr,
+      sessions: daySessions.length,
+      crisis: daySessions.filter((s) => (s.crisisLevel ?? 0) >= 3 || s.isCrisis).length,
+      avgValence: aggregateValence(daySessions),
+    };
+  });
+}
+
+function generateObjectiveSummary(
+  concernDistribution: Array<{ name: string; count: number }>,
+  crisisCount: number,
+): string {
+  const topNames = concernDistribution.slice(0, 3).map((c) => c.name);
+  const concernStr = topNames.length > 0 ? topNames.join('、') : '日常闲聊与尝试';
+  if (crisisCount > 0) {
+    return `近期校园监测到个别情绪高压个案，主要涉及${concernStr.slice(0, 12)}等生活事件，建议专职老师重点跟进，常规学生心境整体受控。`;
+  }
+  if (topNames.length === 0 || concernStr.includes('闲聊') || concernStr.includes('日常')) {
+    return '本周学生多以轻量交流与日常寒暄为主，整体心境平和自然，未见群体性学业或情绪焦虑集聚。';
+  }
+  return `本周来访焦点主要聚焦于${concernStr.slice(0, 12)}，学生在倾诉后情绪多能得到自然舒缓与理清，校园心境总体平稳。`;
+}
+
+export function computeStatsFromLocalSessions(sessions: AdminSessionItem[]): AdminStats {
+  const valid = (sessions || []).filter(
+    (s) =>
+      s &&
+      !s.isDeleted &&
+      !s.sessionId?.startsWith('sess_sample_') &&
+      !s.sessionId?.startsWith('mock_'),
+  );
+
+  if (valid.length === 0) {
+    return {
+      totalSessions: 0,
+      crisisCount: 0,
+      pendingInterventions: 0,
+      avgValence: 0,
+      concernDistribution: [],
+      riskDistribution: [],
+      weeklyTrend: [],
+      weeklySummary: '当前暂无倾诉数据，各终端已就绪待命',
+    };
+  }
+
+  const crisisLocals = valid.filter((s) => s.isCrisis || (s.crisisLevel ?? 0) >= 3);
+  const crisisCount = crisisLocals.length;
+  const pendingInterventions = crisisLocals.filter(
+    (s) => s.dispositionStatus === 'pending_contact',
+  ).length;
+  const concernDistribution = aggregateConcerns(valid);
+
+  return {
+    totalSessions: valid.length,
+    crisisCount,
+    pendingInterventions,
+    avgValence: aggregateValence(valid),
+    concernDistribution,
+    riskDistribution: aggregateRiskDistribution(valid, crisisCount),
+    weeklyTrend: aggregateWeeklyTrend(valid),
+    weeklySummary: generateObjectiveSummary(concernDistribution, crisisCount),
+  };
+}
+
+function getLocalRealSessions(): AdminSessionItem[] {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem('rethink_real_sessions');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (s) =>
+        s &&
+        !s.isDeleted &&
+        !s.sessionId?.startsWith('sess_sample_') &&
+        !s.sessionId?.startsWith('mock_'),
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function tryFetchCloudStats(): Promise<AdminStats | null> {
+  try {
+    const res = await apiFetch('/api/admin/stats');
+    if (res?.ok) {
+      const data = await res.json();
+      if (data?.success && data?.stats) {
+        return data.stats;
+      }
+    }
+  } catch (err) {
+    console.warn('[AdminApiClient] 获取云端宏观统计数据异常:', err);
+  }
+  return null;
+}
+
+async function mergeCloudWithLocal(
+  cloudStats: AdminStats,
+  localSessions: AdminSessionItem[],
+): Promise<AdminStats> {
+  if (localSessions.length === 0) return cloudStats;
+  try {
+    const sessionsRes = await apiFetch('/api/admin/sessions');
+    if (sessionsRes?.ok) {
+      const sData = await sessionsRes.json();
+      if (sData?.success && Array.isArray(sData.sessions)) {
+        const serverIds = new Set(sData.sessions.map((s: AdminSessionItem) => s.sessionId));
+        const unsynced = localSessions.filter((s) => !serverIds.has(s.sessionId));
+        if (unsynced.length > 0) {
+          const combined = [...sData.sessions, ...unsynced];
+          const merged = computeStatsFromLocalSessions(combined);
+          if (
+            cloudStats.weeklySummary &&
+            cloudStats.weeklySummary !== '当前暂无倾诉数据，各终端已就绪待命'
+          ) {
+            merged.weeklySummary = cloudStats.weeklySummary;
+          }
+          return merged;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[AdminApiClient] 合并本地个案至云端大盘异常:', err);
+  }
+  return cloudStats;
+}
+
 /**
  * 管理后台 API 客户端 (AdminApiClient)
  * 职责：封装与 Worker 管理后端的高可用安全通信（自动附加 Bearer 鉴权凭证）
@@ -16,7 +209,7 @@ import { apiFetch } from '../api';
 export class AdminApiClient {
   public static async login(
     username: string,
-    password: string
+    password: string,
   ): Promise<{ success: boolean; token?: string; user?: UserProfile; error?: string }> {
     const res = await apiFetch('/api/admin/login', {
       method: 'POST',
@@ -26,55 +219,15 @@ export class AdminApiClient {
     return res.json();
   }
 
-  public static async fetchStats(): Promise<AdminStats | null> {
-    try {
-      const res = await apiFetch('/api/admin/stats');
-      const data = await res.json();
-      let stats: AdminStats | null = null;
-      if (data.success && data.stats) {
-        stats = data.stats;
-      }
+  public static async fetchStats(): Promise<AdminStats> {
+    const localSessions = getLocalRealSessions();
+    const cloudStats = await tryFetchCloudStats();
 
-      // 聚合本地真实个案统计指标（当云端暂无记录时，呈现真实倾诉指标）
-      try {
-        const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('rethink_real_sessions') : null;
-        if (rawLocal && stats) {
-          const localList: AdminSessionItem[] = JSON.parse(rawLocal);
-          if (Array.isArray(localList) && localList.length > 0 && stats.totalSessions === 0) {
-            const validLocals = localList.filter(
-              (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_')
-            );
-            if (validLocals.length > 0) {
-              const crisisLocals = validLocals.filter((s) => s.isCrisis || s.crisisLevel >= 3);
-              stats.totalSessions = validLocals.length;
-              stats.crisisCount = crisisLocals.length;
-              stats.pendingInterventions = crisisLocals.filter((s) => s.dispositionStatus === 'pending_contact').length;
-              const valences = validLocals.map((s) => s.emotionalValence || 0);
-              stats.avgValence = Number((valences.reduce((a, b) => a + b, 0) / valences.length).toFixed(2));
-
-              const counts: Record<string, number> = {};
-              for (const s of validLocals) {
-                for (const c of s.coreConcerns || []) {
-                  counts[c] = (counts[c] || 0) + 1;
-                }
-              }
-              stats.concernDistribution = Object.entries(counts).map(([name, count]) => ({ name, count }));
-              stats.riskDistribution = [
-                { level: 0, label: '正常稳定', count: validLocals.filter((s) => (s.crisisLevel || 0) === 0).length },
-                { level: 1, label: '轻度波动', count: validLocals.filter((s) => s.crisisLevel === 1).length },
-                { level: 2, label: '中度压力', count: validLocals.filter((s) => s.crisisLevel === 2).length },
-                { level: 3, label: '极高危预警', count: validLocals.filter((s) => (s.crisisLevel || 0) >= 3 || s.isCrisis).length },
-              ];
-            }
-          }
-        }
-      } catch {}
-
-      return stats;
-    } catch (err) {
-      console.warn('[AdminApiClient] 获取宏观统计数据异常:', err);
-      return null;
+    if (cloudStats && cloudStats.totalSessions > 0) {
+      return mergeCloudWithLocal(cloudStats, localSessions);
     }
+
+    return computeStatsFromLocalSessions(localSessions);
   }
 
   public static async fetchCrises(): Promise<AdminCrisisItem[]> {
@@ -86,12 +239,15 @@ export class AdminApiClient {
         list = data.crises;
       }
       list = list.filter(
-        (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_')
+        (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_'),
       );
 
       // 合并本地真实危机记录
       try {
-        const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('rethink_real_sessions') : null;
+        const rawLocal =
+          typeof localStorage !== 'undefined'
+            ? localStorage.getItem('rethink_real_sessions')
+            : null;
         if (rawLocal) {
           const localList: AdminSessionItem[] = JSON.parse(rawLocal);
           if (Array.isArray(localList)) {
@@ -128,10 +284,13 @@ export class AdminApiClient {
     }
   }
 
-  public static async fetchSessions(crisisOnly = false, includeDeleted = false): Promise<AdminSessionItem[]> {
+  public static async fetchSessions(
+    crisisOnly = false,
+    includeDeleted = false,
+  ): Promise<AdminSessionItem[]> {
     try {
       const res = await apiFetch(
-        `/api/admin/sessions?crisisOnly=${crisisOnly ? 'true' : 'false'}&includeDeleted=${includeDeleted ? 'true' : 'false'}`
+        `/api/admin/sessions?crisisOnly=${crisisOnly ? 'true' : 'false'}&includeDeleted=${includeDeleted ? 'true' : 'false'}`,
       );
       const data = await res.json();
       let serverSessions: AdminSessionItem[] = [];
@@ -141,12 +300,15 @@ export class AdminApiClient {
 
       // 严禁假数据进入展示层，真实反映服务端记录
       serverSessions = serverSessions.filter(
-        (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_')
+        (s) => !s.sessionId.startsWith('sess_sample_') && !s.sessionId.startsWith('mock_'),
       );
 
       // 合并本地真实通话建档记录（确保刚在终端完成的倾诉在离线或冷启动时也能秒级呈现在档案库中）
       try {
-        const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('rethink_real_sessions') : null;
+        const rawLocal =
+          typeof localStorage !== 'undefined'
+            ? localStorage.getItem('rethink_real_sessions')
+            : null;
         if (rawLocal) {
           const localList: AdminSessionItem[] = JSON.parse(rawLocal);
           if (Array.isArray(localList)) {
@@ -199,7 +361,7 @@ export class AdminApiClient {
   public static async unmaskCrisis(
     sessionId: string,
     passcode: string,
-    operatorName: string
+    operatorName: string,
   ): Promise<{ success: boolean; realIdentity?: UnmaskedIdentity; error?: string }> {
     const res = await apiFetch('/api/admin/crisis/unmask', {
       method: 'POST',
@@ -216,7 +378,7 @@ export class AdminApiClient {
   public static async updateDisposition(
     sessionId: string,
     status: DispositionStatus,
-    note?: string
+    note?: string,
   ): Promise<boolean> {
     try {
       const res = await apiFetch('/api/admin/crisis/disposition', {
@@ -240,7 +402,7 @@ export class AdminApiClient {
     sessionId: string,
     passcode: string,
     reason: string,
-    operatorName: string
+    operatorName: string,
   ): Promise<{ success: boolean; error?: string }> {
     const res = await apiFetch('/api/admin/sessions/delete', {
       method: 'POST',
@@ -258,7 +420,7 @@ export class AdminApiClient {
   public static async restoreSession(
     sessionId: string,
     passcode: string,
-    operatorName: string
+    operatorName: string,
   ): Promise<{ success: boolean; error?: string }> {
     const res = await apiFetch('/api/admin/sessions/restore', {
       method: 'POST',
@@ -274,7 +436,7 @@ export class AdminApiClient {
 
   public static async reEvaluateSession(
     sessionId: string,
-    transcript?: string
+    transcript?: string,
   ): Promise<{ success: boolean; report?: any; session?: any; error?: string }> {
     const res = await apiFetch('/api/admin/sessions/re-evaluate', {
       method: 'POST',
