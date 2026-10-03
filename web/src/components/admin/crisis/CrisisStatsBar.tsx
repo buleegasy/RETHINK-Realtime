@@ -28,10 +28,7 @@ export const CrisisStatsBar: React.FC<CrisisStatsBarProps> = ({
       {/* 头部统计状态摘要 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-[#ffffff] border border-[#e1e3e1] p-4 sm:p-6 rounded-2xl sm:rounded-3xl">
         <div className="space-y-1">
-          <h2 className="text-lg sm:text-xl font-bold text-[#1f1f1f] tracking-tight">
-            危机响应中心
-          </h2>
-          <p className="text-xs text-[#747775]">实时危机监控 · 双重口令穿透 · 全生命周期闭环</p>
+          <h2 className="text-lg sm:text-xl font-bold text-[#1f1f1f] tracking-tight">危机中心</h2>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">

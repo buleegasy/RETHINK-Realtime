@@ -201,7 +201,7 @@ describe('咨询师工作流与 UI 体验优化专项测试 (Counselor Workflow 
           userDisplayName: '小张同学',
           coreConcerns: ['学业焦虑'],
           emotionalTrajectory: { initial: '绝望', final: '缓和', deltaNotes: '已完成初步安抚' },
-          evaluatedBy: 'DeepSeek V4 Flash',
+          evaluatedBy: 'AI',
         } as any,
         dispositionStatus: 'pending_contact',
         dispositionNote: '初始无说明',

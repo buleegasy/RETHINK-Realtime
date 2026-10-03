@@ -73,7 +73,7 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
         }));
         setReEvaluateStatus({
           type: 'success',
-          message: '已由 DeepSeek V4 Flash 重新提炼并更新档案',
+          message: '已由 AI 重新提炼并更新档案',
         });
         setTimeout(() => setReEvaluateStatus(null), 4000);
       } else {
@@ -147,7 +147,7 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
               来访情绪简报 · #{activeSession.sessionId.slice(-6)}
             </h3>
             <span className="px-2 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-[#e8f0fe] text-[#004a77] border border-[#d2e3fc]">
-              DeepSeek V4 Flash 智能建档
+              AI 智能建档
             </span>
           </div>
           <button
@@ -215,7 +215,7 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
               onClick={handleReEvaluate}
               disabled={isReEvaluating}
               className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium text-[#004a77] bg-[#ffffff] border border-[#c4c7c5] hover:bg-[#f0f4f9] transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              title="调用 DeepSeek V4 Flash 重新提炼本次会话的情绪评估简报"
+              title="调用 AI 重新提炼本次会话的情绪评估简报"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
               <span>{isReEvaluating ? '提炼中...' : '重新提炼'}</span>

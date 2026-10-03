@@ -58,7 +58,6 @@ export const CampusPulseDashboard: React.FC = () => {
       <div className="flex items-center justify-between text-xs text-[#747775] px-1">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#146c2e] inline-block animate-pulse" />
-          <span>校园心境态势宏观监控 · 已连接云端大盘</span>
         </div>
 
         <button
@@ -89,7 +88,7 @@ export const CampusPulseDashboard: React.FC = () => {
             <h3 className="text-xs sm:text-sm font-bold text-[#1f1f1f] tracking-tight">本周小结</h3>
           </div>
           <span className="px-2 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] text-[#5e5e5e] bg-[#ffffff] border border-[#d2e3fc] font-medium">
-            DeepSeek V4 Flash 智能生成
+            AI 智能生成
           </span>
         </div>
         <p className="text-xs text-[#333a40] leading-relaxed pl-0 sm:pl-9 mt-1 sm:mt-0 font-normal">

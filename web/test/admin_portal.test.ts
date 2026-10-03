@@ -233,13 +233,13 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
               success: true,
               report: {
                 coreConcerns: ['考前焦虑'],
-                crisisSummary: '由 DeepSeek V4 Flash 重新提炼评估',
-                evaluatedBy: 'DeepSeek V4 Flash',
+                crisisSummary: '由 AI 重新提炼评估',
+                evaluatedBy: 'AI',
               },
               session: {
                 sessionId: 'sess_123',
                 coreConcerns: ['考前焦虑'],
-                crisisSummary: '由 DeepSeek V4 Flash 重新提炼评估',
+                crisisSummary: '由 AI 重新提炼评估',
               },
             }),
         });
@@ -249,9 +249,9 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
 
     const res = await useAdminStore.getState().reEvaluateSession('sess_123', '学生：我考试好焦虑');
     expect(res.success).toBe(true);
-    expect(res.report?.evaluatedBy).toBe('DeepSeek V4 Flash');
+    expect(res.report?.evaluatedBy).toBe('AI');
     const updated = useAdminStore.getState().sessions.find((s) => s.sessionId === 'sess_123');
-    expect(updated?.crisisSummary).toBe('由 DeepSeek V4 Flash 重新提炼评估');
+    expect(updated?.crisisSummary).toBe('由 AI 重新提炼评估');
   });
 
   it('navigateToSessionsWithTag 能够平滑切换选项卡并预置创伤/议题标签过滤', () => {

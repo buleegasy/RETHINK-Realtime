@@ -52,7 +52,7 @@ export const SessionCbtReportView: React.FC<SessionCbtReportViewProps> = ({ sess
             </span>
             {session.deidentifiedReport?.evaluatedBy && (
               <span className="text-[9px] sm:text-[10px] text-[#004a77] bg-[#e8f0fe] px-2 py-0.5 rounded-full font-medium">
-                {session.deidentifiedReport.evaluatedBy}
+                AI
               </span>
             )}
           </div>

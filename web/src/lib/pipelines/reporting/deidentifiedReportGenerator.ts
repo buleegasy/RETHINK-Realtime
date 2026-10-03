@@ -58,7 +58,7 @@ export class DeidentifiedCbtReportGenerator implements IReportGenerator {
       userDisplayName,
       cbtStageReached: stageReached,
       coreConcerns,
-      cognitiveDistortions: ['待通过 DeepSeek V4 Flash 深度提取'],
+      cognitiveDistortions: [],
       emotionalTrajectory: {
         initial: initialEmotion,
         final: finalEmotion,
