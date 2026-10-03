@@ -10,7 +10,7 @@ import { isL1Crisis, disambiguateCrisis } from '../src/lib/safety-filter';
  * 3. 16 组基准对照用例 (Baseline Controls): 8 组明确安全/合法消歧 (false) + 8 组明确自杀自残/强肯定 (true)
  * 4. 极值边界与复合对抗压力测试 (Edge & Stress Controls)
  *
- * 验收基准: 100% 准确率门禁，严禁模型伪装破坏，严禁硬编码 facade
+ * 验收基准: 100% 准确率门禁，严禁硬编码 facade
  */
 
 describe('RETHINK L1 危机消歧引擎 64+ 全对抗基准回归测试套件', () => {

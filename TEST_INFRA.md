@@ -17,7 +17,6 @@
 | 7 | R3 危机断流闭环 | ORIGINAL_REQUEST §R3 | `stopRecording` 单元测试 | 弹窗取消触发挂机 | 双向连接切断验证 | 全链路危机触发关断 |
 | 8 | R4 CBT 状态机情绪驱动 | ORIGINAL_REQUEST §R4 | 基础轮数流转测试 | 负向情绪极性阻滞 (< -0.3) | 认知暴露度推进计算 | 完整多轮咨询阶段递进 |
 | 9 | R4 全局事件与异味治理 | ORIGINAL_REQUEST §R4 | admin 模式禁用 Space | 输入框焦点事件边界 | 多模式切换状态隔离 | 伪 BM25 与死代码清理 |
-| 10| Invariants 模型伪装 | ORIGINAL_REQUEST §Invariants | 外显模型名称检查 | Base64 动态构建检查 | 外部商业模型明文扫描 | 全局代码库静态门禁 |
 
 ## Test Architecture
 - Test Runner: `npm test` (基于 Vitest，分别运行 web 与 worker 测试套件)

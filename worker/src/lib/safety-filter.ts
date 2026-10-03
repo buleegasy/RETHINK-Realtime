@@ -727,7 +727,7 @@ export function isNegatedCrisis(text: string): boolean {
 }
 
 // -------------------------------------------------------------
-// 7. L2 DeepSeek V4 Flash 语义旁路分析 (保持动态 Base64 构建规范)
+// 7. L2 DeepSeek V4 Flash 语义旁路分析
 // -------------------------------------------------------------
 
 export async function checkL2FlashSafety(

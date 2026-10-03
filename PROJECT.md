@@ -48,7 +48,6 @@ RETHINK Realtime Voice 是校园全双工语音心理咨询系统，包含三大
 | F11 | 电话亭全局按键隔离 | 针对 Admin 模式隔离 Space/Enter 键盘监听，防止后台管理操作误拨号 | M4 | R4 |
 | F12 | 上帝模块解耦与代码异味清理 | 拆解 `useVoiceSession.ts` 与 `admin-service.ts`，清理 `bge-retriever.ts` 伪 BM25 与死代码，治理空 catch 块 | M4 | R4 |
 | F13 | 64 组高危对抗基准测试集 | 建立 26 FN + 22 FP + 16 CTL 的刚性回归门禁，确保准确率 100% | M5 (Test Track) | R5 |
-| F14 | 模型伪装与动态 Base64 构建坚守 | 全代码库严格保留对外 MiniMax Realtime / DeepSeek V4 Flash 标识，内部保持动态 `atob(...)` 构建 | 全局贯穿 | Invariants |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -57,4 +56,5 @@ RETHINK Realtime Voice 是校园全双工语音心理咨询系统，包含三大
 | M2 | R2 数据安全与身份隐私协议 | F4, F5, F6 | none | DONE |
 | M3 | R3 全双工流式时序与边缘代理 | F7, F8, F9 | none | DONE |
 | M4 | R4 CBT 状态机与架构异味重构 | F10, F11, F12 | none | DONE |
-| M5 | R5 对抗基准与全量 E2E 门禁验收 | F13, F14, 全量验收 | M1, M2, M3, M4 | IN_PROGRESS |
+| M5 | R5 对抗基准与全量 E2E 门禁验收 | F13, 全量验收 | M1, M2, M3, M4 | IN_PROGRESS |
+

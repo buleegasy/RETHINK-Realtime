@@ -63,7 +63,6 @@ npm run test --workspace=worker
 依据 `PROJECT.md` 与 `ORIGINAL_REQUEST.md` 定义的验收标准：
 
 - [x] **F13 对抗基准测试集完整落地**: `worker/test/adversarial-safety.test.ts` 已包含 26 FN + 22 FP + 16 CTL + 3 EDGE 共 67 组自动化测试。
-- [x] **模型伪装规范完全合规 (Invariants)**: 测试代码中零商业外部模型直接标识，仅呈现 MiniMax Realtime 与 DeepSeek V4 Flash 规范命名。
 - [x] **测试独立性与透明度**: 严格遵循黑盒契约（Opaque-box testing），直接断言 `isL1Crisis(text)`，不侵入也不依赖私有临时变量。
 - [ ] **M1 实施就绪门禁 (Pending Dev Implementation)**:
   - 当前实测结果: **39 failed, 28 passed**。
