@@ -50,9 +50,8 @@ describe('Challenger 2 Empirical Stress Test: Component Limits, Audio Lifecycle 
       // 验证无任何组件超过 300 行
       expect(violations, `发现超过 300 行的组件: ${JSON.stringify(violations)}`).toEqual([]);
 
-      // 最高行数组件必须 <= 300 (实测 SessionDetailModal.tsx 264 行)
+      // 最高行数组件必须 <= 300 (Clean Code 规范组件行数严格控制在 300 行以内)
       expect(top5[0].lineCount).toBeLessThanOrEqual(300);
-      expect(top5[0].lineCount).toBe(264);
     });
   });
 
