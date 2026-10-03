@@ -25,8 +25,9 @@ export function App() {
   const hookState = useBoothStore((s) => s.hookState);
   const { startCall, endCall, interrupt, toggleMute } = useVoiceSession();
 
-  // 1. 电话亭物理按键 (Space/Enter/Esc/M) 与挂摘机硬件交互
+  // 1. 电话亭物理按键 (Space/Enter/Esc/M) 与挂摘机硬件交互（仅在非教师后台模式启用）
   useTelephoneBooth({
+    enabled: runMode !== 'admin',
     onPickUp: startCall,
     onHangUp: endCall,
     onInterrupt: interrupt,

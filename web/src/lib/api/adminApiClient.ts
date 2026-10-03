@@ -341,6 +341,8 @@ export class AdminApiClient {
     try {
       const res = await apiFetch('/api/admin/clean-mock-data', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
       return await res.json();
     } catch (err) {

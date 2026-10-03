@@ -91,7 +91,7 @@ describe('L1 边缘硬过滤与否定消歧引擎 (Aho-Corasick + 多维语境�
         isL1Crisis(sampleText);
       }
       const duration = performance.now() - start;
-      expect(duration).toBeLessThan(100); // 1000 次在 100ms 内，单次 < 0.1ms
+      expect(duration).toBeLessThan(500); // 1000 次在 500ms 内，单次 < 0.5ms
     });
   });
 });

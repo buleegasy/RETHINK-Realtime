@@ -26,6 +26,12 @@ export interface CbtTransitionResult {
   isOscillationBlocked?: boolean;
 }
 
+export interface CbtTurnInput {
+  role: 'user' | 'assistant';
+  emotionalValence?: number;
+  cognitiveExposure?: number;
+}
+
 export interface CbtFsmConfig {
   initialStage?: CBTStage;
   minDwellTurns?: number;
@@ -34,6 +40,10 @@ export interface CbtFsmConfig {
   oscillationCooldownTurns?: number;
   activeListeningMaxTurns?: number;
   strippingMaxTurns?: number;
+  negativeValenceThreshold?: number;
+  minCognitiveExposureForStripping?: number;
+  minCognitiveExposureForSocratic?: number;
+  exposureIncrementPerTurn?: number;
 }
 
 const DEFAULT_CONFIG: Required<CbtFsmConfig> = {
@@ -44,6 +54,10 @@ const DEFAULT_CONFIG: Required<CbtFsmConfig> = {
   oscillationCooldownTurns: 3,
   activeListeningMaxTurns: 6,
   strippingMaxTurns: 7,
+  negativeValenceThreshold: -0.3,
+  minCognitiveExposureForStripping: 0.4,
+  minCognitiveExposureForSocratic: 0.7,
+  exposureIncrementPerTurn: 0.1,
 };
 
 export class CbtStateMachine {
@@ -51,6 +65,8 @@ export class CbtStateMachine {
   private turnsInCurrentStage: number = 0;
   private totalTurns: number = 0;
   private fallbackCooldown: number = 0;
+  private currentEmotionalValence: number = 0.0;
+  private cognitiveExposure: number = 0.0;
   private readonly config: Required<CbtFsmConfig>;
   private readonly history: CbtTransitionRecord[] = [];
 
@@ -79,6 +95,29 @@ export class CbtStateMachine {
     return this.history;
   }
 
+  public getEmotionalValence(): number {
+    return this.currentEmotionalValence;
+  }
+
+  public setEmotionalValence(val: number): void {
+    this.currentEmotionalValence = Math.max(-1.0, Math.min(1.0, val));
+  }
+
+  public getCognitiveExposure(): number {
+    return this.cognitiveExposure;
+  }
+
+  public setCognitiveExposure(val: number): void {
+    this.cognitiveExposure = Math.max(0.0, Math.min(1.0, val));
+  }
+
+  public isEmotionallyLocked(): boolean {
+    return (
+      this.currentStage === 'Active_Listening' &&
+      this.currentEmotionalValence < this.config.negativeValenceThreshold
+    );
+  }
+
   public canTransition(targetStage: CBTStage): { allowed: boolean; reason?: string } {
     if (this.currentStage === 'Crisis_Escalation') {
       return {
@@ -93,6 +132,17 @@ export class CbtStateMachine {
 
     if (targetStage === 'Crisis_Escalation') {
       return { allowed: true, reason: '安全危机熔断触发升级' };
+    }
+
+    // 强负向情绪锁定保护：emotionalValence < -0.3 时锁定在 Active_Listening，禁止推进至 ABC 剥离或认知重构
+    if (
+      (targetStage === 'CBT_Stripping' || targetStage === 'Socratic_Questioning') &&
+      this.currentEmotionalValence < this.config.negativeValenceThreshold
+    ) {
+      return {
+        allowed: false,
+        reason: `情绪锁定保护：当前情绪效价极度负向 (${this.currentEmotionalValence.toFixed(2)} < ${this.config.negativeValenceThreshold})，强制锁定积极倾听阶段，禁止过早推进 ABC 剥离或认知重构`,
+      };
     }
 
     const isLegalForward = this.checkLegalForward(this.currentStage, targetStage);
@@ -151,7 +201,12 @@ export class CbtStateMachine {
         this.fallbackCooldown = this.config.oscillationCooldownTurns;
       }
 
-      if (prev === 'Active_Listening' && targetStage === 'Socratic_Questioning') {
+      // 仅在非情绪阻断的普通非法跃迁场景下尝试越级平滑自愈
+      if (
+        prev === 'Active_Listening' &&
+        targetStage === 'Socratic_Questioning' &&
+        !check.reason?.includes('情绪锁定保护')
+      ) {
         const autoCorrected: CBTStage = 'CBT_Stripping';
         this.currentStage = autoCorrected;
         this.turnsInCurrentStage = 0;
@@ -207,9 +262,40 @@ export class CbtStateMachine {
     return 'Crisis_Escalation';
   }
 
-  public recordTurn(role: 'user' | 'assistant'): { autoPromotedStage: CBTStage | null } {
+  public recordTurn(
+    turnInput: 'user' | 'assistant' | CbtTurnInput,
+    maybeValence?: number,
+    maybeExposure?: number,
+  ): { autoPromotedStage: CBTStage | null } {
+    let role: 'user' | 'assistant';
+    let valence: number | undefined;
+    let exposure: number | undefined;
+
+    if (typeof turnInput === 'string') {
+      role = turnInput;
+      valence = maybeValence;
+      exposure = maybeExposure;
+    } else {
+      role = turnInput.role;
+      valence = turnInput.emotionalValence;
+      exposure = turnInput.cognitiveExposure;
+    }
+
     this.totalTurns++;
     this.turnsInCurrentStage++;
+
+    if (typeof valence === 'number' && !Number.isNaN(valence)) {
+      this.currentEmotionalValence = Math.max(-1.0, Math.min(1.0, valence));
+    }
+
+    if (typeof exposure === 'number' && !Number.isNaN(exposure)) {
+      this.cognitiveExposure = Math.max(0.0, Math.min(1.0, exposure));
+    } else {
+      this.cognitiveExposure = Math.min(
+        1.0,
+        this.cognitiveExposure + this.config.exposureIncrementPerTurn,
+      );
+    }
 
     if (role === 'user' && this.fallbackCooldown > 0) {
       this.fallbackCooldown--;
@@ -217,7 +303,7 @@ export class CbtStateMachine {
 
     const autoPromotion = this.checkAutoPacing();
     if (autoPromotion) {
-      this.transition(autoPromotion, '停滞看门狗自动推进');
+      this.transition(autoPromotion, '自适应情绪与认知暴露看门狗推进');
       return { autoPromotedStage: autoPromotion };
     }
 
@@ -229,21 +315,29 @@ export class CbtStateMachine {
 
     if (
       this.currentStage === 'Pre_Info_Collection' &&
-      this.turnsInCurrentStage >= 2
+      this.turnsInCurrentStage >= this.config.minDwellTurns
     ) {
       return 'Active_Listening';
     }
 
+    // 情绪效价强烈负向时锁定在 Active_Listening，禁止推进
+    if (this.currentEmotionalValence < this.config.negativeValenceThreshold) {
+      return null;
+    }
+
+    // 情绪平稳且认知暴露度满足要求时方可推进
     if (
       this.currentStage === 'Active_Listening' &&
-      this.turnsInCurrentStage >= this.config.activeListeningMaxTurns
+      this.turnsInCurrentStage >= this.config.activeListeningMaxTurns &&
+      this.cognitiveExposure >= this.config.minCognitiveExposureForStripping
     ) {
       return 'CBT_Stripping';
     }
 
     if (
       this.currentStage === 'CBT_Stripping' &&
-      this.turnsInCurrentStage >= this.config.strippingMaxTurns
+      this.turnsInCurrentStage >= this.config.strippingMaxTurns &&
+      this.cognitiveExposure >= this.config.minCognitiveExposureForSocratic
     ) {
       return 'Socratic_Questioning';
     }
@@ -283,6 +377,8 @@ export class CbtStateMachine {
     this.turnsInCurrentStage = 0;
     this.totalTurns = 0;
     this.fallbackCooldown = 0;
+    this.currentEmotionalValence = 0.0;
+    this.cognitiveExposure = 0.0;
     this.history.length = 0;
   }
 
@@ -293,6 +389,9 @@ export class CbtStateMachine {
       totalTurns: this.totalTurns,
       fallbackCooldown: this.fallbackCooldown,
       isCrisis: this.isCrisis(),
+      emotionalValence: this.currentEmotionalValence,
+      cognitiveExposure: this.cognitiveExposure,
+      isEmotionallyLocked: this.isEmotionallyLocked(),
     };
   }
 

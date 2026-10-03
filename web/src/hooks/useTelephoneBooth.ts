@@ -7,6 +7,7 @@ interface UseTelephoneBoothProps {
   onHangUp: () => void;
   onInterrupt: () => void;
   onToggleMute: () => void;
+  enabled?: boolean;
 }
 
 export function useTelephoneBooth({
@@ -14,11 +15,13 @@ export function useTelephoneBooth({
   onHangUp,
   onInterrupt,
   onToggleMute,
+  enabled = true,
 }: UseTelephoneBoothProps) {
   const hookState = useBoothStore((s) => s.hookState);
   const { dialKey, triggerHookSound } = useDtmfTone();
 
   const handleToggleHook = useCallback(() => {
+    if (!enabled) return;
     if (hookState === 'on_hook') {
       triggerHookSound(true);
       onPickUp();
@@ -26,17 +29,18 @@ export function useTelephoneBooth({
       triggerHookSound(false);
       onHangUp();
     }
-  }, [hookState, onPickUp, onHangUp, triggerHookSound]);
+  }, [enabled, hookState, onPickUp, onHangUp, triggerHookSound]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    if (!enabled) {
+      return;
+    }
 
+    const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (
         target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable)
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
       ) {
         return;
       }
@@ -69,7 +73,7 @@ export function useTelephoneBooth({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleToggleHook, onInterrupt, onToggleMute, dialKey]);
+  }, [enabled, handleToggleHook, onInterrupt, onToggleMute, dialKey]);
 
   return {
     handleToggleHook,

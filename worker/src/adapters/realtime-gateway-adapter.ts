@@ -18,10 +18,7 @@ export class RealtimeGatewayAdapter {
    */
   public static resolveGatewayConfig(env: Env, requestedModel?: string): RealtimeGatewayConfig {
     const upstreamKey =
-      env.REALTIME_UPSTREAM_KEY ||
-      env.MINIMAX_REALTIME_KEY ||
-      env.APIYI_API_KEY ||
-      '';
+      env.REALTIME_UPSTREAM_KEY || env.MINIMAX_REALTIME_KEY || env.APIYI_API_KEY || '';
 
     const rawBaseUrl =
       env.REALTIME_UPSTREAM_URL ||
@@ -49,13 +46,16 @@ export class RealtimeGatewayAdapter {
   public static buildUpstreamWsUrl(baseUrl: string, model: string): string {
     const cleanBase = this.stripTrailingSlashes(baseUrl);
     const query = `model=${encodeURIComponent(model)}`;
-    return cleanBase.endsWith('/realtime') ? `${cleanBase}?${query}` : `${cleanBase}/realtime?${query}`;
+    return cleanBase.endsWith('/realtime')
+      ? `${cleanBase}?${query}`
+      : `${cleanBase}/realtime?${query}`;
   }
 
   private static resolveTurnDetection(incoming: any): Record<string, unknown> | null | undefined {
-    const incomingVad = incoming.turn_detection !== undefined
-      ? incoming.turn_detection
-      : incoming.audio?.input?.turn_detection;
+    const incomingVad =
+      incoming.turn_detection !== undefined
+        ? incoming.turn_detection
+        : incoming.audio?.input?.turn_detection;
 
     if (incomingVad === null) {
       return null;
@@ -69,7 +69,7 @@ export class RealtimeGatewayAdapter {
       threshold: incomingVad.threshold ?? 0.5,
       prefix_padding_ms: incomingVad.prefix_padding_ms ?? 300,
       silence_duration_ms: incomingVad.silence_duration_ms ?? 600,
-      create_response: true,
+      create_response: false,
     };
   }
 
@@ -84,7 +84,10 @@ export class RealtimeGatewayAdapter {
   /**
    * 规范化并清洗客户端传入的 session.update 载荷，动态注入历史记忆档案
    */
-  public static normalizeSessionUpdatePayload(incoming: any, currentMemory?: any): Record<string, unknown> {
+  public static normalizeSessionUpdatePayload(
+    incoming: any,
+    currentMemory?: any,
+  ): Record<string, unknown> {
     if (!incoming || typeof incoming !== 'object') {
       return {};
     }
@@ -93,7 +96,10 @@ export class RealtimeGatewayAdapter {
     if (incoming.modalities) cleanSession.modalities = incoming.modalities;
 
     if (incoming.instructions !== undefined) {
-      cleanSession.instructions = this.resolveInstructionsWithMemory(incoming.instructions, currentMemory);
+      cleanSession.instructions = this.resolveInstructionsWithMemory(
+        incoming.instructions,
+        currentMemory,
+      );
     }
 
     const turnDetection = this.resolveTurnDetection(incoming);
@@ -101,8 +107,10 @@ export class RealtimeGatewayAdapter {
 
     if (incoming.voice) cleanSession.voice = incoming.voice;
     if (incoming.input_audio_format) cleanSession.input_audio_format = incoming.input_audio_format;
-    if (incoming.output_audio_format) cleanSession.output_audio_format = incoming.output_audio_format;
-    if (incoming.input_audio_transcription) cleanSession.input_audio_transcription = incoming.input_audio_transcription;
+    if (incoming.output_audio_format)
+      cleanSession.output_audio_format = incoming.output_audio_format;
+    if (incoming.input_audio_transcription)
+      cleanSession.input_audio_transcription = incoming.input_audio_transcription;
     if (incoming.tools !== undefined) cleanSession.tools = incoming.tools;
     if (incoming.tool_choice !== undefined) cleanSession.tool_choice = incoming.tool_choice;
     if (incoming.temperature !== undefined) cleanSession.temperature = incoming.temperature;

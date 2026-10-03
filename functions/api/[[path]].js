@@ -25,7 +25,52 @@ export async function onRequest(context) {
       return app.fetch(request, env, context);
     }
     const targetUrl = new URL(url.pathname + url.search, env.WORKER_ORIGIN);
-    return fetch(targetUrl.toString(), request);
+    const upstreamRes = await fetch(targetUrl.toString(), request);
+    if (upstreamRes.status === 101 && upstreamRes.webSocket) {
+      const pair = new WebSocketPair();
+      const [clientWs, serverWs] = Object.values(pair);
+      serverWs.accept();
+      const upstreamWs = upstreamRes.webSocket;
+      upstreamWs.accept();
+
+      serverWs.addEventListener('message', (event) => {
+        if (upstreamWs.readyState === WebSocket.OPEN) {
+          upstreamWs.send(event.data);
+        }
+      });
+      upstreamWs.addEventListener('message', (event) => {
+        if (serverWs.readyState === WebSocket.OPEN) {
+          serverWs.send(event.data);
+        }
+      });
+      serverWs.addEventListener('close', (event) => {
+        try {
+          upstreamWs.close(event.code, event.reason);
+        } catch {}
+      });
+      upstreamWs.addEventListener('close', (event) => {
+        try {
+          serverWs.close(event.code, event.reason);
+        } catch {}
+      });
+      serverWs.addEventListener('error', () => {
+        try {
+          upstreamWs.close(1011, 'Client socket error');
+        } catch {}
+      });
+      upstreamWs.addEventListener('error', () => {
+        try {
+          serverWs.close(1011, 'Upstream socket error');
+        } catch {}
+      });
+
+      return new Response(null, {
+        status: 101,
+        webSocket: clientWs,
+      });
+    }
+
+    return upstreamRes;
   }
 
   return app.fetch(request, env, context);

@@ -3,7 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { HeartHandshake, PhoneCall, X } from 'lucide-react';
 import { useBoothStore } from '../../store/boothStore';
 
-export const CrisisOverlay: React.FC = () => {
+export interface CrisisOverlayProps {
+  onClose?: () => void;
+  onEndCall?: () => void;
+}
+
+export const CrisisOverlay: React.FC<CrisisOverlayProps> = ({ onClose, onEndCall }) => {
   const { isCrisisOverlayOpen, setCrisisOverlayOpen } = useBoothStore();
 
   if (!isCrisisOverlayOpen) return null;
@@ -11,6 +16,11 @@ export const CrisisOverlay: React.FC = () => {
   const handleClose = () => {
     console.info('[CrisisOverlay] 来访者已知晓并主动关闭紧急生命支持浮层');
     setCrisisOverlayOpen(false);
+    onEndCall?.();
+    onClose?.();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('rethink:crisis:end_call'));
+    }
   };
 
   return (

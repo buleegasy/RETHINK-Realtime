@@ -32,4 +32,13 @@ describe('Worker CbtStateMachine (服务端对齐验证)', () => {
     expect(res.success).toBe(true);
     expect(res.stage).toBe('CBT_Stripping');
   });
+
+  it('服务端对齐：强烈负向情绪下锁定 Active_Listening 阻断跃迁', () => {
+    fsm.setEmotionalValence(-0.5);
+    expect(fsm.isEmotionallyLocked()).toBe(true);
+    const res = fsm.transition('CBT_Stripping');
+    expect(res.success).toBe(false);
+    expect(res.reason).toContain('情绪锁定保护');
+    expect(fsm.getStage()).toBe('Active_Listening');
+  });
 });

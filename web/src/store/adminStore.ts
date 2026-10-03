@@ -28,6 +28,11 @@ interface AdminState {
   error: string | null;
   selectedSession: AdminSessionItem | null;
 
+  sessionFilterTag: string | null;
+  crisisFilterStatus: DispositionStatus | 'all';
+  dismissedAlertSessionIds: string[];
+  lastStatsRefreshTime: number | null;
+
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   fetchStats: () => Promise<void>;
@@ -65,6 +70,12 @@ interface AdminState {
   playBuzzer: () => void;
   setActiveTab: (tab: 'pulse' | 'crises' | 'sessions' | 'settings') => void;
   setSelectedSession: (session: AdminSessionItem | null) => void;
+  setSessionFilterTag: (tag: string | null) => void;
+  setCrisisFilterStatus: (status: DispositionStatus | 'all') => void;
+  dismissCrisisAlert: (sessionId: string) => void;
+  dismissAllCrisisAlerts: (sessionIds: string[]) => void;
+  navigateToSessionsWithTag: (tag?: string | null) => void;
+  navigateToCrisesWithStatus: (status?: DispositionStatus | 'all') => void;
 }
 
 const STORAGE_KEY = 'rethink_teacher_auth';
@@ -97,6 +108,10 @@ export const useAdminStore = create<AdminState>((set, get) => {
     isLoading: false,
     error: null,
     selectedSession: null,
+    sessionFilterTag: null,
+    crisisFilterStatus: 'all',
+    dismissedAlertSessionIds: [],
+    lastStatsRefreshTime: null,
 
     login: async (username: string, password: string) => {
       set({ isLoading: true, error: null });
@@ -137,6 +152,10 @@ export const useAdminStore = create<AdminState>((set, get) => {
         unmaskedMap: {},
         auditLogs: [],
         selectedSession: null,
+        sessionFilterTag: null,
+        crisisFilterStatus: 'all',
+        dismissedAlertSessionIds: [],
+        lastStatsRefreshTime: null,
       });
     },
 
@@ -144,7 +163,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
       set({ isLoadingStats: true, statsError: null });
       try {
         const stats = await AdminApiClient.fetchStats();
-        set({ stats, isLoadingStats: false });
+        set({ stats, isLoadingStats: false, lastStatsRefreshTime: Date.now() });
       } catch (err: any) {
         set({
           isLoadingStats: false,
@@ -213,6 +232,10 @@ export const useAdminStore = create<AdminState>((set, get) => {
             ? { ...s, dispositionStatus: status, dispositionNote: finalNote }
             : s,
         ),
+        selectedSession:
+          state.selectedSession?.sessionId === sessionId
+            ? { ...state.selectedSession, dispositionStatus: status, dispositionNote: finalNote }
+            : state.selectedSession,
       }));
 
       return AdminApiClient.updateDisposition(sessionId, status, finalNote);
@@ -309,12 +332,44 @@ export const useAdminStore = create<AdminState>((set, get) => {
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
         osc.connect(gain);
         gain.connect(ctx.destination);
+
+        let cleaned = false;
+        const cleanup = () => {
+          if (cleaned) return;
+          cleaned = true;
+          try {
+            osc.disconnect();
+            gain.disconnect();
+            if (ctx.state !== 'closed') {
+              ctx.close();
+            }
+          } catch {}
+        };
+
+        osc.onended = cleanup;
         osc.start();
         osc.stop(ctx.currentTime + 0.4);
+        setTimeout(cleanup, 500);
       } catch {}
     },
 
     setActiveTab: (tab) => set({ activeTab: tab }),
     setSelectedSession: (session) => set({ selectedSession: session }),
+    setSessionFilterTag: (tag) => set({ sessionFilterTag: tag }),
+    setCrisisFilterStatus: (status) => set({ crisisFilterStatus: status }),
+    dismissCrisisAlert: (sessionId) =>
+      set((state) => ({
+        dismissedAlertSessionIds: [...state.dismissedAlertSessionIds, sessionId],
+      })),
+    dismissAllCrisisAlerts: (sessionIds) =>
+      set((state) => ({
+        dismissedAlertSessionIds: Array.from(
+          new Set([...state.dismissedAlertSessionIds, ...sessionIds]),
+        ),
+      })),
+    navigateToSessionsWithTag: (tag) =>
+      set({ activeTab: 'sessions', sessionFilterTag: tag || null }),
+    navigateToCrisesWithStatus: (status) =>
+      set({ activeTab: 'crises', crisisFilterStatus: status || 'all' }),
   };
 });

@@ -1,10 +1,5 @@
-import React, { useState } from 'react';
-import {
-  RotateCcw,
-  X,
-  Lock,
-  ShieldCheck,
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { RotateCcw, X, Lock, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
 import type { AdminSessionItem } from '../../types';
 
@@ -21,8 +16,22 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
 }) => {
   const { restoreSession } = useAdminStore();
   const [passcode, setPasscode] = useState('');
+  const [showPasscode, setShowPasscode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,24 +55,38 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-2.5 sm:p-4">
-      <div className="bg-[#ffffff] w-full max-w-md max-h-[92dvh] sm:max-h-[90vh] rounded-2xl sm:rounded-3xl border border-[#bbf7d0] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="restore-modal-title"
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 select-none"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#ffffff] w-full max-w-md max-h-[92dvh] sm:max-h-[90vh] rounded-2xl sm:rounded-3xl border border-[#bbf7d0] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      >
         <div className="bg-[#f0fdf4] px-4 sm:px-6 py-3 sm:py-4 border-b border-[#bbf7d0] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-[#166534]">
             <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-            <h3 className="text-xs sm:text-sm font-bold tracking-tight">
-              恢复个案档案
+            <h3 id="restore-modal-title" className="text-xs sm:text-sm font-bold tracking-tight">
+              恢复个案档案 · #{session.sessionId.slice(-6)}
             </h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="关闭窗口"
             className="p-1 rounded-full hover:bg-[#dcfce7] text-[#166534] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3.5 sm:space-y-4 text-xs overflow-y-auto min-h-0 flex-1">
+        <form
+          onSubmit={handleSubmit}
+          className="p-4 sm:p-6 space-y-3.5 sm:space-y-4 text-xs overflow-y-auto min-h-0 flex-1"
+        >
           <p className="text-[#5e5e5e] leading-relaxed text-[11px] sm:text-xs">
             该档案此前已被安全归档保护。请输入教师二次安全口令，将其恢复至常规活跃个案库中。
           </p>
@@ -93,14 +116,23 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
               <span>管理端恢复授权口令</span>
               <span className="text-[#ba1a1a]">*</span>
             </label>
-            <input
-              type="password"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="请输入心理教师二级授权口令"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#146c2e] text-base sm:text-sm"
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPasscode ? 'text' : 'password'}
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="请输入心理教师二级授权口令"
+                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#146c2e] text-base sm:text-sm"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasscode(!showPasscode)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#747775] hover:text-[#1f1f1f] p-1 cursor-pointer"
+              >
+                {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <div className="bg-[#f8f9fa] pt-3 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pb-4 border-t border-[#e1e3e1] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
@@ -109,7 +141,7 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
               onClick={onClose}
               className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-medium bg-[#ffffff] border border-[#c4c7c5] text-[#444746] hover:bg-[#f0f4f9] transition-colors cursor-pointer text-center"
             >
-              取消
+              取消 (Esc)
             </button>
             <button
               type="submit"

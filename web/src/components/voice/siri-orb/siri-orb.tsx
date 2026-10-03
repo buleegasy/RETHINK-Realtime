@@ -1,4 +1,4 @@
-import { cn } from "../../../lib/utils";
+import { cn } from '../../../lib/utils';
 import {
   type MotionStyle,
   motion,
@@ -6,58 +6,51 @@ import {
   type Transition,
   useReducedMotion,
   useTransform,
-} from "framer-motion";
+} from 'framer-motion';
+import { type AIAmplitude, type AIState, getAIStateMotion, useAmplitudeValue } from './ai-core';
 import {
-  type AIAmplitude,
-  type AIState,
-  getAIStateMotion,
-  useAmplitudeValue,
-} from "./ai-core";
-
-const SIZE_THRESHOLD_SMALL = 50;
-const SIZE_THRESHOLD_TINY = 30;
-const SIZE_THRESHOLD_MEDIUM = 100;
-const BLUR_MULTIPLIER_SMALL = 0.008;
-const BLUR_MIN_SMALL = 1;
-const BLUR_MULTIPLIER_LARGE = 0.015;
-const BLUR_MIN_LARGE = 4;
-const CONTRAST_MULTIPLIER_SMALL = 0.004;
-const CONTRAST_MIN_SMALL = 1.2;
-const CONTRAST_MULTIPLIER_LARGE = 0.008;
-const CONTRAST_MIN_LARGE = 1.5;
-const DOT_SIZE_MULTIPLIER_SMALL = 0.004;
-const DOT_SIZE_MIN_SMALL = 0.05;
-const DOT_SIZE_MULTIPLIER_LARGE = 0.008;
-const DOT_SIZE_MIN_LARGE = 0.1;
-const SHADOW_MULTIPLIER_SMALL = 0.004;
-const SHADOW_MIN_SMALL = 0.5;
-const SHADOW_MULTIPLIER_LARGE = 0.008;
-const SHADOW_MIN_LARGE = 2;
-const MASK_RADIUS_TINY = "0%";
-const MASK_RADIUS_SMALL = "5%";
-const MASK_RADIUS_MEDIUM = "15%";
-const MASK_RADIUS_LARGE = "25%";
-const CONTRAST_TINY = 1.1;
-const CONTRAST_MULTIPLIER_FINAL = 1.2;
-const CONTRAST_MIN_FINAL = 1.3;
-
-const AMPLITUDE_BLUR_FALLOFF = 0.45;
-const AMPLITUDE_SCALE_GAIN = 0.12;
-const ERROR_SHAKE_KEYFRAMES = [0, -3, 3, 0];
-const ERROR_SHAKE_DURATION = 0.18;
-const EASE_IN_OUT = [0.645, 0.045, 0.355, 1] as const;
-const GLOW_BLUR_RATIO = 0.28;
-const GLOW_MAX_OPACITY = 0.7;
-const RIM_RATIO = 0.06;
-const RIM_MIN = 1.5;
-const DRIFT_BASE_SECONDS = 12;
-const BREATHE_SCALE = [1, 1.035, 1];
-const BREATHE_SECONDS = 5.5;
-const SPRING_DEFAULT: Transition = {
-  bounce: 0.1,
-  duration: 0.25,
-  type: "spring",
-};
+  AMPLITUDE_BLUR_FALLOFF,
+  AMPLITUDE_SCALE_GAIN,
+  BLUR_MIN_LARGE,
+  BLUR_MIN_SMALL,
+  BLUR_MULTIPLIER_LARGE,
+  BLUR_MULTIPLIER_SMALL,
+  BREATHE_SCALE,
+  BREATHE_SECONDS,
+  CONTRAST_MIN_FINAL,
+  CONTRAST_MIN_LARGE,
+  CONTRAST_MIN_SMALL,
+  CONTRAST_MULTIPLIER_FINAL,
+  CONTRAST_MULTIPLIER_LARGE,
+  CONTRAST_MULTIPLIER_SMALL,
+  CONTRAST_TINY,
+  DEFAULT_COLORS,
+  DOT_SIZE_MIN_LARGE,
+  DOT_SIZE_MIN_SMALL,
+  DOT_SIZE_MULTIPLIER_LARGE,
+  DOT_SIZE_MULTIPLIER_SMALL,
+  DRIFT_BASE_SECONDS,
+  EASE_IN_OUT,
+  ERROR_SHAKE_DURATION,
+  ERROR_SHAKE_KEYFRAMES,
+  GLOW_BLUR_RATIO,
+  GLOW_MAX_OPACITY,
+  MASK_RADIUS_LARGE,
+  MASK_RADIUS_MEDIUM,
+  MASK_RADIUS_SMALL,
+  MASK_RADIUS_TINY,
+  RIM_MIN,
+  RIM_RATIO,
+  SHADOW_MIN_LARGE,
+  SHADOW_MIN_SMALL,
+  SHADOW_MULTIPLIER_LARGE,
+  SHADOW_MULTIPLIER_SMALL,
+  SIZE_THRESHOLD_MEDIUM,
+  SIZE_THRESHOLD_SMALL,
+  SIZE_THRESHOLD_TINY,
+  SPRING_DEFAULT,
+} from './siriOrbConstants';
+import { SIRI_ORB_CSS } from './siriOrbStyles';
 
 export interface SiriOrbProps {
   amplitude?: AIAmplitude;
@@ -75,29 +68,21 @@ export interface SiriOrbProps {
 }
 
 export const SiriOrb: React.FC<SiriOrbProps> = ({
-  size = "192px",
+  size = '192px',
   className,
   colors,
   animationDuration = 20,
   amplitude,
-  state = "idle",
+  state = 'idle',
 }) => {
   const shouldReduceMotion = useReducedMotion();
   const amplitudeValue = useAmplitudeValue(amplitude);
   const stateMotion = getAIStateMotion(state);
 
-  const defaultColors = {
-    bg: "oklch(92% 0.03 300)",
-    c1: "oklch(68% 0.21 350)",
-    c2: "oklch(70% 0.18 210)",
-    c3: "oklch(66% 0.2 285)",
-    c4: "oklch(72% 0.19 325)",
-  };
-
-  const finalColors = { ...defaultColors, ...colors };
+  const finalColors = { ...DEFAULT_COLORS, ...colors };
   const glowColor = finalColors.c2;
 
-  const sizeValue = Number.parseInt(size.replace("px", ""), 10);
+  const sizeValue = Number.parseInt(size.replace('px', ''), 10);
 
   const blurAmount =
     sizeValue < SIZE_THRESHOLD_SMALL
@@ -120,29 +105,18 @@ export const SiriOrb: React.FC<SiriOrbProps> = ({
       : Math.max(sizeValue * SHADOW_MULTIPLIER_LARGE, SHADOW_MIN_LARGE);
 
   const getMaskRadius = (value: number) => {
-    if (value < SIZE_THRESHOLD_TINY) {
-      return MASK_RADIUS_TINY;
-    }
-    if (value < SIZE_THRESHOLD_SMALL) {
-      return MASK_RADIUS_SMALL;
-    }
-    if (value < SIZE_THRESHOLD_MEDIUM) {
-      return MASK_RADIUS_MEDIUM;
-    }
+    if (value < SIZE_THRESHOLD_TINY) return MASK_RADIUS_TINY;
+    if (value < SIZE_THRESHOLD_SMALL) return MASK_RADIUS_SMALL;
+    if (value < SIZE_THRESHOLD_MEDIUM) return MASK_RADIUS_MEDIUM;
     return MASK_RADIUS_LARGE;
   };
 
   const maskRadius = getMaskRadius(sizeValue);
 
   const getFinalContrast = (value: number) => {
-    if (value < SIZE_THRESHOLD_TINY) {
-      return CONTRAST_TINY;
-    }
+    if (value < SIZE_THRESHOLD_TINY) return CONTRAST_TINY;
     if (value < SIZE_THRESHOLD_SMALL) {
-      return Math.max(
-        contrastAmount * CONTRAST_MULTIPLIER_FINAL,
-        CONTRAST_MIN_FINAL
-      );
+      return Math.max(contrastAmount * CONTRAST_MULTIPLIER_FINAL, CONTRAST_MIN_FINAL);
     }
     return contrastAmount;
   };
@@ -158,7 +132,7 @@ export const SiriOrb: React.FC<SiriOrbProps> = ({
 
   const reactiveScale = useTransform(
     amplitudeValue,
-    (level) => stateMotion.scale + level * reactivity * AMPLITUDE_SCALE_GAIN
+    (level) => stateMotion.scale + level * reactivity * AMPLITUDE_SCALE_GAIN,
   );
 
   const loopDuration = shouldReduceMotion
@@ -169,26 +143,16 @@ export const SiriOrb: React.FC<SiriOrbProps> = ({
   const driftDuration = (DRIFT_BASE_SECONDS / (1 + stateMotion.speed)) * 2;
 
   const getRootAnimate = (): TargetAndTransition => {
-    if (shouldReduceMotion) {
-      return { scale: 1, x: 0 };
-    }
-    if (state === "error") {
-      return { scale: 1, x: ERROR_SHAKE_KEYFRAMES };
-    }
-    if (stateMotion.motif === "breathe") {
-      return { scale: BREATHE_SCALE, x: 0 };
-    }
+    if (shouldReduceMotion) return { scale: 1, x: 0 };
+    if (state === 'error') return { scale: 1, x: ERROR_SHAKE_KEYFRAMES };
+    if (stateMotion.motif === 'breathe') return { scale: BREATHE_SCALE, x: 0 };
     return { scale: 1, x: 0 };
   };
 
   const getRootTransition = (): Transition => {
-    if (shouldReduceMotion) {
-      return { duration: 0 };
-    }
-    if (state === "error") {
-      return { duration: ERROR_SHAKE_DURATION, ease: EASE_IN_OUT };
-    }
-    if (stateMotion.motif === "breathe") {
+    if (shouldReduceMotion) return { duration: 0 };
+    if (state === 'error') return { duration: ERROR_SHAKE_DURATION, ease: EASE_IN_OUT };
+    if (stateMotion.motif === 'breathe') {
       return {
         duration: BREATHE_SECONDS,
         ease: EASE_IN_OUT,
@@ -201,10 +165,10 @@ export const SiriOrb: React.FC<SiriOrbProps> = ({
   return (
     <motion.div
       animate={getRootAnimate()}
-      className={cn("relative", className)}
+      className={cn('relative', className)}
       style={
         {
-          "--orb-size": size,
+          '--orb-size': size,
           height: size,
           width: size,
         } as MotionStyle
@@ -217,7 +181,7 @@ export const SiriOrb: React.FC<SiriOrbProps> = ({
         style={{
           background: `radial-gradient(circle at 50% 50%, ${glowColor} 0%, transparent 64%)`,
           filter: `blur(calc(var(--orb-size) * ${GLOW_BLUR_RATIO}))`,
-          inset: "-12%",
+          inset: '-12%',
         }}
         transition={shouldReduceMotion ? { duration: 0 } : SPRING_DEFAULT}
       />
@@ -226,163 +190,29 @@ export const SiriOrb: React.FC<SiriOrbProps> = ({
         className="siri-orb"
         style={
           {
-            "--animation-duration": `${loopDuration}s`,
-            "--bg": finalColors.bg,
-            "--blur-amount": reactiveBlur,
-            "--c1": finalColors.c1,
-            "--c2": finalColors.c2,
-            "--c3": finalColors.c3,
-            "--c4": finalColors.c4,
-            "--contrast-amount": finalContrast,
-            "--dot-size": `${dotSize}px`,
-            "--drift-duration": `${driftDuration}s`,
-            "--mask-radius": maskRadius,
-            "--rim": `${rim}px`,
-            "--shadow-spread": `${shadowSpread}px`,
+            '--animation-duration': `${loopDuration}s`,
+            '--bg': finalColors.bg,
+            '--blur-amount': reactiveBlur,
+            '--c1': finalColors.c1,
+            '--c2': finalColors.c2,
+            '--c3': finalColors.c3,
+            '--c4': finalColors.c4,
+            '--contrast-amount': finalContrast,
+            '--dot-size': `${dotSize}px`,
+            '--drift-duration': `${driftDuration}s`,
+            '--mask-radius': maskRadius,
+            '--rim': `${rim}px`,
+            '--shadow-spread': `${shadowSpread}px`,
             filter: `saturate(${stateMotion.saturation}) hue-rotate(${stateMotion.hueRotate}deg)`,
-            height: "100%",
+            height: '100%',
             scale: reactiveScale,
-            width: "100%",
+            width: '100%',
           } as MotionStyle
         }
       >
         <span aria-hidden="true" className="siri-orb-layer siri-orb-sheen" />
         <span aria-hidden="true" className="siri-orb-layer siri-orb-rim" />
-        <style>{`
-        @property --angle {
-          syntax: "<angle>";
-          inherits: false;
-          initial-value: 0deg;
-        }
-
-        .siri-orb {
-          display: grid;
-          grid-template-areas: "stack";
-          overflow: hidden;
-          border-radius: 50%;
-          position: relative;
-          isolation: isolate;
-        }
-
-        .siri-orb::before,
-        .siri-orb::after,
-        .siri-orb > .siri-orb-layer {
-          content: "";
-          display: block;
-          grid-area: stack;
-          width: 100%;
-          height: 100%;
-          border-radius: 50%;
-        }
-
-        .siri-orb-sheen {
-          background:
-            radial-gradient(circle at 30% 24%, hsl(0 0% 100% / 0.32), transparent 34%),
-            radial-gradient(circle at 72% 80%, hsl(0 0% 100% / 0.07), transparent 48%);
-          mix-blend-mode: screen;
-          animation: siri-drift var(--drift-duration) ease-in-out infinite alternate;
-        }
-
-        .siri-orb-rim {
-          box-shadow:
-            inset 0 0 0 1px hsl(0 0% 100% / 0.16),
-            inset 0 calc(var(--rim) * 1) calc(var(--rim) * 2) hsl(0 0% 100% / 0.22),
-            inset 0 calc(var(--rim) * -1.2) calc(var(--rim) * 2.4) hsl(0 0% 0% / 0.4);
-          pointer-events: none;
-        }
-
-        @keyframes siri-drift {
-          0% { transform: translate(-6%, -4%) scale(1.05); }
-          100% { transform: translate(7%, 6%) scale(1.12); }
-        }
-
-        .siri-orb::before {
-          background:
-            conic-gradient(
-              from calc(var(--angle) * 2) at 25% 70%,
-              var(--c3),
-              transparent 20% 80%,
-              var(--c3)
-            ),
-            conic-gradient(
-              from calc(var(--angle) * 2) at 45% 75%,
-              var(--c2),
-              transparent 30% 60%,
-              var(--c2)
-            ),
-            conic-gradient(
-              from calc(var(--angle) * -3) at 80% 20%,
-              var(--c1),
-              transparent 40% 60%,
-              var(--c1)
-            ),
-            conic-gradient(
-              from calc(var(--angle) * 1.5) at 60% 35%,
-              var(--c4),
-              transparent 25% 75%,
-              var(--c4)
-            ),
-            conic-gradient(
-              from calc(var(--angle) * 2) at 15% 5%,
-              var(--c2),
-              transparent 10% 90%,
-              var(--c2)
-            ),
-            conic-gradient(
-              from calc(var(--angle) * 1) at 20% 80%,
-              var(--c1),
-              transparent 10% 90%,
-              var(--c1)
-            ),
-            conic-gradient(
-              from calc(var(--angle) * -2) at 85% 10%,
-              var(--c3),
-              transparent 20% 80%,
-              var(--c3)
-            );
-          box-shadow: inset var(--bg) 0 0 var(--shadow-spread)
-            calc(var(--shadow-spread) * 0.2);
-          filter: blur(var(--blur-amount)) contrast(var(--contrast-amount))
-            saturate(1.4);
-          animation: rotate var(--animation-duration) linear infinite;
-        }
-
-        .siri-orb::after {
-          background-image: radial-gradient(
-            circle at center,
-            var(--bg) var(--dot-size),
-            transparent var(--dot-size)
-          );
-          background-size: calc(var(--dot-size) * 2) calc(var(--dot-size) * 2);
-          backdrop-filter: blur(calc(var(--blur-amount) * 2))
-            contrast(calc(var(--contrast-amount) * 2));
-          mix-blend-mode: overlay;
-        }
-
-        .siri-orb[style*="--mask-radius: 0%"]::after {
-          mask-image: none;
-        }
-
-        .siri-orb:not([style*="--mask-radius: 0%"])::after {
-          mask-image: radial-gradient(
-            black var(--mask-radius),
-            transparent 75%
-          );
-        }
-
-        @keyframes rotate {
-          to {
-            --angle: 360deg;
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .siri-orb::before,
-          .siri-orb-sheen {
-            animation: none;
-          }
-        }
-      `}</style>
+        <style>{SIRI_ORB_CSS}</style>
       </motion.div>
     </motion.div>
   );

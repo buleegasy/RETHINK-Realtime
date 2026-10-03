@@ -309,17 +309,19 @@ export class RelaySessionCoordinator {
             })
             .catch(() => {});
 
-          // 3. 影子大脑认知指导
-          void shadowPipeline.execute({
+          // 3. 影子大脑认知指导与单点响应协调 (1200ms 超时熔断降级)
+          this.coordinateShadowTurn({
+            shadowPipeline,
+            upstreamWs,
+            coordinator,
+            currentSeq,
+            signal,
             userText,
             dialogueHistory,
             studentName: getStudentName(),
             situationalMemory: getMemory(),
-            signal,
-            isTurnValid: () => coordinator.isValid(currentSeq),
-            onExtractedName: (name) => {
-              if (!getStudentName()) setStudentName(name);
-            },
+            getStudentName,
+            setStudentName,
           });
         }
 
@@ -329,6 +331,85 @@ export class RelaySessionCoordinator {
         }
       } catch {}
     });
+  }
+
+  private static coordinateShadowTurn(params: {
+    shadowPipeline: ShadowReasoningPipeline;
+    upstreamWs: WebSocket;
+    coordinator: BargeInCoordinator;
+    currentSeq: number;
+    signal: AbortSignal;
+    userText: string;
+    dialogueHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
+    studentName: string;
+    situationalMemory: any;
+    getStudentName: () => string;
+    setStudentName: (name: string) => void;
+  }): void {
+    const {
+      shadowPipeline,
+      upstreamWs,
+      coordinator,
+      currentSeq,
+      signal,
+      userText,
+      dialogueHistory,
+      studentName,
+      situationalMemory,
+      getStudentName,
+      setStudentName,
+    } = params;
+
+    let turnTimedOut = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const timeoutPromise = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        turnTimedOut = true;
+        resolve();
+      }, 1200);
+    });
+
+    signal.addEventListener(
+      'abort',
+      () => {
+        if (timer) clearTimeout(timer);
+      },
+      { once: true },
+    );
+
+    const shadowPromise = shadowPipeline
+      .execute({
+        userText,
+        dialogueHistory,
+        studentName,
+        situationalMemory,
+        signal,
+        isTurnValid: () => coordinator.isValid(currentSeq) && !turnTimedOut,
+        onExtractedName: (name) => {
+          if (!getStudentName()) setStudentName(name);
+        },
+      })
+      .catch(() => {});
+
+    void Promise.race([shadowPromise, timeoutPromise]).then(() => {
+      if (timer) clearTimeout(timer);
+      this.triggerTurnResponse(upstreamWs, coordinator, currentSeq, signal);
+    });
+  }
+
+  private static triggerTurnResponse(
+    upstreamWs: WebSocket,
+    coordinator: BargeInCoordinator,
+    currentSeq: number,
+    signal: AbortSignal,
+  ): void {
+    if (!coordinator.isValid(currentSeq) || signal.aborted) {
+      return;
+    }
+    if (upstreamWs.readyState === WebSocket.OPEN) {
+      upstreamWs.send(JSON.stringify({ type: 'response.create' }));
+    }
   }
 
   private static bindLifecycleEvents(params: {

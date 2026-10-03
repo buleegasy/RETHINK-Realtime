@@ -156,8 +156,52 @@ describe('AudioGraphService 打断音量渐弱与状态管理验证', () => {
     expect(detector.consecutiveSpeechFrames).toBe(0); // 触发后重置
   });
 
-  it('cleanup 应安全释放所有节点与上下文', async () => {
+  it('stopRecording 应安全终止 mediaStream 上的所有音轨并断开节点', async () => {
     await service.initAudioContext();
+    const trackStopSpy = vi.fn();
+    const mockTrack = { stop: trackStopSpy } as unknown as MediaStreamTrack;
+    const mockStream = {
+      getTracks: () => [mockTrack],
+    } as unknown as MediaStream;
+
+    (service as any).mediaStream = mockStream;
+    expect(service.isRecordingActive()).toBe(true);
+
+    service.stopRecording();
+
+    expect(trackStopSpy).toHaveBeenCalledTimes(1);
+    expect(service.isRecordingActive()).toBe(false);
+    expect((service as any).mediaStream).toBeNull();
+  });
+
+  it('stopRecording 应显式解绑 processorNode 与 workletNode 的事件监听器引用', () => {
+    const mockWorklet = {
+      port: { onmessage: vi.fn() },
+      disconnect: vi.fn(),
+    };
+    const mockProcessor = {
+      onaudioprocess: vi.fn(),
+      disconnect: vi.fn(),
+    };
+
+    (service as any).workletNode = mockWorklet;
+    (service as any).processorNode = mockProcessor;
+
+    service.stopRecording();
+
+    expect(mockWorklet.port.onmessage).toBeNull();
+    expect(mockWorklet.disconnect).toHaveBeenCalled();
+    expect((service as any).workletNode).toBeNull();
+
+    expect(mockProcessor.onaudioprocess).toBeNull();
+    expect(mockProcessor.disconnect).toHaveBeenCalled();
+    expect((service as any).processorNode).toBeNull();
+  });
+
+  it('cleanup 应调用 stopRecording 并安全释放所有节点与上下文', async () => {
+    await service.initAudioContext();
+    const stopRecordingSpy = vi.spyOn(service, 'stopRecording');
     expect(() => service.cleanup()).not.toThrow();
+    expect(stopRecordingSpy).toHaveBeenCalled();
   });
 });

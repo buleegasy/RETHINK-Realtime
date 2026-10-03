@@ -114,4 +114,72 @@ describe('CbtStateMachine (CBT 有限状态机流转严密性测试)', () => {
     expect(res2.success).toBe(false);
     expect(fsm.getStage()).toBe('Crisis_Escalation');
   });
+
+  it('情绪极度负向时锁定在 Active_Listening (emotionalValence < -0.3 抑制盲推与跃迁)', () => {
+    expect(fsm.getStage()).toBe('Active_Listening');
+
+    // 用户表露剧烈负向情绪
+    fsm.recordTurn({
+      role: 'user',
+      emotionalValence: -0.6,
+      cognitiveExposure: 0.8,
+    });
+
+    expect(fsm.isEmotionallyLocked()).toBe(true);
+    expect(fsm.getEmotionalValence()).toBe(-0.6);
+
+    // 手动尝试推进至 CBT_Stripping 应被拦截
+    const resManual = fsm.transition('CBT_Stripping');
+    expect(resManual.success).toBe(false);
+    expect(resManual.reason).toContain('情绪锁定保护');
+    expect(fsm.getStage()).toBe('Active_Listening');
+
+    // 连续进行多轮对话达到看门狗上限，因情绪严重负向依然不得自动推进
+    for (let i = 0; i < 6; i++) {
+      const turnRes = fsm.recordTurn({
+        role: 'user',
+        emotionalValence: -0.5,
+        cognitiveExposure: 0.9,
+      });
+      expect(turnRes.autoPromotedStage).toBeNull();
+      expect(fsm.getStage()).toBe('Active_Listening');
+    }
+
+    // 越级跃迁至 Socratic_Questioning 同样被锁定拦截，且不被错误自愈校正推进
+    const resJump = fsm.transition('Socratic_Questioning');
+    expect(resJump.success).toBe(false);
+    expect(resJump.reason).toContain('情绪锁定保护');
+    expect(fsm.getStage()).toBe('Active_Listening');
+  });
+
+  it('情绪平稳且认知暴露度满足时方可自适应流转至 CBT_Stripping', () => {
+    expect(fsm.getStage()).toBe('Active_Listening');
+
+    // 1. 认知暴露度不足时，即使经历多轮对话也不推进
+    const turnLowExposure = fsm.recordTurn({
+      role: 'user',
+      emotionalValence: 0.1,
+      cognitiveExposure: 0.2, // 低于 minCognitiveExposureForStripping (0.4)
+    });
+    expect(turnLowExposure.autoPromotedStage).toBeNull();
+
+    // 2. 模拟对话推进，情绪平稳且认知暴露度充分 (>= 0.4)
+    for (let i = 0; i < 3; i++) {
+      fsm.recordTurn({
+        role: 'user',
+        emotionalValence: -0.1,
+        cognitiveExposure: 0.5,
+      });
+    }
+
+    // 第 5 轮满足 activeListeningMaxTurns (5) 且 exposure >= 0.4
+    const finalTurn = fsm.recordTurn({
+      role: 'user',
+      emotionalValence: -0.1,
+      cognitiveExposure: 0.6,
+    });
+
+    expect(finalTurn.autoPromotedStage).toBe('CBT_Stripping');
+    expect(fsm.getStage()).toBe('CBT_Stripping');
+  });
 });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useModeStore } from '../../store/modeStore';
 import { apiFetch } from '../../lib/api';
@@ -15,6 +15,7 @@ export const LoginWall: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +38,11 @@ export const LoginWall: React.FC = () => {
     const endpoint = activeTab === 'register' ? '/api/auth/register' : '/api/auth/login';
     const payload =
       activeTab === 'register'
-        ? { username: username.trim(), password, displayName: displayName.trim() || username.trim() }
+        ? {
+            username: username.trim(),
+            password,
+            displayName: displayName.trim() || username.trim(),
+          }
         : { username: username.trim(), password };
 
     try {
@@ -127,9 +132,7 @@ export const LoginWall: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-mono text-black/60 mb-1">
-              用户名
-            </label>
+            <label className="block text-xs font-mono text-black/60 mb-1">用户名</label>
             <input
               type="text"
               required
@@ -143,9 +146,7 @@ export const LoginWall: React.FC = () => {
 
           {activeTab === 'register' && (
             <div>
-              <label className="block text-xs font-mono text-black/60 mb-1">
-                称呼
-              </label>
+              <label className="block text-xs font-mono text-black/60 mb-1">称呼</label>
               <input
                 type="text"
                 value={displayName}
@@ -157,18 +158,25 @@ export const LoginWall: React.FC = () => {
           )}
 
           <div>
-            <label className="block text-xs font-mono text-black/60 mb-1">
-              密码
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="请输入密码"
-              autoComplete={activeTab === 'register' ? 'new-password' : 'current-password'}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-black/15 bg-white text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
-            />
+            <label className="block text-xs font-mono text-black/60 mb-1">密码</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入密码"
+                autoComplete={activeTab === 'register' ? 'new-password' : 'current-password'}
+                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-black/15 bg-white text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-black/50 hover:text-black p-1 cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <button

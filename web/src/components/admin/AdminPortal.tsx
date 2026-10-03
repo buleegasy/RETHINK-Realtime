@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ArrowRight } from 'lucide-react';
+import { ShieldAlert, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
 import { AdminNavbar } from './AdminNavbar';
+import { CrisisAlertBanner } from './CrisisAlertBanner';
 import { CampusPulseDashboard } from './CampusPulseDashboard';
 import { CrisisResponseCenter } from './CrisisResponseCenter';
 import { SessionArchiveDrawer } from './SessionArchiveDrawer';
@@ -22,6 +23,8 @@ export const AdminPortal: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -82,14 +85,23 @@ export const AdminPortal: React.FC = () => {
               <label className="block text-xs font-medium text-[#1f1f1f] mb-1.5 font-mono">
                 密码
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 text-base sm:text-sm rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77]"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-4 pr-10 py-2.5 text-base sm:text-sm rounded-xl border border-[#c4c7c5] bg-[#ffffff] focus:outline-none focus:border-[#004a77]"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#747775] hover:text-[#1f1f1f] p-1 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -109,6 +121,7 @@ export const AdminPortal: React.FC = () => {
   return (
     <div className="h-full w-full overflow-y-auto bg-[#f8f9fa] flex flex-col text-[#1f1f1f] scroll-smooth">
       <AdminNavbar onOpenSettings={() => setIsSettingsOpen(true)} />
+      <CrisisAlertBanner />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 md:p-8 pb-24 md:pb-16">
         {activeTab === 'pulse' && <CampusPulseDashboard />}
@@ -116,9 +129,7 @@ export const AdminPortal: React.FC = () => {
         {activeTab === 'sessions' && <SessionArchiveDrawer />}
       </main>
 
-      {isSettingsOpen && (
-        <AdminSettingsModal onClose={() => setIsSettingsOpen(false)} />
-      )}
+      {isSettingsOpen && <AdminSettingsModal onClose={() => setIsSettingsOpen(false)} />}
     </div>
   );
 };

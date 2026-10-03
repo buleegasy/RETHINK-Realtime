@@ -182,11 +182,11 @@ export class AudioGraphService {
   private handleInputChunk(
     inputBuffer: Float32Array,
     ctx: AudioContext,
-    onAudioChunk: (pcm16Base64: string) => void
+    onAudioChunk: (pcm16Base64: string) => void,
   ): void {
     const speakerRms = this.bargeInDetector.getSpeakerRms(
       this.speakerAnalyserNode,
-      this.playbackQueue.isAiSpeaking
+      this.playbackQueue.isAiSpeaking,
     );
     const playedMs = this.playbackQueue.getPlaybackDurationMs(ctx);
 
@@ -194,7 +194,8 @@ export class AudioGraphService {
       inputBuffer,
       sampleRate: ctx.sampleRate,
       isMuted: this.isMuted,
-      isAiSpeakingOrActive: this.playbackQueue.isAiSpeaking || this.playbackQueue.isPlaybackActive(),
+      isAiSpeakingOrActive:
+        this.playbackQueue.isAiSpeaking || this.playbackQueue.isPlaybackActive(),
       speakerRms,
       playedMs,
       onAudioChunk,
@@ -208,7 +209,10 @@ export class AudioGraphService {
     });
   }
 
-  private setupScriptProcessorFallback(ctx: AudioContext, onAudioChunk: (pcm16Base64: string) => void): void {
+  private setupScriptProcessorFallback(
+    ctx: AudioContext,
+    onAudioChunk: (pcm16Base64: string) => void,
+  ): void {
     this.processorNode = ctx.createScriptProcessor(2048, 1, 1);
     this.processorNode.onaudioprocess = (e) => {
       const out = e.outputBuffer.getChannelData(0);
@@ -253,7 +257,13 @@ export class AudioGraphService {
       const arrayBuffer = await res.arrayBuffer();
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
       const outputGain = this.ensureOutputGraph(ctx);
-      this.playbackQueue.playDecodedBuffer(ctx, audioBuffer, outputGain, this.analyserNode, onEnded);
+      this.playbackQueue.playDecodedBuffer(
+        ctx,
+        audioBuffer,
+        outputGain,
+        this.analyserNode,
+        onEnded,
+      );
     } catch {
       onEnded?.();
     }
@@ -273,7 +283,13 @@ export class AudioGraphService {
       }
       const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
       const outputGain = this.ensureOutputGraph(ctx);
-      this.playbackQueue.playDecodedBuffer(ctx, audioBuffer, outputGain, this.analyserNode, onEnded);
+      this.playbackQueue.playDecodedBuffer(
+        ctx,
+        audioBuffer,
+        outputGain,
+        this.analyserNode,
+        onEnded,
+      );
     } catch {
       onEnded?.();
     }
@@ -285,7 +301,12 @@ export class AudioGraphService {
 
   public enqueueAudioChunk(base64Chunk: string): void {
     if (!this.audioCtx || !this.outputGainNode) return;
-    this.playbackQueue.enqueueChunk(base64Chunk, this.audioCtx, this.outputGainNode, this.analyserNode);
+    this.playbackQueue.enqueueChunk(
+      base64Chunk,
+      this.audioCtx,
+      this.outputGainNode,
+      this.analyserNode,
+    );
   }
 
   public stopPlayback(fadeDurationMs: number = 150): void {
@@ -317,7 +338,11 @@ export class AudioGraphService {
   }
 
   private bindDeviceChangeListener(): void {
-    if (!this.boundDeviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
+    if (
+      !this.boundDeviceChangeListener &&
+      typeof navigator !== 'undefined' &&
+      navigator.mediaDevices
+    ) {
       this.boundDeviceChangeListener = () => {
         this.reinitInputStream().catch(() => {});
       };
@@ -327,37 +352,26 @@ export class AudioGraphService {
     }
   }
 
-  public cleanup(): void {
-    this.stopPlayback(0);
-    if (this.boundDeviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
+  public stopRecording(): void {
+    if (this.mediaStream) {
       try {
-        navigator.mediaDevices.removeEventListener('devicechange', this.boundDeviceChangeListener);
+        this.mediaStream.getTracks().forEach((t) => t.stop());
       } catch {}
-      this.boundDeviceChangeListener = null;
+      this.mediaStream = null;
     }
     if (this.workletNode) {
       try {
+        this.workletNode.port.onmessage = null;
         this.workletNode.disconnect();
       } catch {}
       this.workletNode = null;
     }
     if (this.processorNode) {
       try {
+        this.processorNode.onaudioprocess = null;
         this.processorNode.disconnect();
       } catch {}
       this.processorNode = null;
-    }
-    if (this.inputGainNode) {
-      try {
-        this.inputGainNode.disconnect();
-      } catch {}
-      this.inputGainNode = null;
-    }
-    if (this.highpassFilterNode) {
-      try {
-        this.highpassFilterNode.disconnect();
-      } catch {}
-      this.highpassFilterNode = null;
     }
     if (this.sourceNode) {
       try {
@@ -365,11 +379,42 @@ export class AudioGraphService {
       } catch {}
       this.sourceNode = null;
     }
+    if (this.highpassFilterNode) {
+      try {
+        this.highpassFilterNode.disconnect();
+      } catch {}
+      this.highpassFilterNode = null;
+    }
+    if (this.inputGainNode) {
+      try {
+        this.inputGainNode.disconnect();
+      } catch {}
+      this.inputGainNode = null;
+    }
     if (this.analyserNode) {
       try {
         this.analyserNode.disconnect();
       } catch {}
       this.analyserNode = null;
+    }
+  }
+
+  public isRecordingActive(): boolean {
+    return this.mediaStream !== null;
+  }
+
+  public cleanup(): void {
+    this.stopPlayback(0);
+    this.stopRecording();
+    if (
+      this.boundDeviceChangeListener &&
+      typeof navigator !== 'undefined' &&
+      navigator.mediaDevices
+    ) {
+      try {
+        navigator.mediaDevices.removeEventListener('devicechange', this.boundDeviceChangeListener);
+      } catch {}
+      this.boundDeviceChangeListener = null;
     }
     if (this.speakerAnalyserNode) {
       try {
@@ -388,10 +433,6 @@ export class AudioGraphService {
         this.outputGainNode.disconnect();
       } catch {}
       this.outputGainNode = null;
-    }
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((t) => t.stop());
-      this.mediaStream = null;
     }
     if (this.audioCtx) {
       this.audioCtx.close().catch(() => {});

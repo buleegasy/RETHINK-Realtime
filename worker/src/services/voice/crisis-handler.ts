@@ -26,6 +26,17 @@ export class CrisisHandler {
     this.cancelUpstream();
     this.notifyClient(tier);
     this.dispatchWebhookWithRetry(summary, concerns);
+    this.closeConnections();
+  }
+
+  private closeConnections(): void {
+    try {
+      this.upstreamWs.close(1000, 'Crisis intervention completed');
+    } catch {}
+
+    try {
+      this.serverWs.close(1000, 'Crisis intervention completed');
+    } catch {}
   }
 
   private cancelUpstream(): void {

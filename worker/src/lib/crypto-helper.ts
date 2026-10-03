@@ -9,7 +9,7 @@ async function deriveAesKeyPbkdf2(secretKey: string, salt: Uint8Array): Promise<
     enc.encode(secretKey),
     { name: 'PBKDF2' },
     false,
-    ['deriveKey']
+    ['deriveKey'],
   );
 
   return crypto.subtle.deriveKey(
@@ -22,7 +22,7 @@ async function deriveAesKeyPbkdf2(secretKey: string, salt: Uint8Array): Promise<
     passwordKey,
     { name: 'AES-GCM', length: 256 },
     false,
-    ['encrypt', 'decrypt']
+    ['encrypt', 'decrypt'],
   );
 }
 
@@ -39,7 +39,7 @@ export async function encryptAesGcm(plainText: string, secretKey: string): Promi
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     keyMaterial,
-    enc.encode(plainText)
+    enc.encode(plainText),
   );
 
   const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
@@ -52,6 +52,58 @@ export async function encryptAesGcm(plainText: string, secretKey: string): Promi
     binary += String.fromCharCode(combined[i]);
   }
   return btoa(binary);
+}
+
+async function decryptLegacy(
+  rawBytes: Uint8Array,
+  secretKey: string,
+  dec: TextDecoder,
+): Promise<string> {
+  const enc = new TextEncoder();
+  const legacyIv = rawBytes.slice(0, GCM_IV_BYTES);
+  const legacyData = rawBytes.slice(GCM_IV_BYTES);
+
+  try {
+    const baseKey = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secretKey),
+      { name: 'PBKDF2' },
+      false,
+      ['deriveKey'],
+    );
+    const legacyKey = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: enc.encode('rethink-session-v1'),
+        iterations: PBKDF2_KEY_ITERATIONS,
+        hash: 'SHA-256',
+      },
+      baseKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt'],
+    );
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: legacyIv },
+      legacyKey,
+      legacyData,
+    );
+    return dec.decode(decrypted);
+  } catch {}
+
+  const padKey = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secretKey.padEnd(32, '#').slice(0, 32)),
+    { name: 'AES-GCM' },
+    false,
+    ['decrypt'],
+  );
+  const padDecrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: legacyIv },
+    padKey,
+    legacyData,
+  );
+  return dec.decode(padDecrypted);
 }
 
 /**
@@ -73,34 +125,17 @@ export async function decryptAesGcm(cipherBase64: string, secretKey: string): Pr
       const data = rawBytes.slice(PBKDF2_SALT_BYTES + GCM_IV_BYTES);
 
       const keyMaterial = await deriveAesKeyPbkdf2(secretKey, salt);
-      const decrypted = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        keyMaterial,
-        data
-      );
+      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, keyMaterial, data);
       return dec.decode(decrypted);
-    } catch {
-      // 若 PBKDF2 解密不匹配，平滑回退至遗留格式尝试
-    }
+    } catch {}
   }
 
-  // 2. 遗留格式兼容兜底: IV 12B + 截断填充 Key
-  const enc = new TextEncoder();
-  const legacyIv = rawBytes.slice(0, 12);
-  const legacyData = rawBytes.slice(12);
+  // 2. 遗留格式兼容兜底
+  if (rawBytes.length > GCM_IV_BYTES) {
+    try {
+      return await decryptLegacy(rawBytes, secretKey, dec);
+    } catch {}
+  }
 
-  const legacyKey = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(secretKey.padEnd(32, '#').slice(0, 32)),
-    { name: 'AES-GCM' },
-    false,
-    ['decrypt']
-  );
-
-  const legacyDecrypted = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: legacyIv },
-    legacyKey,
-    legacyData
-  );
-  return dec.decode(legacyDecrypted);
+  throw new Error('解密失败：密文损坏或安全密钥不匹配');
 }

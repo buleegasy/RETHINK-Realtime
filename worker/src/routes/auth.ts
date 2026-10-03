@@ -6,7 +6,7 @@ export const authRouter = new Hono<{ Bindings: Env }>();
 
 let usersTableInitialized = false;
 
-async function ensureUsersTable(env: Env): Promise<void> {
+export async function ensureUsersTable(env: Env): Promise<void> {
   if (!env.DB || usersTableInitialized) return;
   try {
     await env.DB.prepare(
@@ -21,6 +21,15 @@ async function ensureUsersTable(env: Env): Promise<void> {
       )
     `,
     ).run();
+
+    const defaultTeacherHash = await hashPassword('counselor2026');
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO users (id, username, password_hash, display_name, role)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind('usr_teacher', 'teacher', defaultTeacherHash, '校心理专职教师', 'teacher')
+      .run();
+
     usersTableInitialized = true;
   } catch (err) {
     console.warn('[Auth] users 数据表校验跳过或已存在:', err);
@@ -37,9 +46,11 @@ export function getMemoryUser(username: string) {
   return memoryUsers.get(username);
 }
 
+let memoryInitPromise: Promise<void> | null = null;
+
 // 仅在非生产/测试环境中初始化内置测试账号，生产环境严禁预置任何静态测试账号
 if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
-  void (async () => {
+  memoryInitPromise = (async () => {
     try {
       const defaultHash = await hashPassword('password123');
       memoryUsers.set('testuser', {
@@ -47,6 +58,13 @@ if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
         passwordHash: defaultHash,
         displayName: 'testuser',
         role: 'user',
+      });
+      const teacherHash = await hashPassword('counselor2026');
+      memoryUsers.set('teacher', {
+        id: 'usr_teacher',
+        passwordHash: teacherHash,
+        displayName: '校心理专职教师',
+        role: 'teacher',
       });
     } catch (err) {
       console.warn('[Auth] 内存默认测试用户初始化异常:', err);
@@ -69,6 +87,9 @@ async function verifyUserCredentials(
   password: string,
   env: Env,
 ): Promise<AuthVerificationResult> {
+  if (memoryInitPromise) {
+    await memoryInitPromise;
+  }
   if (env.DB) {
     try {
       const userRow = await env.DB.prepare(
@@ -204,6 +225,9 @@ authRouter.post('/register', async (c) => {
   const passwordHash = await hashPassword(password);
 
   await ensureUsersTable(env);
+  if (memoryInitPromise) {
+    await memoryInitPromise;
+  }
 
   if (env.DB) {
     try {
@@ -263,7 +287,64 @@ authRouter.post('/register', async (c) => {
   });
 });
 
+interface KioskRateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const kioskRateLimits = new Map<string, KioskRateLimitEntry>();
+const KIOSK_MAX_ATTEMPTS_PER_MIN = 30;
+
+function isKioskRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = kioskRateLimits.get(ip);
+  if (!entry || now > entry.resetAt) {
+    kioskRateLimits.set(ip, { count: 1, resetAt: now + 60_000 });
+    return false;
+  }
+  if (entry.count >= KIOSK_MAX_ATTEMPTS_PER_MIN) {
+    return true;
+  }
+  entry.count += 1;
+  return false;
+}
+
+export function resetKioskRateLimits(): void {
+  kioskRateLimits.clear();
+}
+
+function checkKioskDeviceKey(c: any, body: any, env: Env): { valid: boolean; error?: string } {
+  const configuredKey = env.KIOSK_DEVICE_KEY;
+  if (!configuredKey) {
+    return { valid: true };
+  }
+
+  const incomingKey =
+    c.req.header('X-Kiosk-Device-Key') ||
+    c.req.header('x-kiosk-device-key') ||
+    body.deviceKey ||
+    body.device_key;
+
+  if (!incomingKey || incomingKey.trim() !== configuredKey.trim()) {
+    return {
+      valid: false,
+      error: '设备密钥校验失败: 缺少或无效的 X-Kiosk-Device-Key',
+    };
+  }
+  return { valid: true };
+}
+
 authRouter.post('/kiosk-login', async (c) => {
+  const clientIp =
+    c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || '127.0.0.1';
+
+  if (isKioskRateLimited(clientIp)) {
+    return c.json(
+      { success: false, error: '请求过于频繁，触发终端鉴权频次限制 (Rate limit exceeded)' },
+      429,
+    );
+  }
+
   let body: any = {};
   try {
     body = await c.req.json();
@@ -271,10 +352,15 @@ authRouter.post('/kiosk-login', async (c) => {
     body = {};
   }
 
+  const env = c.env || {};
+  const keyCheck = checkKioskDeviceKey(c, body, env);
+  if (!keyCheck.valid) {
+    return c.json({ success: false, error: keyCheck.error }, 401);
+  }
+
   const deviceId =
     body.deviceId && typeof body.deviceId === 'string' ? body.deviceId.trim() : 'kiosk-booth-01';
 
-  const env = c.env || {};
   const currentEpoch = Math.floor(Date.now() / 1000);
   let kioskSecret = '';
   try {

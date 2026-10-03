@@ -58,24 +58,25 @@ export class BgeRetriever {
         return data.data[0].embedding;
       }
       return null;
-    } catch {
+    } catch (err) {
+      console.debug('[BgeRetriever] fetchBgeEmbedding 失败:', err);
       return null;
     }
   }
 
   public calculateBm25Score(query: string, capsule: CbtCapsule): number {
     const qLower = query.toLowerCase();
-    let score = 0.42;
+    let score = 0.0;
 
     for (const kw of capsule.keywords) {
       const kwLower = kw.toLowerCase();
       if (qLower.includes(kwLower)) {
-        score += 0.16;
+        score += 0.35;
       } else {
         for (let i = 0; i <= kwLower.length - 2; i++) {
           const gram = kwLower.substring(i, i + 2);
           if (qLower.includes(gram)) {
-            score += 0.06;
+            score += 0.08;
             break;
           }
         }
@@ -86,17 +87,21 @@ export class BgeRetriever {
       qLower.includes(capsule.title.toLowerCase()) ||
       capsule.title.toLowerCase().includes(qLower)
     ) {
-      score += 0.2;
+      score += 0.5;
     }
 
     const words = qLower.split(/[\s,，.。!！?？]+/).filter((w) => w.length >= 2);
+    let contentHits = 0;
     for (const w of words) {
       if (capsule.content.includes(w)) {
-        score += 0.05;
+        contentHits++;
       }
     }
+    if (contentHits > 0) {
+      score += Math.min(0.25, contentHits * 0.08);
+    }
 
-    return Math.min(1.0, score);
+    return Math.min(1.0, Number(score.toFixed(4)));
   }
 
   public async search(query: string, options?: RagSearchOptions): Promise<RagSearchResult[]> {
@@ -112,23 +117,7 @@ export class BgeRetriever {
       pool = pool.filter((c) => c.category === category);
     }
 
-    const hasAnyEmbedding = pool.some((c) => Array.isArray(c.embedding) && c.embedding.length > 0);
-    const queryVec = hasAnyEmbedding ? await this.fetchBgeEmbedding(cleanQuery) : null;
-
     const results: RagSearchResult[] = pool.map((capsule) => {
-      if (
-        queryVec &&
-        Array.isArray(capsule.embedding) &&
-        capsule.embedding.length === queryVec.length
-      ) {
-        const score = this.dotProduct(queryVec, capsule.embedding);
-        return {
-          capsule,
-          score,
-          matchedBy: 'vector',
-        };
-      }
-
       const bm25Score = this.calculateBm25Score(cleanQuery, capsule);
       return {
         capsule,

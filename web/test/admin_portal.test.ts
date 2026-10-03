@@ -65,7 +65,9 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
       });
     });
 
-    const res = await useAdminStore.getState().unmaskCrisis('sess_123', 'teacher-safe-2026', '王老师');
+    const res = await useAdminStore
+      .getState()
+      .unmaskCrisis('sess_123', 'teacher-safe-2026', '王老师');
     expect(res.success).toBe(true);
     expect(res.identity?.realName).toBe('真实来访学生');
 
@@ -98,11 +100,9 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
       json: () => Promise.resolve({ success: true }),
     });
 
-    const ok = await useAdminStore.getState().updateDisposition(
-      'sess_999',
-      'intervened',
-      '已在咨询室开展线下危机评估'
-    );
+    const ok = await useAdminStore
+      .getState()
+      .updateDisposition('sess_999', 'intervened', '已在咨询室开展线下危机评估');
     expect(ok).toBe(true);
     const updated = useAdminStore.getState().crises.find((c) => c.sessionId === 'sess_999');
     expect(updated?.dispositionStatus).toBe('intervened');
@@ -145,7 +145,9 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
     });
 
     await useAdminStore.getState().fetchCrises();
-    const crisis = useAdminStore.getState().crises.find((c) => c.sessionId === 'sess_crisis_closed');
+    const crisis = useAdminStore
+      .getState()
+      .crises.find((c) => c.sessionId === 'sess_crisis_closed');
     expect(crisis?.dispositionStatus).toBe('closed');
     expect(crisis?.dispositionNote).toBe('经心理老师与家长线下介入，危机已解除并结案');
   });
@@ -157,7 +159,12 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
         const isCorrect = body.secondary_passcode === 'teacher-safe-2026';
         return Promise.resolve({
           ok: isCorrect,
-          json: () => Promise.resolve(isCorrect ? { success: true, session_id: body.session_id } : { success: false, error: '口令错误' }),
+          json: () =>
+            Promise.resolve(
+              isCorrect
+                ? { success: true, session_id: body.session_id }
+                : { success: false, error: '口令错误' },
+            ),
         });
       }
       return Promise.resolve({
@@ -170,10 +177,14 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
   it('安全归档软删除需口令验证，成功后触发刷新并保留底层数据', async () => {
     globalThis.fetch = mockPasscodeFetch('/api/admin/sessions/delete');
 
-    const failRes = await useAdminStore.getState().deleteSession('sess_123', 'wrong-code', '测试删除');
+    const failRes = await useAdminStore
+      .getState()
+      .deleteSession('sess_123', 'wrong-code', '测试删除');
     expect(failRes.success).toBe(false);
 
-    const successRes = await useAdminStore.getState().deleteSession('sess_123', 'teacher-safe-2026', '演练结束安全归档');
+    const successRes = await useAdminStore
+      .getState()
+      .deleteSession('sess_123', 'teacher-safe-2026', '演练结束安全归档');
     expect(successRes.success).toBe(true);
   });
 
@@ -241,5 +252,99 @@ describe('心理老师管理后台与危机穿透状态机测试', () => {
     expect(res.report?.evaluatedBy).toBe('DeepSeek V4 Flash');
     const updated = useAdminStore.getState().sessions.find((s) => s.sessionId === 'sess_123');
     expect(updated?.crisisSummary).toBe('由 DeepSeek V4 Flash 重新提炼评估');
+  });
+
+  it('navigateToSessionsWithTag 能够平滑切换选项卡并预置创伤/议题标签过滤', () => {
+    const store = useAdminStore.getState();
+    store.setActiveTab('pulse');
+    expect(useAdminStore.getState().activeTab).toBe('pulse');
+    expect(useAdminStore.getState().sessionFilterTag).toBeNull();
+
+    store.navigateToSessionsWithTag('人际冲突');
+    expect(useAdminStore.getState().activeTab).toBe('sessions');
+    expect(useAdminStore.getState().sessionFilterTag).toBe('人际冲突');
+
+    useAdminStore.getState().setSessionFilterTag(null);
+    expect(useAdminStore.getState().sessionFilterTag).toBeNull();
+  });
+
+  it('navigateToCrisesWithStatus 能够平滑切换至危机中心并自动筛选待跟进状态', () => {
+    const store = useAdminStore.getState();
+    store.setActiveTab('pulse');
+
+    store.navigateToCrisesWithStatus('pending_contact');
+    expect(useAdminStore.getState().activeTab).toBe('crises');
+    expect(useAdminStore.getState().crisisFilterStatus).toBe('pending_contact');
+
+    useAdminStore.getState().setCrisisFilterStatus('all');
+    expect(useAdminStore.getState().crisisFilterStatus).toBe('all');
+  });
+
+  it('dismissCrisisAlert 能够记录稍后提醒的会话编号', () => {
+    const store = useAdminStore.getState();
+    expect(store.dismissedAlertSessionIds).toEqual([]);
+
+    store.dismissCrisisAlert('sess_crisis_001');
+    expect(useAdminStore.getState().dismissedAlertSessionIds).toContain('sess_crisis_001');
+  });
+
+  it('playBuzzer 播放结束后能够安全关闭 AudioContext 并断开音频节点，防止并发泄漏', () => {
+    const closeSpy = vi.fn();
+    const oscDisconnectSpy = vi.fn();
+    const gainDisconnectSpy = vi.fn();
+    let onendedHandler: (() => void) | null = null;
+
+    const mockOsc = {
+      type: 'sine',
+      frequency: { setValueAtTime: vi.fn() },
+      connect: vi.fn(),
+      start: vi.fn(),
+      stop: vi.fn(),
+      disconnect: oscDisconnectSpy,
+      set onended(fn: any) {
+        onendedHandler = fn;
+      },
+      get onended() {
+        return onendedHandler;
+      },
+    };
+
+    const mockGain = {
+      gain: {
+        setValueAtTime: vi.fn(),
+        exponentialRampToValueAtTime: vi.fn(),
+      },
+      connect: vi.fn(),
+      disconnect: gainDisconnectSpy,
+    };
+
+    const mockCtx = {
+      currentTime: 0,
+      state: 'running',
+      destination: {},
+      createOscillator: () => mockOsc,
+      createGain: () => mockGain,
+      close: closeSpy,
+    };
+
+    const originalAudioContext = window.AudioContext;
+    (window as any).AudioContext = vi.fn().mockImplementation(() => mockCtx);
+
+    try {
+      useAdminStore.getState().playBuzzer();
+      expect(mockOsc.start).toHaveBeenCalled();
+      expect(mockOsc.stop).toHaveBeenCalled();
+      expect(onendedHandler).toBeTypeOf('function');
+
+      if (onendedHandler) {
+        (onendedHandler as () => void)();
+      }
+
+      expect(oscDisconnectSpy).toHaveBeenCalled();
+      expect(gainDisconnectSpy).toHaveBeenCalled();
+      expect(closeSpy).toHaveBeenCalled();
+    } finally {
+      (window as any).AudioContext = originalAudioContext;
+    }
   });
 });

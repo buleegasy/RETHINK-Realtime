@@ -1,16 +1,19 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useBoothStore } from '../store/boothStore';
 import { useAuthStore } from '../store/authStore';
-import { AudioGraphService } from '../lib/audio/audioGraph';
 import { MiniMaxRealtimeClient } from '../lib/minimax/client';
 import { RealtimeToolDispatcher } from '../lib/tools/toolDispatcher';
 import { DefaultRagProvider } from '../lib/pipelines/rag/defaultRagProvider';
-import { WebCryptoAesGcm } from '../lib/pipelines/security/webCryptoAesGcm';
 import { BufferedTranscriptionPipeline } from '../lib/pipelines/transcription/bufferedTranscription';
-import { DeidentifiedCbtReportGenerator } from '../lib/pipelines/reporting/deidentifiedReportGenerator';
 import { safeRandomId } from '../lib/utils';
-import { apiFetch } from '../lib/api';
+import { useVoiceAudio } from './useVoiceAudio';
+import { useSessionPersistence } from './useSessionPersistence';
 
+/**
+ * useVoiceSession
+ * 顶层语音对话会话协调 Hook
+ * 组合音频抽象 (useVoiceAudio)、会话持久化 (useSessionPersistence)、网关协议 (MiniMaxRealtimeClient) 与 CBT 工具调度
+ */
 export function useVoiceSession() {
   const {
     hookState,
@@ -24,10 +27,8 @@ export function useVoiceSession() {
     setDuplexPhase,
     setCBTStage,
     setIsMuted,
-    setAudioLevel,
     addDialogueTurn,
     setLatestReport,
-    setReportModalOpen,
     setCrisisOverlayOpen,
     setErrorMessage,
     setCallDuration,
@@ -36,50 +37,21 @@ export function useVoiceSession() {
   const user = useAuthStore((s) => s.user);
   const updateUserName = useAuthStore((s) => s.updateUserName);
 
-  const audioGraphRef = useRef<AudioGraphService | null>(null);
+  const { audioGraphRef, getAudioGraph, startVisualizer, stopVisualizer, cleanupAudio } =
+    useVoiceAudio();
+
+  const { persistSession } = useSessionPersistence();
+
   const clientRef = useRef<MiniMaxRealtimeClient | null>(null);
   const toolDispatcherRef = useRef<RealtimeToolDispatcher | null>(null);
-
   const ragProviderRef = useRef<DefaultRagProvider>(new DefaultRagProvider());
-  const cryptoRef = useRef<WebCryptoAesGcm>(new WebCryptoAesGcm());
   const transcriptionRef = useRef<BufferedTranscriptionPipeline>(
     new BufferedTranscriptionPipeline(),
   );
-  const reportGeneratorRef = useRef<DeidentifiedCbtReportGenerator>(
-    new DeidentifiedCbtReportGenerator(),
-  );
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const rafVisualizerRef = useRef<number>(0);
   const sessionIdRef = useRef<string>('');
   const endCallRef = useRef<(() => Promise<void>) | null>(null);
-
-  const getAudioGraph = useCallback(() => {
-    if (!audioGraphRef.current) {
-      audioGraphRef.current = new AudioGraphService();
-    }
-    return audioGraphRef.current;
-  }, []);
-
-  const startVisualizer = useCallback(() => {
-    const loop = () => {
-      if (audioGraphRef.current) {
-        const lvl = audioGraphRef.current.getAudioLevel();
-        setAudioLevel(lvl);
-      }
-      rafVisualizerRef.current = requestAnimationFrame(loop);
-    };
-    if (rafVisualizerRef.current) cancelAnimationFrame(rafVisualizerRef.current);
-    rafVisualizerRef.current = requestAnimationFrame(loop);
-  }, [setAudioLevel]);
-
-  const stopVisualizer = useCallback(() => {
-    if (rafVisualizerRef.current) {
-      cancelAnimationFrame(rafVisualizerRef.current);
-      rafVisualizerRef.current = 0;
-    }
-    setAudioLevel(0);
-  }, [setAudioLevel]);
 
   const startCall = useCallback(async () => {
     setErrorMessage(null);
@@ -101,6 +73,7 @@ export function useVoiceSession() {
           setDuplexPhase('listening');
         }
       });
+
       audioGraph.setOnLocalInterrupt((playedMs) => {
         clientRef.current?.updateTurnDetection('listening');
         const itemId = clientRef.current?.getCurrentResponseItemId();
@@ -153,10 +126,7 @@ export function useVoiceSession() {
               setErrorMessage('语音服务器连接失败，请检查网络或稍后重试');
               setSessionStatus('error');
               setHookState('on_hook');
-              if (audioGraphRef.current) {
-                audioGraphRef.current.cleanup();
-                audioGraphRef.current = null;
-              }
+              cleanupAudio();
             }
           },
           onError: (err: any) => {
@@ -251,6 +221,7 @@ export function useVoiceSession() {
           },
           onCrisisInterception: (details) => {
             audioGraph.stopPlayback(50);
+            audioGraph.stopRecording();
             toolDispatcherRef.current?.getFsm().escalateCrisis(details.message);
             setCBTStage('Crisis_Escalation');
             setCrisisOverlayOpen(true);
@@ -296,7 +267,9 @@ export function useVoiceSession() {
     setErrorMessage,
     addDialogueTurn,
     startVisualizer,
+    cleanupAudio,
     setCallDuration,
+    user,
   ]);
 
   const endCall = useCallback(async () => {
@@ -306,10 +279,8 @@ export function useVoiceSession() {
     }
     stopVisualizer();
 
-    if (audioGraphRef.current) {
-      audioGraphRef.current.cleanup();
-      audioGraphRef.current = null;
-    }
+    cleanupAudio();
+
     if (clientRef.current) {
       clientRef.current.disconnect();
       clientRef.current = null;
@@ -345,98 +316,26 @@ export function useVoiceSession() {
     const stageReached = useBoothStore.getState().cbtStage;
     const currentSessionId = sessionIdRef.current || safeRandomId('kiosk');
 
-    if (turns.length > 0 || duration > 0) {
-      try {
-        const report = await reportGeneratorRef.current.generate({
-          sessionId: currentSessionId,
-          durationSeconds: duration,
-          stageReached,
-          rawUserName: user?.userName,
-          turns,
-        });
-
-        // 存储本次个案脱敏评估报告供管理后台调阅，来访学生端不弹窗
+    await persistSession({
+      sessionId: currentSessionId,
+      duration,
+      stageReached,
+      user,
+      turns,
+      onReportGenerated: (report) => {
         setLatestReport(report);
-
-        const plainJson = JSON.stringify({ turns, report });
-        let encryptedBundle = '';
-        try {
-          encryptedBundle = await cryptoRef.current.encrypt(plainJson);
-        } catch {}
-
-        // 异步同步至云端 Worker 深度建档（DeepSeek V4 Flash 结构化简报与情景记忆更新）
-        const transcriptText = turns
-          .map(
-            (t) =>
-              `${t.role === 'user' ? user?.displayName || user?.userName || '学生' : '智能体'}: ${t.content}`,
-          )
-          .join('\n');
-
-        const localSessionRecord = {
-          id: currentSessionId,
-          sessionId: currentSessionId,
-          duration,
-          stage: stageReached,
-          isCrisis: stageReached === 'Crisis_Escalation',
-          crisisLevel: stageReached === 'Crisis_Escalation' ? 3 : 0,
-          crisisSummary: report.emotionalTrajectory?.deltaNotes || '真实来访倾诉记录',
-          coreConcerns: report.coreConcerns || ['真实交流'],
-          emotionalValence: 0.0,
-          deidentifiedReport: report,
-          dispositionStatus: 'pending_contact',
-          dispositionNote: '',
-          createdAt: Math.floor(Date.now() / 1000),
-          hasEncryptedIdentity: Boolean(encryptedBundle),
-        };
-        try {
-          if (typeof localStorage !== 'undefined') {
-            const raw = localStorage.getItem('rethink_real_sessions') || '[]';
-            const existing = JSON.parse(raw);
-            if (Array.isArray(existing)) {
-              const idx = existing.findIndex((s: any) => s.sessionId === currentSessionId);
-              if (idx >= 0) existing[idx] = localSessionRecord;
-              else existing.unshift(localSessionRecord);
-              localStorage.setItem('rethink_real_sessions', JSON.stringify(existing.slice(0, 50)));
-            }
-          }
-        } catch {}
-
-        apiFetch('/api/voice/session/persist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: currentSessionId,
-            duration,
-            encrypted_payload: encryptedBundle,
-            stage: stageReached,
-            username: user?.userName || user?.displayName || 'student_user',
-            transcript_text: transcriptText,
-          }),
-        })
-          .then(async (res) => {
-            if (res && res.ok) {
-              const data: any = await res.json();
-              if (data?.report) {
-                setLatestReport(data.report);
-              }
-            }
-          })
-          .catch((e) => {
-            console.warn('[VoiceSession] 后台持久化同步异常:', e);
-          });
-      } catch (err) {
-        console.error('[VoiceSession] 报告生成或加密异常:', err);
-      }
-    }
+      },
+    });
   }, [
     stopVisualizer,
+    cleanupAudio,
     setHookState,
     setSessionStatus,
     setDuplexPhase,
+    addDialogueTurn,
+    persistSession,
     user,
     setLatestReport,
-    setReportModalOpen,
-    addDialogueTurn,
   ]);
   endCallRef.current = endCall;
 
@@ -464,7 +363,7 @@ export function useVoiceSession() {
         stage: useBoothStore.getState().cbtStage,
       });
     }
-  }, [setDuplexPhase, addDialogueTurn]);
+  }, [audioGraphRef, setDuplexPhase, addDialogueTurn]);
 
   const toggleMute = useCallback(() => {
     const nextMuted = !isMuted;
@@ -472,16 +371,25 @@ export function useVoiceSession() {
     if (audioGraphRef.current) {
       audioGraphRef.current.setMute(nextMuted);
     }
-  }, [isMuted, setIsMuted]);
+  }, [isMuted, setIsMuted, audioGraphRef]);
 
   useEffect(() => {
+    const handleCrisisEndCall = () => {
+      void endCall();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('rethink:crisis:end_call', handleCrisisEndCall);
+    }
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('rethink:crisis:end_call', handleCrisisEndCall);
+      }
       if (timerRef.current) clearInterval(timerRef.current);
       stopVisualizer();
-      if (audioGraphRef.current) audioGraphRef.current.cleanup();
+      cleanupAudio();
       if (clientRef.current) clientRef.current.disconnect();
     };
-  }, [stopVisualizer]);
+  }, [endCall, stopVisualizer, cleanupAudio]);
 
   return {
     startCall,

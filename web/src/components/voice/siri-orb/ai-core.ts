@@ -1,27 +1,11 @@
-import {
-  type MotionValue,
-  useAnimationFrame,
-  useMotionValue,
-} from "framer-motion";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type MotionValue, useAnimationFrame, useMotionValue } from 'framer-motion';
+import { useEffect } from 'react';
 
-export type AIState =
-  | "idle"
-  | "listening"
-  | "thinking"
-  | "streaming"
-  | "done"
-  | "error";
+export type AIState = 'idle' | 'listening' | 'thinking' | 'streaming' | 'done' | 'error';
 
-export type AIStateMotif =
-  | "breathe"
-  | "receive"
-  | "scan"
-  | "pulse"
-  | "ping"
-  | "fault";
+export type AIStateMotif = 'breathe' | 'receive' | 'scan' | 'pulse' | 'ping' | 'fault';
 
-export type AIStateAccent = "success" | "danger" | null;
+export type AIStateAccent = 'success' | 'danger' | null;
 
 export type AIStateMotion = {
   accent: AIStateAccent;
@@ -40,11 +24,11 @@ export type AIStateMotion = {
 
 export const AI_STATE_MOTION: Record<AIState, AIStateMotion> = {
   done: {
-    accent: "success",
+    accent: 'success',
     glow: 0.7,
     hueRotate: 0,
     intensity: 0.4,
-    motif: "ping",
+    motif: 'ping',
     pulseSeconds: 0.65,
     reactivity: 0,
     saturation: 1,
@@ -54,11 +38,11 @@ export const AI_STATE_MOTION: Record<AIState, AIStateMotion> = {
     turbulence: 0.08,
   },
   error: {
-    accent: "danger",
+    accent: 'danger',
     glow: 0.25,
     hueRotate: 0,
     intensity: 0.5,
-    motif: "fault",
+    motif: 'fault',
     pulseSeconds: 0.9,
     reactivity: 0,
     saturation: 0.3,
@@ -72,7 +56,7 @@ export const AI_STATE_MOTION: Record<AIState, AIStateMotion> = {
     glow: 0.15,
     hueRotate: 0,
     intensity: 0.3,
-    motif: "breathe",
+    motif: 'breathe',
     pulseSeconds: 4.5,
     reactivity: 0,
     saturation: 0.75,
@@ -86,7 +70,7 @@ export const AI_STATE_MOTION: Record<AIState, AIStateMotion> = {
     glow: 0.6,
     hueRotate: 0,
     intensity: 0.75,
-    motif: "receive",
+    motif: 'receive',
     pulseSeconds: 1.6,
     reactivity: 1,
     saturation: 1.05,
@@ -100,7 +84,7 @@ export const AI_STATE_MOTION: Record<AIState, AIStateMotion> = {
     glow: 0.45,
     hueRotate: -10,
     intensity: 0.6,
-    motif: "pulse",
+    motif: 'pulse',
     pulseSeconds: 1.25,
     reactivity: 0.6,
     saturation: 1,
@@ -114,7 +98,7 @@ export const AI_STATE_MOTION: Record<AIState, AIStateMotion> = {
     glow: 0.35,
     hueRotate: 18,
     intensity: 1,
-    motif: "scan",
+    motif: 'scan',
     pulseSeconds: 1.1,
     reactivity: 0.15,
     saturation: 1,
@@ -125,32 +109,27 @@ export const AI_STATE_MOTION: Record<AIState, AIStateMotion> = {
   },
 };
 
-export const AI_ACCENT_COLORS: Record<"success" | "danger", string> = {
-  danger: "oklch(63% 0.21 25)",
-  success: "oklch(72% 0.17 150)",
+export const AI_ACCENT_COLORS: Record<'success' | 'danger', string> = {
+  danger: 'oklch(63% 0.21 25)',
+  success: 'oklch(72% 0.17 150)',
 };
 
-export const getAIStateAccentColor = (
-  state: AIState | undefined,
-  fallback: string
-): string => {
-  const accent = AI_STATE_MOTION[state ?? "idle"]?.accent;
+export const getAIStateAccentColor = (state: AIState | undefined, fallback: string): string => {
+  const accent = AI_STATE_MOTION[state ?? 'idle']?.accent;
   return accent ? AI_ACCENT_COLORS[accent] : fallback;
 };
 
 export const getAIStateMotion = (state: AIState | undefined): AIStateMotion =>
-  AI_STATE_MOTION[state ?? "idle"] ?? AI_STATE_MOTION.idle;
+  AI_STATE_MOTION[state ?? 'idle'] ?? AI_STATE_MOTION.idle;
 
 export type AIAmplitude = number | MotionValue<number> | undefined;
 
 const isMotionValue = (value: AIAmplitude): value is MotionValue<number> =>
-  typeof value === "object" && value !== null && "get" in value;
+  typeof value === 'object' && value !== null && 'get' in value;
 
-export const useAmplitudeValue = (
-  amplitude: AIAmplitude
-): MotionValue<number> => {
+export const useAmplitudeValue = (amplitude: AIAmplitude): MotionValue<number> => {
   const fallback = useMotionValue(0);
-  const numeric = typeof amplitude === "number" ? amplitude : null;
+  const numeric = typeof amplitude === 'number' ? amplitude : null;
 
   useEffect(() => {
     if (numeric !== null) {
@@ -161,131 +140,7 @@ export const useAmplitudeValue = (
   return isMotionValue(amplitude) ? amplitude : fallback;
 };
 
-export type AudioAmplitudeStatus =
-  | "idle"
-  | "requesting"
-  | "active"
-  | "denied"
-  | "unsupported";
-
-export type UseAudioAmplitudeOptions = {
-  autoStart?: boolean;
-  smoothing?: number;
-  fftSize?: number;
-};
-
-export type UseAudioAmplitudeResult = {
-  amplitude: MotionValue<number>;
-  status: AudioAmplitudeStatus;
-  start: () => Promise<void>;
-  stop: () => void;
-};
-
-const DEFAULT_SMOOTHING = 0.55;
-const DEFAULT_FFT_SIZE = 512;
-const RMS_TO_UNIT = 3.2;
-const ATTACK_FACTOR = 0.35;
-
-export const useAudioAmplitude = (
-  options: UseAudioAmplitudeOptions = {}
-): UseAudioAmplitudeResult => {
-  const {
-    autoStart = false,
-    smoothing = DEFAULT_SMOOTHING,
-    fftSize = DEFAULT_FFT_SIZE,
-  } = options;
-
-  const amplitude = useMotionValue(0);
-  const [status, setStatus] = useState<AudioAmplitudeStatus>("idle");
-
-  const contextRef = useRef<AudioContext | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const bufferRef = useRef<Float32Array<ArrayBuffer> | null>(null);
-
-  const stop = useCallback(() => {
-    for (const track of streamRef.current?.getTracks() ?? []) {
-      track.stop();
-    }
-    streamRef.current = null;
-    analyserRef.current = null;
-    bufferRef.current = null;
-    contextRef.current?.close();
-    contextRef.current = null;
-    amplitude.set(0);
-    setStatus("idle");
-  }, [amplitude]);
-
-  const start = useCallback(async () => {
-    if (analyserRef.current) {
-      return;
-    }
-
-    const AudioContextCtor =
-      typeof window === "undefined"
-        ? undefined
-        : (window.AudioContext ??
-          (window as unknown as { webkitAudioContext?: typeof AudioContext })
-            .webkitAudioContext);
-
-    if (!(AudioContextCtor && navigator.mediaDevices?.getUserMedia)) {
-      setStatus("unsupported");
-      return;
-    }
-
-    setStatus("requesting");
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const context = new AudioContextCtor();
-      const analyser = context.createAnalyser();
-      analyser.fftSize = fftSize;
-      context.createMediaStreamSource(stream).connect(analyser);
-
-      streamRef.current = stream;
-      contextRef.current = context;
-      analyserRef.current = analyser;
-      bufferRef.current = new Float32Array(analyser.fftSize);
-      setStatus("active");
-    } catch {
-      setStatus("denied");
-    }
-  }, [fftSize]);
-
-  useEffect(() => {
-    if (autoStart) {
-      start();
-    }
-    return stop;
-  }, [autoStart, start, stop]);
-
-  useAnimationFrame(() => {
-    const analyser = analyserRef.current;
-    const buffer = bufferRef.current;
-    if (!(analyser && buffer)) {
-      return;
-    }
-
-    analyser.getFloatTimeDomainData(buffer);
-
-    let sumOfSquares = 0;
-    for (const sample of buffer) {
-      sumOfSquares += sample * sample;
-    }
-    const rms = Math.sqrt(sumOfSquares / buffer.length);
-    const target = Math.min(1, rms * RMS_TO_UNIT);
-
-    const previous = amplitude.get();
-    const factor = target > previous ? smoothing * ATTACK_FACTOR : smoothing;
-    amplitude.set(previous + (target - previous) * (1 - factor));
-  });
-
-  return { amplitude, start, status, stop };
-};
-
-export const useSimulatedAmplitude = (
-  state: AIState = "idle"
-): MotionValue<number> => {
+export const useSimulatedAmplitude = (state: AIState = 'idle'): MotionValue<number> => {
   const amplitude = useMotionValue(0);
   const motion = getAIStateMotion(state);
 
