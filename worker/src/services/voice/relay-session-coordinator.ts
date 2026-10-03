@@ -6,6 +6,7 @@ import { BargeInCoordinator } from './barge-in-coordinator';
 import { CrisisHandler } from './crisis-handler';
 import { ShadowReasoningPipeline } from './shadow-reasoning-pipeline';
 import { SessionReporter } from './session-reporter';
+import { CbtStateMachine } from '../../lib/cbt-fsm';
 
 export interface RelayQueryParams {
   sessionId?: string;
@@ -23,7 +24,8 @@ export class RelaySessionCoordinator {
     serverWs: WebSocket,
     clientWs: WebSocket,
     env: Env,
-    query: RelayQueryParams
+    query: RelayQueryParams,
+    ctx?: ExecutionContext,
   ): Promise<Response> {
     const config = RealtimeGatewayAdapter.resolveGatewayConfig(env, query.model);
 
@@ -31,15 +33,22 @@ export class RelaySessionCoordinator {
       serverWs.send(
         RealtimeGatewayAdapter.formatRealtimeError(
           'credentials_missing',
-          '未检测到 Realtime 实时网关访问凭证，请先配置环境变量 REALTIME_UPSTREAM_KEY'
-        )
+          '未检测到 Realtime 实时网关访问凭证，请先配置环境变量 REALTIME_UPSTREAM_KEY',
+        ),
       );
-      RealtimeGatewayAdapter.safeClose(serverWs, 4401, 'Unauthorized: Missing Realtime upstream key');
+      RealtimeGatewayAdapter.safeClose(
+        serverWs,
+        4401,
+        'Unauthorized: Missing Realtime upstream key',
+      );
       return new Response(null, { status: 101, webSocket: clientWs });
     }
 
     try {
-      const wsEndpoint = RealtimeGatewayAdapter.buildUpstreamWsUrl(config.upstreamBaseUrl, config.upstreamModel);
+      const wsEndpoint = RealtimeGatewayAdapter.buildUpstreamWsUrl(
+        config.upstreamBaseUrl,
+        config.upstreamModel,
+      );
       const authSubprotocol = `${atob('b3BlbmFp')}-insecure-api-key.${config.upstreamKey}`;
       const upstreamRes = await fetch(wsEndpoint, {
         headers: {
@@ -52,7 +61,10 @@ export class RelaySessionCoordinator {
       const upstreamWs = upstreamRes.webSocket;
       if (!upstreamWs) {
         serverWs.send(
-          RealtimeGatewayAdapter.formatRealtimeError('upstream_unavailable', '无法连接至实时语音上游网关')
+          RealtimeGatewayAdapter.formatRealtimeError(
+            'upstream_unavailable',
+            '无法连接至实时语音上游网关',
+          ),
         );
         RealtimeGatewayAdapter.safeClose(serverWs, 1011, 'Upstream gateway unavailable');
         return new Response(null, { status: 101, webSocket: clientWs });
@@ -62,8 +74,16 @@ export class RelaySessionCoordinator {
 
       const sessionId = query.sessionId || `sess_${Date.now()}`;
       const requestedUserId = query.userId || query.username || '';
+      const sessionStartTime = Date.now();
+      const cbtFsm = new CbtStateMachine();
       const coordinator = new BargeInCoordinator();
-      const crisisHandler = new CrisisHandler(serverWs, upstreamWs, env.CRISIS_WEBHOOK_URL, sessionId);
+      const crisisHandler = new CrisisHandler(
+        serverWs,
+        upstreamWs,
+        env.CRISIS_WEBHOOK_URL,
+        sessionId,
+        ctx,
+      );
 
       let currentMemory = await getSituationalMemory(env, requestedUserId);
       let studentName = currentMemory?.userName || '';
@@ -81,7 +101,7 @@ export class RelaySessionCoordinator {
           openRouterBaseUrl,
           openRouterModel,
         },
-        upstreamWs
+        upstreamWs,
       );
 
       // 绑定客户端事件
@@ -100,9 +120,12 @@ export class RelaySessionCoordinator {
         crisisHandler,
         shadowPipeline,
         dialogueHistory,
+        cbtFsm,
         openRouterConfig: { openRouterKey, openRouterBaseUrl, openRouterModel },
         getStudentName: () => studentName,
-        setStudentName: (name) => { studentName = name; },
+        setStudentName: (name) => {
+          studentName = name;
+        },
         getMemory: () => currentMemory,
       });
 
@@ -117,6 +140,9 @@ export class RelaySessionCoordinator {
         requestedUserId,
         dialogueHistory,
         getStudentName: () => studentName,
+        sessionStartTime,
+        cbtFsm,
+        ctx,
       });
 
       return new Response(null, { status: 101, webSocket: clientWs });
@@ -148,12 +174,15 @@ export class RelaySessionCoordinator {
         }
 
         if (payload?.type === 'session.update' && payload.session) {
-          const cleanSession = RealtimeGatewayAdapter.normalizeSessionUpdatePayload(payload.session, currentMemory);
+          const cleanSession = RealtimeGatewayAdapter.normalizeSessionUpdatePayload(
+            payload.session,
+            currentMemory,
+          );
           upstreamWs.send(
             JSON.stringify({
               type: 'session.update',
               session: cleanSession,
-            })
+            }),
           );
         } else if (payload?.type === 'response.create') {
           upstreamWs.send(JSON.stringify(payload));
@@ -171,7 +200,12 @@ export class RelaySessionCoordinator {
     crisisHandler: CrisisHandler;
     shadowPipeline: ShadowReasoningPipeline;
     dialogueHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
-    openRouterConfig: { openRouterKey: string; openRouterBaseUrl?: string; openRouterModel: string };
+    cbtFsm: CbtStateMachine;
+    openRouterConfig: {
+      openRouterKey: string;
+      openRouterBaseUrl?: string;
+      openRouterModel: string;
+    };
     getStudentName: () => string;
     setStudentName: (name: string) => void;
     getMemory: () => any;
@@ -183,6 +217,7 @@ export class RelaySessionCoordinator {
       crisisHandler,
       shadowPipeline,
       dialogueHistory,
+      cbtFsm,
       openRouterConfig,
       getStudentName,
       setStudentName,
@@ -212,7 +247,11 @@ export class RelaySessionCoordinator {
             payload.session.model = 'minimax-realtime';
             needsReserialize = true;
           }
-          if (payload.model && typeof payload.model === 'string' && payload.model !== 'minimax-realtime') {
+          if (
+            payload.model &&
+            typeof payload.model === 'string' &&
+            payload.model !== 'minimax-realtime'
+          ) {
             payload.model = 'minimax-realtime';
             needsReserialize = true;
           }
@@ -232,30 +271,43 @@ export class RelaySessionCoordinator {
           return;
         }
 
-        if (payload.type === 'conversation.item.input_audio_transcription.completed' && payload.transcript) {
+        if (
+          payload.type === 'conversation.item.input_audio_transcription.completed' &&
+          payload.transcript
+        ) {
           const userText = (payload.transcript as string).trim();
           if (!userText) return;
 
           dialogueHistory.push({ role: 'user', content: userText });
+          cbtFsm.recordTurn('user');
           const { sequenceId: currentSeq, signal } = coordinator.nextTurn();
 
           // 1. L1 边缘硬过滤
           if (isL1Crisis(userText)) {
-            crisisHandler.triggerIntervention('L1', 'L1本地即时硬过滤命中危机敏感词', ['自伤自杀危机', '紧急干预']);
+            crisisHandler.triggerIntervention('L1', 'L1本地即时硬过滤命中危机敏感词', [
+              '自伤自杀危机',
+              '紧急干预',
+            ]);
             return;
           }
 
-          // 2. L2 异步语义旁路熔断
+          // 2. L2 异步语义旁路熔断（采用独立 5000ms 超时信号，防止学生语速快或下一轮倾诉打断导致危机判定被丢弃）
           checkL2FlashSafety(userText, {
             apiKey: openRouterConfig.openRouterKey,
             baseUrl: openRouterConfig.openRouterBaseUrl,
             model: openRouterConfig.openRouterModel,
-            signal,
-          }).then((isCrisis) => {
-            if (isCrisis && coordinator.isValid(currentSeq) && !crisisHandler.isTriggered) {
-              crisisHandler.triggerIntervention('L2', 'L2 DeepSeek V4 Flash语义熔断命中危机', ['自伤自杀危机', '语义旁路熔断']);
-            }
-          }).catch(() => {});
+            signal: AbortSignal.timeout(5000),
+          })
+            .then((isCrisis) => {
+              if (isCrisis && !crisisHandler.isTriggered) {
+                coordinator.interrupt();
+                crisisHandler.triggerIntervention('L2', 'L2 DeepSeek V4 Flash语义熔断命中危机', [
+                  '自伤自杀危机',
+                  '语义旁路熔断',
+                ]);
+              }
+            })
+            .catch(() => {});
 
           // 3. 影子大脑认知指导
           void shadowPipeline.execute({
@@ -273,6 +325,7 @@ export class RelaySessionCoordinator {
 
         if (payload.type === 'response.audio_transcript.done' && payload.transcript) {
           dialogueHistory.push({ role: 'assistant', content: payload.transcript });
+          cbtFsm.recordTurn('assistant');
         }
       } catch {}
     });
@@ -288,29 +341,63 @@ export class RelaySessionCoordinator {
     requestedUserId: string;
     dialogueHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
     getStudentName: () => string;
+    sessionStartTime: number;
+    cbtFsm: CbtStateMachine;
+    ctx?: ExecutionContext;
   }): void {
-    const { serverWs, upstreamWs, coordinator, crisisHandler, env, sessionId, requestedUserId, dialogueHistory, getStudentName } = params;
+    const {
+      serverWs,
+      upstreamWs,
+      coordinator,
+      crisisHandler,
+      env,
+      sessionId,
+      requestedUserId,
+      dialogueHistory,
+      getStudentName,
+      sessionStartTime,
+      cbtFsm,
+      ctx,
+    } = params;
 
     serverWs.addEventListener('close', async (event) => {
       coordinator.abort();
       RealtimeGatewayAdapter.safeClose(upstreamWs, event.code, event.reason);
 
       if (dialogueHistory.length >= 1) {
-        try {
-          const studentName = getStudentName();
-          const fullTranscript = dialogueHistory
-            .map((d) => `${d.role === 'user' ? (studentName || '学生') : '智能体'}: ${d.content}`)
-            .join('\n');
+        const closeTask = (async () => {
+          try {
+            const studentName = getStudentName();
+            const fullTranscript = dialogueHistory
+              .map((d) => `${d.role === 'user' ? studentName || '学生' : '智能体'}: ${d.content}`)
+              .join('\n');
+            const duration = Math.max(1, Math.round((Date.now() - sessionStartTime) / 1000));
+            const stage = crisisHandler.isTriggered ? 'Crisis_Escalation' : cbtFsm.getStage();
 
-          await SessionReporter.generateAndPersist(env, {
-            sessionId,
-            studentName,
-            userId: requestedUserId,
-            transcriptText: fullTranscript,
-            dialogueTurns: dialogueHistory,
-            isCrisisExplicit: crisisHandler.isTriggered,
-          });
-        } catch {}
+            await SessionReporter.generateAndPersist(
+              env,
+              {
+                sessionId,
+                duration,
+                stage,
+                studentName,
+                userId: requestedUserId,
+                transcriptText: fullTranscript,
+                dialogueTurns: dialogueHistory,
+                isCrisisExplicit: crisisHandler.isTriggered,
+              },
+              ctx,
+            );
+          } catch (err) {
+            console.error('[RelayClose] 会话持久化与报告生成异常:', err);
+          }
+        })();
+
+        if (ctx?.waitUntil) {
+          ctx.waitUntil(closeTask);
+        } else {
+          await closeTask;
+        }
       }
     });
 

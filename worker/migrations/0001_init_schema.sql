@@ -58,7 +58,9 @@ CREATE TABLE IF NOT EXISTS user_situational_memories (
   recent_situations TEXT,
   effective_strategies TEXT,
   summary_paragraph TEXT,
-  last_updated INTEGER DEFAULT (unixepoch())
+  memory_json TEXT,
+  last_updated INTEGER DEFAULT (unixepoch()),
+  updated_at INTEGER DEFAULT (unixepoch())
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_situational_memories_last_updated ON user_situational_memories(last_updated);

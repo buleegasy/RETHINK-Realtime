@@ -44,6 +44,14 @@ describe('L1 边缘硬过滤与否定消歧引擎 (Aho-Corasick + 多维语境�
       const text3 = '我根本不会去跳河';
       expect(isL1Crisis(text3)).toBe(false);
     });
+
+    it('处理口语化“不是想/要”、“不是不想活”等高频句型应精准消歧放行', () => {
+      expect(isL1Crisis('老师你别紧张，我不是想自杀，只是最近压力太大')).toBe(false);
+      expect(isL1Crisis('我不是不想活，我只是不知道怎么面对爸妈')).toBe(false);
+      expect(isL1Crisis('我并没打算轻生，就是想找人倾诉')).toBe(false);
+      expect(isL1Crisis('我从小到大从未想过跳楼')).toBe(false);
+      expect(isL1Crisis('我从来没想过自杀')).toBe(false);
+    });
   });
 
   describe('真实危机 100% 灵敏拦截测试', () => {
@@ -76,7 +84,8 @@ describe('L1 边缘硬过滤与否定消歧引擎 (Aho-Corasick + 多维语境�
 
   describe('AC 自动机单趟扫描性能基准测试', () => {
     it('1000 次长文本匹配应在 50ms 内完成，证明 O(N) 线性高效', () => {
-      const sampleText = '这是一段普通的校园生活倾诉，虽然有些模考压力和挫败感，但我并不想死，我也劝阻了他自杀，今天新闻里有人跳楼，我希望大家都能好好的。';
+      const sampleText =
+        '这是一段普通的校园生活倾诉，虽然有些模考压力和挫败感，但我并不想死，我也劝阻了他自杀，今天新闻里有人跳楼，我希望大家都能好好的。';
       const start = performance.now();
       for (let i = 0; i < 1000; i++) {
         isL1Crisis(sampleText);

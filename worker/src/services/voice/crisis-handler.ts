@@ -2,7 +2,7 @@ import { sendCrisisWebhook } from '../../lib/webhook-sender';
 
 /**
  * 实时会话危机干预处理器 (CrisisHandler)
- * 职责：双轨危机触发响应、上游响应阻断与客户端安抚通知派发
+ * 职责：双轨危机触发响应、上游响应阻断、客户端安抚通知派发与带重试的高可用 Webhook 告警
  */
 export class CrisisHandler {
   private isCrisisTriggered: boolean = false;
@@ -11,7 +11,8 @@ export class CrisisHandler {
     private readonly serverWs: WebSocket,
     private readonly upstreamWs: WebSocket,
     private readonly webhookUrl: string | undefined,
-    private readonly sessionId: string
+    private readonly sessionId: string,
+    private readonly ctx?: ExecutionContext,
   ) {}
 
   public get isTriggered(): boolean {
@@ -24,7 +25,7 @@ export class CrisisHandler {
 
     this.cancelUpstream();
     this.notifyClient(tier);
-    this.dispatchWebhook(summary, concerns);
+    this.dispatchWebhookWithRetry(summary, concerns);
   }
 
   private cancelUpstream(): void {
@@ -39,20 +40,45 @@ export class CrisisHandler {
         JSON.stringify({
           type: 'rethink.crisis_intercepted',
           tier,
-          message: '我听到了你现在非常痛苦，请记住生命永远是最宝贵的。我现在立即为你接通紧急守护支持。',
-        })
+          message:
+            '我听到了你现在非常痛苦，请记住生命永远是最宝贵的。我现在立即为你接通紧急守护支持。',
+        }),
       );
     }
   }
 
-  private dispatchWebhook(summary: string, concerns: string[]): void {
-    void sendCrisisWebhook(this.webhookUrl, {
-      sessionId: this.sessionId,
-      crisisLevel: 3,
-      crisisSummary: summary,
-      occurredAt: new Date().toISOString(),
-      boothLocation: '校园心理驿站#01',
-      coreConcerns: concerns,
-    }).catch(() => {});
+  private dispatchWebhookWithRetry(summary: string, concerns: string[]): void {
+    if (!this.webhookUrl) return;
+
+    const task = (async () => {
+      let attempts = 0;
+      let sent = false;
+      while (attempts < 3 && !sent) {
+        attempts++;
+        try {
+          const res = await sendCrisisWebhook(this.webhookUrl, {
+            sessionId: this.sessionId,
+            crisisLevel: 3,
+            crisisSummary: summary,
+            occurredAt: new Date().toISOString(),
+            boothLocation: '校园心理驿站#01',
+            coreConcerns: concerns,
+          });
+          if (res.success) {
+            sent = true;
+            break;
+          }
+        } catch (err) {
+          console.warn(`[CrisisHandler] Webhook 发送第 ${attempts} 次尝试失败:`, err);
+        }
+        if (!sent && attempts < 3) {
+          await new Promise((resolve) => setTimeout(resolve, attempts * 800));
+        }
+      }
+    })();
+
+    if (this.ctx?.waitUntil) {
+      this.ctx.waitUntil(task);
+    }
   }
 }

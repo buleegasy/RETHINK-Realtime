@@ -28,6 +28,32 @@ describe('心理教师管理后台接口与危机穿透测试', () => {
     expect(data.success).toBe(false);
   });
 
+  it('POST /api/admin/login 注册学生账号尝试登录教师后台返回 403 提权拦截', async () => {
+    await app.request('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'student_attacker',
+        password: 'password123',
+        displayName: '普通学生',
+      }),
+    });
+
+    const res = await app.request('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'student_attacker',
+        password: 'password123',
+      }),
+    });
+
+    expect(res.status).toBe(403);
+    const data: any = await res.json();
+    expect(data.success).toBe(false);
+    expect(data.error).toContain('权限不足');
+  });
+
   it('POST /api/admin/login 校验有效教师账号并返回签名 Token', async () => {
     const res = await app.request('/api/admin/login', {
       method: 'POST',

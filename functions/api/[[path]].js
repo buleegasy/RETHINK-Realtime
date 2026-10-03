@@ -11,9 +11,20 @@ export async function onRequest(context) {
 
   const upgradeHeader = request.headers.get('Upgrade');
   if (upgradeHeader && upgradeHeader.toLowerCase() === 'websocket') {
-    const workerOrigin = env.WORKER_ORIGIN || 'https://rethink-realtime-worker.buleegasy-6c8.workers.dev';
+    if (!env.WORKER_ORIGIN) {
+      return app.fetch(request, env, context);
+    }
     const url = new URL(request.url);
-    const targetUrl = new URL(url.pathname + url.search, workerOrigin);
+    let targetOrigin = '';
+    try {
+      targetOrigin = new URL(env.WORKER_ORIGIN).origin;
+    } catch {
+      targetOrigin = '';
+    }
+    if (!targetOrigin || targetOrigin === url.origin) {
+      return app.fetch(request, env, context);
+    }
+    const targetUrl = new URL(url.pathname + url.search, env.WORKER_ORIGIN);
     return fetch(targetUrl.toString(), request);
   }
 

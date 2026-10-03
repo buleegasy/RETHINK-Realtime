@@ -8,17 +8,27 @@ export const CrisisOverlay: React.FC = () => {
 
   if (!isCrisisOverlayOpen) return null;
 
+  const handleClose = () => {
+    console.info('[CrisisOverlay] 来访者已知晓并主动关闭紧急生命支持浮层');
+    setCrisisOverlayOpen(false);
+  };
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md select-none">
         <motion.div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="crisis-dialog-title"
+          aria-describedby="crisis-dialog-desc"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           className="w-full max-w-md bg-white rounded-2xl border-2 border-red-500 p-6 shadow-2xl relative text-black"
         >
           <button
-            onClick={() => setCrisisOverlayOpen(false)}
+            onClick={handleClose}
+            aria-label="关闭生命支持提示"
             className="absolute top-4 right-4 p-1 text-neutral-400 hover:text-black transition-colors"
           >
             <X className="w-5 h-5" />
@@ -26,10 +36,15 @@ export const CrisisOverlay: React.FC = () => {
 
           <div className="flex items-center gap-3 text-red-600 mb-4">
             <HeartHandshake className="w-8 h-8" />
-            <h2 className="text-lg font-bold tracking-wide">生命支持与紧急关怀</h2>
+            <h2 id="crisis-dialog-title" className="text-lg font-bold tracking-wide">
+              生命支持与紧急关怀
+            </h2>
           </div>
 
-          <p className="text-xs md:text-sm text-neutral-700 leading-relaxed mb-6 font-light">
+          <p
+            id="crisis-dialog-desc"
+            className="text-xs md:text-sm text-neutral-700 leading-relaxed mb-6 font-light"
+          >
             我们非常在乎您的生命安全与身心健康。当感觉痛苦超负荷时，请不要独自承受，专业的心理危机援助人员随时在此倾听与支持您：
           </p>
 
@@ -64,7 +79,7 @@ export const CrisisOverlay: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setCrisisOverlayOpen(false)}
+            onClick={handleClose}
             className="w-full py-2.5 rounded-xl border border-black/20 text-xs font-mono tracking-wider hover:bg-neutral-100 transition-colors"
           >
             我已知晓，返回待机界面

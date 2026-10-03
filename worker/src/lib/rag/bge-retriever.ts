@@ -46,6 +46,7 @@ export class BgeRetriever {
           model: BgeRetriever.MODEL,
           input: cleanText,
         }),
+        signal: AbortSignal.timeout(2500),
       });
 
       if (!res.ok) {
@@ -111,7 +112,8 @@ export class BgeRetriever {
       pool = pool.filter((c) => c.category === category);
     }
 
-    const queryVec = await this.fetchBgeEmbedding(cleanQuery);
+    const hasAnyEmbedding = pool.some((c) => Array.isArray(c.embedding) && c.embedding.length > 0);
+    const queryVec = hasAnyEmbedding ? await this.fetchBgeEmbedding(cleanQuery) : null;
 
     const results: RagSearchResult[] = pool.map((capsule) => {
       if (

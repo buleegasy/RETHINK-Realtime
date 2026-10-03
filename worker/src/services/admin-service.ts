@@ -15,6 +15,22 @@ import {
   generateStructuredReportWithFlash,
 } from '../lib/deepseek-flash';
 import { signAuthToken, verifyPassword, resolveJwtSecret } from '../lib/auth-crypto';
+import { getMemoryUser } from '../routes/auth';
+
+function safeCompare(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  if (bufA.byteLength !== bufB.byteLength) {
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < bufA.byteLength; i++) {
+    diff |= bufA[i] ^ bufB[i];
+  }
+  return diff === 0;
+}
 
 export class AdminService {
   public static async authenticateTeacher(username?: string, password?: string, env?: Env) {
@@ -33,15 +49,38 @@ export class AdminService {
 
     if (env?.DB) {
       try {
-        const row = await env.DB.prepare('SELECT password_hash FROM users WHERE username = ?')
+        const row = await env.DB.prepare('SELECT password_hash, role FROM users WHERE username = ?')
           .bind(cleanUser)
-          .first<{ password_hash?: string }>();
+          .first<{ password_hash?: string; role?: string }>();
 
-        if (row?.password_hash) {
-          isPasswordValid = await verifyPassword(password, row.password_hash);
+        if (row) {
+          if (row.role && row.role !== 'teacher' && row.role !== 'admin') {
+            return {
+              success: false,
+              error: '权限不足：该账号为学生账号，无心理教师或管理权限',
+              status: 403,
+            };
+          }
+          if (row.password_hash) {
+            isPasswordValid = await verifyPassword(password, row.password_hash);
+          }
         }
       } catch (err) {
         console.warn('[AdminAuth] D1 教师用户查询异常:', err);
+      }
+    } else {
+      const memUser = getMemoryUser(cleanUser);
+      if (memUser) {
+        if (memUser.role && memUser.role !== 'teacher' && memUser.role !== 'admin') {
+          return {
+            success: false,
+            error: '权限不足：该账号为学生账号，无心理教师或管理权限',
+            status: 403,
+          };
+        }
+        if (memUser.passwordHash) {
+          isPasswordValid = await verifyPassword(password, memUser.passwordHash);
+        }
       }
     }
 
@@ -50,14 +89,14 @@ export class AdminService {
       if (teacherCredential.startsWith('pbkdf2:')) {
         isPasswordValid = await verifyPassword(password, teacherCredential);
       } else {
-        isPasswordValid = password === teacherCredential;
+        isPasswordValid = safeCompare(password, teacherCredential);
       }
     }
 
     // 仅在非生产/单元测试调试环境下允许使用临时默认凭证；生产环境严格阻断已知弱口令
     if (!isPasswordValid && !teacherCredential && !isProduction) {
       const devDefault = atob('Y291bnNlbG9yMjAyNg==');
-      if (password === devDefault) {
+      if (safeCompare(password, devDefault)) {
         isPasswordValid = true;
       }
     }
@@ -317,7 +356,13 @@ export class AdminService {
     const isProduction = env.ENVIRONMENT === 'production';
     const correctPasscode =
       env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
-    if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
+    if (!correctPasscode || !safeCompare(secondary_passcode.trim(), correctPasscode)) {
+      await AuditRepository.record(env, {
+        session_id,
+        operator_name: operator_name?.trim() || '未知操作员',
+        reason: '二次安全口令校验失败（异常解除脱敏尝试）',
+      }).catch(() => {});
+
       return {
         success: false,
         error: '二次安全口令错误。为保护学生隐私，系统已拒绝解除脱敏并记录本次异常操作。',
@@ -383,7 +428,7 @@ export class AdminService {
     const isProduction = env.ENVIRONMENT === 'production';
     const correctPasscode =
       env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
-    if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
+    if (!correctPasscode || !safeCompare(secondary_passcode.trim(), correctPasscode)) {
       return { success: false, error: '二次口令校验失败，无权归档个案记录', status: 403 };
     }
 
@@ -429,7 +474,7 @@ export class AdminService {
     const isProduction = env.ENVIRONMENT === 'production';
     const correctPasscode =
       env.TEACHER_SECONDARY_PASSCODE || (!isProduction ? 'teacher-safe-2026' : '');
-    if (!correctPasscode || secondary_passcode.trim() !== correctPasscode) {
+    if (!correctPasscode || !safeCompare(secondary_passcode.trim(), correctPasscode)) {
       return { success: false, error: '二次口令校验失败，无权恢复已归档个案', status: 403 };
     }
 
@@ -548,12 +593,15 @@ export class AdminService {
       coreConcerns: ['系统通道测试', '告警联通性验证'],
     };
 
-    const sent = await sendCrisisWebhook(webhookUrl, testPayload);
+    const res = await sendCrisisWebhook(webhookUrl, testPayload);
+    const isSuccess = res.success;
     return {
-      success: sent,
-      message: sent ? '测试危机预警推送成功' : '测试预警发送失败，请检查 Webhook 地址连通性',
+      success: isSuccess,
+      message: isSuccess
+        ? '测试危机预警推送成功'
+        : res.error || '测试预警发送失败，请检查 Webhook 地址连通性',
       targetUrl: webhookUrl.replace(/(\/bot\/)[^/]+/, '$1***'),
-      status: sent ? 200 : 502,
+      status: isSuccess ? 200 : 502,
     };
   }
 }

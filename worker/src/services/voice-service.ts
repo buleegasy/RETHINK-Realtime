@@ -11,6 +11,7 @@ import { CbtStateMachine, type CBTStage } from '../lib/cbt-fsm';
 import { getSituationalMemory } from '../lib/memory-store';
 import { RelaySessionCoordinator, type RelayQueryParams } from './voice/relay-session-coordinator';
 import { SessionReporter } from './voice/session-reporter';
+import { sendCrisisWebhook } from '../lib/webhook-sender';
 
 export { BargeInCoordinator } from './voice/barge-in-coordinator';
 
@@ -22,9 +23,10 @@ export class VoiceService {
     serverWs: WebSocket,
     clientWs: WebSocket,
     env: Env,
-    query: RelayQueryParams
+    query: RelayQueryParams,
+    ctx?: ExecutionContext,
   ): Promise<Response> {
-    return RelaySessionCoordinator.startSession(serverWs, clientWs, env, query);
+    return RelaySessionCoordinator.startSession(serverWs, clientWs, env, query, ctx);
   }
 
   /**
@@ -32,8 +34,16 @@ export class VoiceService {
    */
   public static async handleChat(
     env: Env,
-    body: { text?: string; stage?: string; history?: any[] }
-  ): Promise<{ ok: boolean; error?: string; isCrisis?: boolean; nextStage?: string; reply?: string; audioBase64?: string }> {
+    body: { text?: string; stage?: string; history?: any[] },
+    ctx?: ExecutionContext,
+  ): Promise<{
+    ok: boolean;
+    error?: string;
+    isCrisis?: boolean;
+    nextStage?: string;
+    reply?: string;
+    audioBase64?: string;
+  }> {
     const userText = (body.text || '').trim();
     const currentStage = body.stage || 'Active_Listening';
     const history = body.history || [];
@@ -43,6 +53,21 @@ export class VoiceService {
     }
 
     if (isL1Crisis(userText)) {
+      if (env.CRISIS_WEBHOOK_URL) {
+        const webhookTask = sendCrisisWebhook(env.CRISIS_WEBHOOK_URL, {
+          sessionId: `rest_crisis_${Date.now()}`,
+          crisisLevel: 3,
+          crisisSummary: 'REST降级对话命中L1危机敏感词',
+          occurredAt: new Date().toISOString(),
+          boothLocation: '校园心理驿站#01',
+          coreConcerns: ['自伤自杀危机', '紧急干预'],
+        }).catch((e) => console.warn('[VoiceService REST] Webhook 派发异常:', e));
+
+        if (ctx?.waitUntil) {
+          ctx.waitUntil(webhookTask);
+        }
+      }
+
       return {
         ok: true,
         isCrisis: true,
@@ -55,7 +80,11 @@ export class VoiceService {
     let knowledgeHint = '';
     try {
       const retriever = new BgeRetriever({
-        embeddingApiKey: env.EMBEDDING_API_KEY || env.REALTIME_UPSTREAM_KEY || env.MINIMAX_REALTIME_KEY || env.APIYI_API_KEY,
+        embeddingApiKey:
+          env.EMBEDDING_API_KEY ||
+          env.REALTIME_UPSTREAM_KEY ||
+          env.MINIMAX_REALTIME_KEY ||
+          env.APIYI_API_KEY,
         embeddingApiUrl: env.EMBEDDING_API_URL,
         rerankApiKey: env.RERANK_API_KEY,
         rerankApiUrl: env.RERANK_API_URL,
@@ -84,8 +113,13 @@ ${cbtGuideSection}`;
     ];
 
     let replyText = '我一直在这里听你说，别着急，慢慢告诉我发生什么了。';
-    const upstreamKey = env.REALTIME_UPSTREAM_KEY || env.MINIMAX_REALTIME_KEY || env.APIYI_API_KEY || '';
-    const upstreamBase = env.REALTIME_UPSTREAM_URL || env.MINIMAX_REALTIME_BASE_URL || env.APIYI_BASE_URL || 'https://api.apiyi.com/v1';
+    const upstreamKey =
+      env.REALTIME_UPSTREAM_KEY || env.MINIMAX_REALTIME_KEY || env.APIYI_API_KEY || '';
+    const upstreamBase =
+      env.REALTIME_UPSTREAM_URL ||
+      env.MINIMAX_REALTIME_BASE_URL ||
+      env.APIYI_BASE_URL ||
+      'https://api.apiyi.com/v1';
 
     if (upstreamKey) {
       try {
@@ -141,21 +175,27 @@ ${cbtGuideSection}`;
    */
   public static async handlePersistSession(
     env: Env,
-    payload: Partial<PersistSessionPayload>
+    payload: Partial<PersistSessionPayload>,
+    ctx?: ExecutionContext,
   ) {
-    const { session_id, duration, encrypted_payload, stage, username, transcript_text, is_crisis } = payload;
+    const { session_id, duration, encrypted_payload, stage, username, transcript_text, is_crisis } =
+      payload;
     const effectiveSessionId = session_id || `sess_${Date.now()}`;
 
-    return SessionReporter.generateAndPersist(env, {
-      sessionId: effectiveSessionId,
-      duration: duration || 0,
-      stage: stage || 'Active_Listening',
-      studentName: username || '',
-      userId: username || effectiveSessionId,
-      transcriptText: transcript_text || '',
-      isCrisisExplicit: Boolean(is_crisis),
-      encryptedPayload: encrypted_payload || '',
-    });
+    return SessionReporter.generateAndPersist(
+      env,
+      {
+        sessionId: effectiveSessionId,
+        duration: duration || 0,
+        stage: stage || 'Active_Listening',
+        studentName: username || '',
+        userId: username || effectiveSessionId,
+        transcriptText: transcript_text || '',
+        isCrisisExplicit: Boolean(is_crisis),
+        encryptedPayload: encrypted_payload || '',
+      },
+      ctx,
+    );
   }
 
   /**
@@ -163,7 +203,11 @@ ${cbtGuideSection}`;
    */
   public static async handleKnowledgeQuery(env: Env, query: string, topK: number = 2) {
     const retriever = new BgeRetriever({
-      embeddingApiKey: env.EMBEDDING_API_KEY || env.REALTIME_UPSTREAM_KEY || env.MINIMAX_REALTIME_KEY || env.APIYI_API_KEY,
+      embeddingApiKey:
+        env.EMBEDDING_API_KEY ||
+        env.REALTIME_UPSTREAM_KEY ||
+        env.MINIMAX_REALTIME_KEY ||
+        env.APIYI_API_KEY,
       embeddingApiUrl: env.EMBEDDING_API_URL,
       rerankApiKey: env.RERANK_API_KEY,
       rerankApiUrl: env.RERANK_API_URL,
@@ -203,7 +247,9 @@ ${cbtGuideSection}`;
   private static async fetchDirectMiniMaxReply(env: Env, messages: any[]): Promise<string | null> {
     try {
       const rawBase = env.MINIMAX_BASE_URL || 'https://api.minimaxi.chat/v1';
-      const cleanMinimax = rawBase.trim().endsWith('/') ? rawBase.trim().slice(0, -1) : rawBase.trim();
+      const cleanMinimax = rawBase.trim().endsWith('/')
+        ? rawBase.trim().slice(0, -1)
+        : rawBase.trim();
       const chatEndpoint = cleanMinimax.endsWith('/text/chatcompletion_v2')
         ? cleanMinimax
         : `${cleanMinimax}/text/chatcompletion_v2`;

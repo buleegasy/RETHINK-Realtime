@@ -18,3 +18,7 @@ yarn-error.log*
 Thumbs.db
 coverage/
 *.lcov
+
+# Local Agent instructions & rules (do not push to GitHub)
+.agents/
+.agents/**

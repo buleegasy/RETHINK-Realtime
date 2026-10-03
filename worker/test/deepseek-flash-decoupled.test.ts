@@ -315,5 +315,52 @@ describe('思考与语音解耦架构验证 (OpenRouter DeepSeek V4 Flash 认知
       expect(body.memory.userName).toBe('阿杰');
       expect(body.memory.identityContext).toBe('高二美术生');
     });
+
+    it('GET /api/voice/memory/:userId 普通学生跨用户越权读取返回 403 阻断，本人或教师可读取', async () => {
+      const { signAuthToken, resolveJwtSecret } = await import('../src/lib/auth-crypto');
+      const secret = resolveJwtSecret({});
+      const now = Math.floor(Date.now() / 1000);
+      const studentAToken = await signAuthToken(
+        { uid: 'student_A', username: 'student_A', role: 'user', iat: now, exp: now + 3600 },
+        secret,
+      );
+      const studentBToken = await signAuthToken(
+        { uid: 'student_B', username: 'student_B', role: 'user', iat: now, exp: now + 3600 },
+        secret,
+      );
+      const teacherToken = await signAuthToken(
+        { uid: 'teacher_01', username: 'teacher_01', role: 'teacher', iat: now, exp: now + 3600 },
+        secret,
+      );
+
+      // 1. student_A 尝试越权读取 student_stored_999 的记忆，被 403 拦截
+      const forbiddenRes = await app.request('/api/voice/memory/student_stored_999', {
+        headers: { Authorization: `Bearer ${studentAToken}` },
+      });
+      expect(forbiddenRes.status).toBe(403);
+      const forbiddenData = (await forbiddenRes.json()) as any;
+      expect(forbiddenData.error).toContain('Forbidden');
+
+      // 2. 教师账号可合法穿透查看
+      const teacherRes = await app.request('/api/voice/memory/student_stored_999', {
+        headers: { Authorization: `Bearer ${teacherToken}` },
+      });
+      expect(teacherRes.status).toBe(200);
+
+      // 3. student_B 读取本人记忆返回 200
+      await saveSituationalMemory({} as any, {
+        userId: 'student_B',
+        userName: '小B',
+        coreConcerns: ['考研压力'],
+        summaryParagraph: '小B同学近期备战考研。',
+        lastUpdated: Date.now(),
+      });
+      const ownerRes = await app.request('/api/voice/memory/student_B', {
+        headers: { Authorization: `Bearer ${studentBToken}` },
+      });
+      expect(ownerRes.status).toBe(200);
+      const ownerData = (await ownerRes.json()) as any;
+      expect(ownerData.memory.userName).toBe('小B');
+    });
   });
 });

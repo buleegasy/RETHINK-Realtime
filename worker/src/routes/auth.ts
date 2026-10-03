@@ -9,15 +9,18 @@ let usersTableInitialized = false;
 async function ensureUsersTable(env: Env): Promise<void> {
   if (!env.DB || usersTableInitialized) return;
   try {
-    await env.DB.prepare(`
+    await env.DB.prepare(
+      `
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE,
         password_hash TEXT,
         display_name TEXT,
+        role TEXT DEFAULT 'user',
         created_at INTEGER DEFAULT (unixepoch())
       )
-    `).run();
+    `,
+    ).run();
     usersTableInitialized = true;
   } catch (err) {
     console.warn('[Auth] users 数据表校验跳过或已存在:', err);
@@ -25,7 +28,14 @@ async function ensureUsersTable(env: Env): Promise<void> {
 }
 
 // 内存测试/无数据库兜底用户表 (加盐哈希存储)
-const memoryUsers = new Map<string, { id: string; passwordHash: string; displayName: string }>();
+const memoryUsers = new Map<
+  string,
+  { id: string; passwordHash: string; displayName: string; role?: string }
+>();
+
+export function getMemoryUser(username: string) {
+  return memoryUsers.get(username);
+}
 
 // 仅在非生产/测试环境中初始化内置测试账号，生产环境严禁预置任何静态测试账号
 if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
@@ -36,13 +46,13 @@ if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
         id: 'usr_testuser',
         passwordHash: defaultHash,
         displayName: 'testuser',
+        role: 'user',
       });
     } catch (err) {
       console.warn('[Auth] 内存默认测试用户初始化异常:', err);
     }
   })();
 }
-
 
 interface AuthVerificationResult {
   ok: boolean;
@@ -54,11 +64,15 @@ interface AuthVerificationResult {
   };
 }
 
-async function verifyUserCredentials(cleanUser: string, password: string, env: Env): Promise<AuthVerificationResult> {
+async function verifyUserCredentials(
+  cleanUser: string,
+  password: string,
+  env: Env,
+): Promise<AuthVerificationResult> {
   if (env.DB) {
     try {
       const userRow = await env.DB.prepare(
-        'SELECT id, username, password_hash, display_name FROM users WHERE username = ?'
+        'SELECT id, username, password_hash, display_name FROM users WHERE username = ?',
       )
         .bind(cleanUser)
         .first<{ id?: string; username?: string; password_hash?: string; display_name?: string }>();
@@ -141,7 +155,7 @@ authRouter.post('/login', async (c) => {
       iat: currentEpoch,
       exp: currentEpoch + 7 * 86400, // 7 天有效
     },
-    secretKey
+    secretKey,
   );
 
   return c.json({
@@ -180,9 +194,10 @@ authRouter.post('/register', async (c) => {
     return c.json({ success: false, error: '密码长度至少需为 6 位' }, 400);
   }
 
-  const chosenName = (displayName && typeof displayName === 'string' && displayName.trim())
-    ? displayName.trim()
-    : cleanUser;
+  const chosenName =
+    displayName && typeof displayName === 'string' && displayName.trim()
+      ? displayName.trim()
+      : cleanUser;
 
   const env = c.env || {};
   const newUserId = `usr_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
@@ -193,7 +208,7 @@ authRouter.post('/register', async (c) => {
   if (env.DB) {
     try {
       await env.DB.prepare(
-        'INSERT INTO users (id, username, password_hash, display_name) VALUES (?, ?, ?, ?)'
+        'INSERT INTO users (id, username, password_hash, display_name) VALUES (?, ?, ?, ?)',
       )
         .bind(newUserId, cleanUser, passwordHash, chosenName)
         .run();
@@ -212,6 +227,7 @@ authRouter.post('/register', async (c) => {
       id: newUserId,
       passwordHash,
       displayName: chosenName,
+      role: 'user',
     });
   }
 
@@ -231,7 +247,7 @@ authRouter.post('/register', async (c) => {
       iat: currentEpoch,
       exp: currentEpoch + 7 * 86400,
     },
-    secretKey
+    secretKey,
   );
 
   return c.json({
@@ -255,9 +271,8 @@ authRouter.post('/kiosk-login', async (c) => {
     body = {};
   }
 
-  const deviceId = (body.deviceId && typeof body.deviceId === 'string')
-    ? body.deviceId.trim()
-    : 'kiosk-booth-01';
+  const deviceId =
+    body.deviceId && typeof body.deviceId === 'string' ? body.deviceId.trim() : 'kiosk-booth-01';
 
   const env = c.env || {};
   const currentEpoch = Math.floor(Date.now() / 1000);
@@ -276,7 +291,7 @@ authRouter.post('/kiosk-login', async (c) => {
       iat: currentEpoch,
       exp: currentEpoch + 30 * 86400, // 终端 Token 30 天有效
     },
-    kioskSecret
+    kioskSecret,
   );
 
   return c.json({

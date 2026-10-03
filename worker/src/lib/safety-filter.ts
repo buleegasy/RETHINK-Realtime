@@ -127,23 +127,131 @@ class AhoCorasick {
 
 const CRISIS_KEYWORDS: string[] = [
   // 极端念头与绝望意图
-  '想死', '寻死', '自杀', '自绝', '自戕', '轻生', '厌世', '想自杀', '准备自杀', '计划自杀',
-  '去死', '非死不可', '以死谢罪', '马上去死', '现在就死', '让我死', '不如死了', '死了算了', '死掉算了', '早点解脱', '彻底解脱',
-  '一了百了', '绝命', '绝笔', '绝命书', '写好遗书', '立遗嘱', '交代后事', '托付后事',
-  '下辈子再见', '来生再见', '永别了', '告别这个世界', '跟世界告别', '离开这个世界',
-  '不想在这个世界', '不想活了', '不想活', '不想再活', '活不下去', '活够了', '活着没意思',
-  '活着好累', '活着太痛苦', '活着没有任何意义', '求死', '想要解脱', '别救我', '谁也别救我',
-  '不需要抢救', '签署放弃抢救', '不想再醒来', '再也不想睁开眼', '永远闭上眼睛', '只想永远睡过去',
-  '让我安静地走', '没有活下去的理由', '彻底放弃自己',
+  '想死',
+  '寻死',
+  '自杀',
+  '自绝',
+  '自戕',
+  '轻生',
+  '厌世',
+  '想自杀',
+  '准备自杀',
+  '计划自杀',
+  '去死',
+  '非死不可',
+  '以死谢罪',
+  '马上去死',
+  '现在就死',
+  '让我死',
+  '不如死了',
+  '死了算了',
+  '死掉算了',
+  '早点解脱',
+  '彻底解脱',
+  '一了百了',
+  '绝命',
+  '绝笔',
+  '绝命书',
+  '写好遗书',
+  '立遗嘱',
+  '交代后事',
+  '托付后事',
+  '下辈子再见',
+  '来生再见',
+  '永别了',
+  '告别这个世界',
+  '跟世界告别',
+  '离开这个世界',
+  '不想在这个世界',
+  '不想活了',
+  '不想活',
+  '不想再活',
+  '活不下去',
+  '活够了',
+  '活着没意思',
+  '活着好累',
+  '活着太痛苦',
+  '活着没有任何意义',
+  '求死',
+  '想要解脱',
+  '别救我',
+  '谁也别救我',
+  '不需要抢救',
+  '签署放弃抢救',
+  '不想再醒来',
+  '再也不想睁开眼',
+  '永远闭上眼睛',
+  '只想永远睡过去',
+  '让我安静地走',
+  '没有活下去的理由',
+  '彻底放弃自己',
   // 高危物理自戕手段
-  '跳楼', '跳桥', '跳河', '跳江', '跳海', '跳井', '跳悬崖', '跳下站台', '卧轨', '跳下地铁',
-  '跳下去', '爬上天台', '站在天台', '站在窗台', '爬到窗外', '站在顶楼', '站在桥栏', '一跃而下',
-  '吞药', '服毒', '大剂量吃药', '过量服药', '吃安眠药', '吞安眠药', '一整瓶安眠药', '喝农药',
-  '百草枯', '敌敌畏', '有机磷', '断肠草', '剧毒', '砒霜', '氰化钾', '吃药自杀', '吞大量药物',
-  '割腕', '割破手腕', '放血', '割大动脉', '划破手腕', '用刀割', '拿刀划', '拿小刀划手',
-  '用玻璃割', '自残', '自伤', '自虐', '撞墙自杀', '塑料袋套头', '用绳子勒颈', '上吊', '吊颈',
-  '悬梁', '勒死自己', '窒息自杀', '烧炭', '烧炭自杀', '炭火自杀', '紧闭门窗烧炭', '一氧化碳中毒',
-  '开煤气', '放瓦斯', '开瓦斯', '吸入瓦斯', '触电自杀', '引火自焚'
+  '跳楼',
+  '跳桥',
+  '跳河',
+  '跳江',
+  '跳海',
+  '跳井',
+  '跳悬崖',
+  '跳下站台',
+  '卧轨',
+  '跳下地铁',
+  '跳下去',
+  '爬上天台',
+  '站在天台',
+  '站在窗台',
+  '爬到窗外',
+  '站在顶楼',
+  '站在桥栏',
+  '一跃而下',
+  '吞药',
+  '服毒',
+  '大剂量吃药',
+  '过量服药',
+  '吃安眠药',
+  '吞安眠药',
+  '一整瓶安眠药',
+  '喝农药',
+  '百草枯',
+  '敌敌畏',
+  '有机磷',
+  '断肠草',
+  '剧毒',
+  '砒霜',
+  '氰化钾',
+  '吃药自杀',
+  '吞大量药物',
+  '割腕',
+  '割破手腕',
+  '放血',
+  '割大动脉',
+  '划破手腕',
+  '用刀割',
+  '拿刀划',
+  '拿小刀划手',
+  '用玻璃割',
+  '自残',
+  '自伤',
+  '自虐',
+  '撞墙自杀',
+  '塑料袋套头',
+  '用绳子勒颈',
+  '上吊',
+  '吊颈',
+  '悬梁',
+  '勒死自己',
+  '窒息自杀',
+  '烧炭',
+  '烧炭自杀',
+  '炭火自杀',
+  '紧闭门窗烧炭',
+  '一氧化碳中毒',
+  '开煤气',
+  '放瓦斯',
+  '开瓦斯',
+  '吸入瓦斯',
+  '触电自杀',
+  '引火自焚',
 ];
 
 const acAutomaton = new AhoCorasick(CRISIS_KEYWORDS);
@@ -164,10 +272,10 @@ const AFFIRMATIVE_EXCEPTION_PATTERNS = [
 
 // Step 2: 否定前缀断言模式
 const NEGATION_PREFIX_PATTERNS = [
-  /(?:并不(?:是)?|并非|没有?|并未|未曾|不曾|绝不|决不|绝无|毫无|绝非)(?:想|要|打算|准备|去|试图|会)?$/,
-  /(?:不会|不可能|压根(?:都)?不|根本(?:都)?不|才不(?:会)?|哪有|哪会)(?:想|要|打算|准备|去|试图|会)?$/,
-  /(?:谁说[我他她]?|不至于|难道[我他她]?|傻子才|别|千万(?:别|不要))(?:想|要|打算|准备|去|试图|会)?$/,
-  /不(?:想|打算|准备|会)?$/,
+  /(?:并不是?|并非|没有?|并没|从未|从来没(?:有)?|并未|未曾|不曾|绝不|决不|绝无|毫无|绝非)(?:想|要|打算|准备|去|试图|会)?(?:过)?$/,
+  /(?:不会|不可能|压根(?:都)?不|根本(?:都)?不|才不(?:会)?|哪有|哪会)(?:想|要|打算|准备|去|试图|会)?(?:过)?$/,
+  /(?:谁说[我他她]?|不至于|难道[我他她]?|傻子才|别|千万(?:别|不要))(?:想|要|打算|准备|去|试图|会)?(?:过)?$/,
+  /不(?:是)?(?:想|要|打算|准备|会)?(?:过)?$/,
 ];
 
 // Step 3: 第三方劝阻、干预与客观叙事模式
@@ -180,15 +288,13 @@ const NARRATIVE_PREFIX_PATTERNS = [
 ];
 
 // Step 4: 意念消除与转归模式
-const RESOLUTION_PREFIX_PATTERN =
-  /(打消|放弃|停止|走出|摆脱|克服|消除).{0,6}$/;
+const RESOLUTION_PREFIX_PATTERN = /(打消|放弃|停止|走出|摆脱|克服|消除).{0,6}$/;
 
-const RESOLUTION_SUFFIX_PATTERN =
-  /^(的)?(念头|想法|打算|倾向|冲动|阴影)/;
+const RESOLUTION_SUFFIX_PATTERN = /^(的)?(念头|想法|打算|倾向|冲动|阴影)/;
 
 export function evaluateCrisisMatch(
   text: string,
-  match: { keyword: string; start: number; end: number }
+  match: { keyword: string; start: number; end: number },
 ): { isDisambiguated: boolean; reason?: string } {
   // 1. 真实危机反向豁免检查 (Affirmative Exception Guard)
   const surroundingClause = extractSurroundingClause(text, match.start, match.end);
@@ -206,17 +312,29 @@ export function evaluateCrisisMatch(
 
   // 3. 第三方劝阻与干预 (Intervention Context)
   if (INTERVENTION_PREFIX_PATTERN.test(prefixWindow)) {
-    return { isDisambiguated: true, reason: `第三方劝阻消歧通过: "${prefixWindow}${match.keyword}"` };
+    return {
+      isDisambiguated: true,
+      reason: `第三方劝阻消歧通过: "${prefixWindow}${match.keyword}"`,
+    };
   }
 
   // 4. 客观叙事/影视新闻语境 (Narrative Context)
   if (NARRATIVE_PREFIX_PATTERNS.some((p) => p.test(prefixWindow))) {
-    return { isDisambiguated: true, reason: `客观叙事语境消歧通过: "${prefixWindow}${match.keyword}"` };
+    return {
+      isDisambiguated: true,
+      reason: `客观叙事语境消歧通过: "${prefixWindow}${match.keyword}"`,
+    };
   }
 
   // 5. 意念消除与转归标记 (Resolution Markers)
-  if (RESOLUTION_PREFIX_PATTERN.test(prefixWindow) || RESOLUTION_SUFFIX_PATTERN.test(suffixWindow)) {
-    return { isDisambiguated: true, reason: `意念消除消歧通过: "${prefixWindow}${match.keyword}${suffixWindow}"` };
+  if (
+    RESOLUTION_PREFIX_PATTERN.test(prefixWindow) ||
+    RESOLUTION_SUFFIX_PATTERN.test(suffixWindow)
+  ) {
+    return {
+      isDisambiguated: true,
+      reason: `意念消除消歧通过: "${prefixWindow}${match.keyword}${suffixWindow}"`,
+    };
   }
 
   return { isDisambiguated: false, reason: '未经消歧的有效危机词' };
@@ -271,17 +389,17 @@ export function disambiguateCrisis(text: string): L1DisambiguationResult {
 }
 
 function deduplicateMatches(
-  matches: Array<{ keyword: string; start: number; end: number }>
+  matches: Array<{ keyword: string; start: number; end: number }>,
 ): Array<{ keyword: string; start: number; end: number }> {
   if (matches.length <= 1) return matches;
 
   // 按照覆盖范围从长到短排序
-  const sorted = [...matches].sort((a, b) => (b.end - b.start) - (a.end - a.start));
+  const sorted = [...matches].sort((a, b) => b.end - b.start - (a.end - a.start));
   const accepted: Array<{ keyword: string; start: number; end: number }> = [];
 
   for (const candidate of sorted) {
     const isContained = accepted.some(
-      (acc) => candidate.start >= acc.start && candidate.end <= acc.end
+      (acc) => candidate.start >= acc.start && candidate.end <= acc.end,
     );
     if (!isContained) {
       accepted.push(candidate);
@@ -302,7 +420,7 @@ export function isNegatedCrisis(text: string): boolean {
 
 export async function checkL2FlashSafety(
   text: string,
-  options?: SafetyCheckOptions
+  options?: SafetyCheckOptions,
 ): Promise<boolean> {
   const clean = (text || '').trim();
   if (!clean) return false;
@@ -311,9 +429,10 @@ export async function checkL2FlashSafety(
   if (!apiKey) return false;
 
   const baseUrl = (options?.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-  const model = options?.model && options.model !== 'deepseek/deepseek-v4-flash'
-    ? options.model
-    : atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx');
+  const model =
+    options?.model && options.model !== 'deepseek/deepseek-v4-flash'
+      ? options.model
+      : atob('Z29vZ2xlL2dlbWluaS0yLjAtZmxhc2gtMDAx');
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
 
   try {
@@ -331,7 +450,8 @@ export async function checkL2FlashSafety(
         messages: [
           {
             role: 'system',
-            content: '你是校园心理危机与极端安全拦截哨兵。请判定输入文本是否存在自杀、自残、绝命、蓄意自戕或极高危危机意图。若有此类极端危险，只回复1；若属于日常倾诉、压力或一般对话，只回复0。绝对严禁输出任何多余字符，只输出一个字符（0或1）。',
+            content:
+              '你是校园心理危机与极端安全拦截哨兵。请判定输入文本是否存在自杀、自残、绝命、蓄意自戕或极高危危机意图。若有此类极端危险，只回复1；若属于日常倾诉、压力或一般对话，只回复0。绝对严禁输出任何多余字符，只输出一个字符（0或1）。',
           },
           {
             role: 'user',
@@ -355,7 +475,7 @@ export async function checkL2FlashSafety(
 
 export async function checkDoubleSpeedSafety(
   text: string,
-  options?: SafetyCheckOptions
+  options?: SafetyCheckOptions,
 ): Promise<DoubleSpeedSafetyResult> {
   const l1Result = disambiguateCrisis(text);
   if (l1Result.isCrisis) {

@@ -139,6 +139,7 @@ export function useVoiceSession() {
         sessionId: sessionIdRef.current,
         userId: user?.uid || user?.userName,
         username: user?.displayName || user?.userName,
+        token: useAuthStore.getState().token || undefined,
         callbacks: {
           onOpen: () => {
             setSessionStatus('connected');

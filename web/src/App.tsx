@@ -4,7 +4,10 @@ import { LoginWall } from './components/auth/LoginWall';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useAuthStore } from './store/authStore';
 import { useModeStore } from './store/modeStore';
+import { useBoothStore } from './store/boothStore';
 import { useVoiceSession } from './hooks/useVoiceSession';
+import { useTelephoneBooth } from './hooks/useTelephoneBooth';
+import { useKioskWatchdog } from './hooks/useKioskWatchdog';
 import { apiFetch } from './lib/api';
 
 const AdminPortal = lazy(() =>
@@ -19,7 +22,24 @@ export function App() {
   const login = useAuthStore((s) => s.login);
   const hasAutoLoggedInRef = useRef(false);
 
-  const { startCall, endCall, interrupt } = useVoiceSession();
+  const hookState = useBoothStore((s) => s.hookState);
+  const { startCall, endCall, interrupt, toggleMute } = useVoiceSession();
+
+  // 1. 电话亭物理按键 (Space/Enter/Esc/M) 与挂摘机硬件交互
+  useTelephoneBooth({
+    onPickUp: startCall,
+    onHangUp: endCall,
+    onInterrupt: interrupt,
+    onToggleMute: toggleMute,
+  });
+
+  // 2. 树莓派电话亭无人值守静默看门狗：持续 120 秒静默无声自动挂机复位
+  useKioskWatchdog({
+    enabled: runMode === 'kiosk' && isAuthenticated,
+    isOffHook: hookState !== 'on_hook' && hookState !== 'ended',
+    silenceTimeoutSeconds: 120,
+    onSilenceTimeout: endCall,
+  });
 
   useEffect(() => {
     if (runMode !== 'kiosk') {

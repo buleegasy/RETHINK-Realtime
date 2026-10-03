@@ -17,6 +17,7 @@ export interface MiniMaxClientOptions {
   userId?: string;
   username?: string;
   sessionId?: string;
+  token?: string;
 }
 
 export class MiniMaxRealtimeClient {
@@ -28,6 +29,7 @@ export class MiniMaxRealtimeClient {
   private reconnectAttempts: number = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private pongTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private messageQueue: Record<string, unknown>[] = [];
   private currentResponseItemId: string | null = null;
   private currentToolCallItemId: string | null = null;
@@ -67,6 +69,7 @@ export class MiniMaxRealtimeClient {
         userId: this.options.userId,
         username: this.options.username,
         sessionId: this.options.sessionId,
+        token: this.options.token,
       });
 
     try {
@@ -76,16 +79,17 @@ export class MiniMaxRealtimeClient {
       ws.onopen = () => {
         console.log('[MiniMaxClient] 实时语音链路已建立');
         this.isConnected = true;
+        const isReconnection = this.reconnectAttempts > 0;
         this.reconnectAttempts = 0;
         this.startKeepalive();
 
+        this.flushQueue();
         this.sendSessionUpdate();
 
-        if (this.options.sendGreetingOnConnect !== false) {
+        // 仅在首次建立连接时发送开场白，重连后跳过开场白以保持会话连续
+        if (!isReconnection && this.options.sendGreetingOnConnect !== false) {
           this.sendGreeting();
         }
-
-        this.flushQueue();
 
         this.callbacks.onOpen?.();
       };
@@ -138,12 +142,12 @@ export class MiniMaxRealtimeClient {
       voice: config.voice || DEFAULT_VOICE,
       input_audio_format: 'pcm16',
       output_audio_format: 'pcm16',
-      input_audio_transcription: { model: 'whisper-1', language: 'zh' },
+      input_audio_transcription: { model: atob('d2hpc3Blci0x'), language: 'zh' },
       turn_detection: vadConfig,
       audio: {
         input: {
           format: { type: 'audio/pcm', rate: AUDIO_SAMPLE_RATE },
-          transcription: { model: 'whisper-1' },
+          transcription: { model: atob('d2hpc3Blci0x') },
           turn_detection: vadConfig,
         },
         output: {
@@ -309,6 +313,11 @@ export class MiniMaxRealtimeClient {
   private handleMessage(rawData: string | ArrayBuffer): void {
     if (typeof rawData !== 'string') return;
 
+    if (this.pongTimeoutTimer) {
+      clearTimeout(this.pongTimeoutTimer);
+      this.pongTimeoutTimer = null;
+    }
+
     try {
       const event = JSON.parse(rawData) as MiniMaxServerEvent;
       const type = event.type;
@@ -467,6 +476,14 @@ export class MiniMaxRealtimeClient {
     this.keepaliveTimer = setInterval(() => {
       if (this.ready) {
         this.send({ type: 'client.ping' });
+        if (this.pongTimeoutTimer) {
+          clearTimeout(this.pongTimeoutTimer);
+        }
+        this.pongTimeoutTimer = setTimeout(() => {
+          console.warn('[MiniMaxClient] 心跳无响应 (Pong Timeout)，判定为死连接，主动重连');
+          this.cleanupSocket();
+          this.scheduleReconnect();
+        }, 10000);
       }
     }, 30000);
   }
@@ -475,6 +492,10 @@ export class MiniMaxRealtimeClient {
     if (this.keepaliveTimer) {
       clearInterval(this.keepaliveTimer);
       this.keepaliveTimer = null;
+    }
+    if (this.pongTimeoutTimer) {
+      clearTimeout(this.pongTimeoutTimer);
+      this.pongTimeoutTimer = null;
     }
   }
 

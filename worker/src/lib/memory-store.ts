@@ -7,24 +7,63 @@ export function clearMemoryCache(): void {
   memoryCache.clear();
 }
 
+function safeParseJson<T>(raw: string | undefined | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
 async function ensureMemoryTable(env: Env): Promise<void> {
   if (!env?.DB || memoryTableReady) return;
   try {
-    await env.DB.prepare(`
+    await env.DB.prepare(
+      `
       CREATE TABLE IF NOT EXISTS user_situational_memories (
         user_id TEXT PRIMARY KEY,
         user_name TEXT,
+        identity_context TEXT,
+        core_concerns TEXT,
+        significant_others TEXT,
+        recent_situations TEXT,
+        effective_strategies TEXT,
+        summary_paragraph TEXT,
         memory_json TEXT,
+        last_updated INTEGER,
         updated_at INTEGER
       )
-    `).run();
+    `,
+    ).run();
+
+    // 动态兼容已有数据库的旧结构
+    try {
+      await env.DB.prepare(
+        'ALTER TABLE user_situational_memories ADD COLUMN memory_json TEXT',
+      ).run();
+    } catch {}
+    try {
+      await env.DB.prepare(
+        'ALTER TABLE user_situational_memories ADD COLUMN updated_at INTEGER',
+      ).run();
+    } catch {}
+    try {
+      await env.DB.prepare(
+        'ALTER TABLE user_situational_memories ADD COLUMN last_updated INTEGER',
+      ).run();
+    } catch {}
+
     memoryTableReady = true;
   } catch (err) {
     console.warn('[MemoryStore] 校验情景记忆表结构跳过:', err);
   }
 }
 
-export async function getSituationalMemory(env: Env, userId: string): Promise<SituationalMemory | null> {
+export async function getSituationalMemory(
+  env: Env,
+  userId: string,
+): Promise<SituationalMemory | null> {
   const cleanId = (userId || '').trim();
   if (!cleanId) return null;
 
@@ -37,15 +76,38 @@ export async function getSituationalMemory(env: Env, userId: string): Promise<Si
       await ensureMemoryTable(env);
 
       const row = await env.DB.prepare(
-        'SELECT memory_json FROM user_situational_memories WHERE user_id = ? OR user_name = ?'
+        'SELECT * FROM user_situational_memories WHERE user_id = ? OR user_name = ?',
       )
         .bind(cleanId, cleanId)
         .first<any>();
 
-      if (row?.memory_json) {
-        const parsed = JSON.parse(row.memory_json) as SituationalMemory;
-        memoryCache.set(cleanId, parsed);
-        return parsed;
+      if (row) {
+        let parsed: SituationalMemory | null = null;
+        if (row.memory_json) {
+          try {
+            parsed = JSON.parse(row.memory_json);
+          } catch {}
+        }
+        if (!parsed && row.user_id) {
+          parsed = {
+            userId: row.user_id,
+            userName: row.user_name || undefined,
+            identityContext: row.identity_context || undefined,
+            coreConcerns: safeParseJson<string[]>(row.core_concerns, []),
+            significantOthers: safeParseJson<string[]>(row.significant_others, []),
+            recentSituations: safeParseJson<string[]>(row.recent_situations, []),
+            effectiveStrategies: safeParseJson<string[]>(row.effective_strategies, []),
+            summaryParagraph: row.summary_paragraph || '',
+            lastUpdated: row.last_updated || row.updated_at || Date.now(),
+          };
+        }
+        if (parsed) {
+          memoryCache.set(cleanId, parsed);
+          if (parsed.userName) {
+            memoryCache.set(parsed.userName.trim(), parsed);
+          }
+          return parsed;
+        }
       }
     } catch (err) {
       console.warn('[MemoryStore] D1 情景记忆读取异常:', err);
@@ -71,15 +133,40 @@ export async function saveSituationalMemory(env: Env, memory: SituationalMemory)
       await ensureMemoryTable(env);
 
       const memoryJson = JSON.stringify(memory);
-      await env.DB.prepare(`
-        INSERT INTO user_situational_memories (user_id, user_name, memory_json, updated_at)
-        VALUES (?, ?, ?, ?)
+      const now = memory.lastUpdated || Date.now();
+      await env.DB.prepare(
+        `
+        INSERT INTO user_situational_memories (
+          user_id, user_name, identity_context, core_concerns,
+          significant_others, recent_situations, effective_strategies,
+          summary_paragraph, memory_json, last_updated, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
           user_name = excluded.user_name,
+          identity_context = excluded.identity_context,
+          core_concerns = excluded.core_concerns,
+          significant_others = excluded.significant_others,
+          recent_situations = excluded.recent_situations,
+          effective_strategies = excluded.effective_strategies,
+          summary_paragraph = excluded.summary_paragraph,
           memory_json = excluded.memory_json,
+          last_updated = excluded.last_updated,
           updated_at = excluded.updated_at
-      `)
-        .bind(cleanId, memory.userName || cleanId, memoryJson, memory.lastUpdated || Date.now())
+      `,
+      )
+        .bind(
+          cleanId,
+          memory.userName || cleanId,
+          memory.identityContext || '',
+          JSON.stringify(memory.coreConcerns || []),
+          JSON.stringify(memory.significantOthers || []),
+          JSON.stringify(memory.recentSituations || []),
+          JSON.stringify(memory.effectiveStrategies || []),
+          memory.summaryParagraph || '',
+          memoryJson,
+          now,
+          now,
+        )
         .run();
     } catch (err) {
       console.warn('[MemoryStore] D1 情景记忆持久化异常:', err);

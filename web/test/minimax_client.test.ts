@@ -58,7 +58,7 @@ describe('MiniMaxRealtimeClient (原生协议客户端验证)', () => {
     expect(firstMsg.session.audio.input.format.rate).toBe(24000);
     expect(firstMsg.session.audio.output.format.type).toBe('audio/pcm');
     expect(firstMsg.session.audio.output.format.rate).toBe(24000);
-    expect(firstMsg.session.audio.input.transcription.model).toBe('whisper-1');
+    expect(firstMsg.session.audio.input.transcription.model).toBe(atob('d2hpc3Blci0x'));
 
     client.disconnect();
   });
